@@ -1,3 +1,4 @@
+
 "use server";
 
 import type { ScheduleFormValues, Schedule, ScheduleEntry, DoctorFormFieldInput } from "./types";
@@ -46,7 +47,6 @@ export async function generateScheduleAction(
           });
           dayHasAssignment = true; 
           // For simplicity, assume one pre-assignment takes precedence for the day.
-          // Real system might allow multiple doctors or have complex rules.
         } else if (isDateInArray(currentDate, doctor.vacationDates)) {
           mockEntries.push({
             date: new Date(currentDate),
@@ -56,11 +56,11 @@ export async function generateScheduleAction(
           });
           // Note: This doctor is on vacation. They shouldn't be assigned 'Work'.
         }
+        // Excluded dates are not turned into "Excluded" assignments on the calendar,
+        // they just prevent 'Work' assignments. So no explicit entry for them here.
       }
 
       // If no pre-assignment for the day, assign 'Work' based on round-robin
-      // This naive mock doesn't perfectly ensure fairness or avoid assigning work to a doctor on vacation.
-      // The actual AI flow would handle this.
       if (!dayHasAssignment && doctorsWithIds.length > 0) {
         let assignedWork = false;
         let attempts = 0;
@@ -68,8 +68,9 @@ export async function generateScheduleAction(
           const doctorToAssign = doctorsWithIds[workDoctorIndex % doctorsWithIds.length];
           const isDoctorOnVacation = isDateInArray(currentDate, doctorToAssign.vacationDates);
           const isDoctorPreassigned = isDateInArray(currentDate, doctorToAssign.preAssignedWorkDates);
+          const isDoctorExcluded = isDateInArray(currentDate, doctorToAssign.excludedDates);
 
-          if (!isDoctorOnVacation && !isDoctorPreassigned) {
+          if (!isDoctorOnVacation && !isDoctorPreassigned && !isDoctorExcluded) {
             mockEntries.push({
               date: new Date(currentDate),
               doctorId: doctorToAssign.id,
@@ -81,8 +82,7 @@ export async function generateScheduleAction(
           workDoctorIndex++;
           attempts++;
         }
-        if(!assignedWork) {
-           // If all doctors are on vacation or pre-assigned, mark day as 'Off' or handle as per logic
+        if(!assignedWork && !dayHasAssignment) { // Ensure we only add 'Off' if no other assignment took place for the day
             mockEntries.push({
                 date: new Date(currentDate),
                 doctorId: 'system', // No specific doctor
@@ -90,7 +90,7 @@ export async function generateScheduleAction(
                 dayOfWeek,
             });
         }
-      } else if (doctorsWithIds.length === 0) {
+      } else if (doctorsWithIds.length === 0 && !dayHasAssignment) {
          mockEntries.push({
             date: new Date(currentDate),
             doctorId: 'system',

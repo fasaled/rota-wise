@@ -29,6 +29,7 @@
   "page.toast.errorSavingPdf.title": "Error al Guardar PDF",
   "page.toast.scheduleWarning.title": "Advertencia de Horario",
   "page.toast.scheduleWarning.description": "{doctorName} está programado para trabajar en un día de vacaciones.",
+  "page.toast.excludedDayWarning.description": "{doctorName} está programado para trabajar en un día excluido.",
 
   "form.title": "Parámetros del Horario",
   "form.description": "Defina los médicos y el rango de fechas para el horario.",
@@ -42,6 +43,7 @@
   "form.doctorNamePlaceholder": "Ej: Dr. García",
   "form.vacationDates": "Fechas de Vacaciones",
   "form.preAssignedWorkDates": "Fechas de Trabajo Preasignadas",
+  "form.excludedDates": "Fechas Excluidas",
   "form.selectDates": "Seleccionar fechas",
   "form.datesSelected": "{count} fecha(s) seleccionada(s)",
   "form.generateButton": "Generar Horario",
@@ -70,6 +72,7 @@
   "dialog.toast.validationError.description": "Por favor, seleccione un médico para este tipo de asignación.",
   "dialog.toast.adjustmentWarning.title": "Advertencia de Ajuste",
   "dialog.toast.adjustmentWarning.description": "{doctorName} está de vacaciones este día. No se puede asignar Trabajo o Preasignado.",
+  "dialog.toast.excludedDayWarning.description": "{doctorName} tiene este día excluido. No se puede asignar Trabajo o Preasignado.",
   "dialog.toast.scheduleUpdated.title": "Horario Actualizado",
   "dialog.toast.scheduleUpdated.description.modified": "La asignación para {date} ha sido modificada.",
   "dialog.toast.scheduleUpdated.description.added": "La asignación para {date} ha sido añadida.",
@@ -88,6 +91,7 @@
   "pdf.preAssignedWork": "Trabajo Preasignado",
   "pdf.generatedWork": "Trabajo Generado",
   "pdf.vacation": "Vacaciones",
+  "pdf.excludedDates": "Fechas Excluidas",
 
   "footer.copyright": "© {year} RotaWise. Todos los derechos reservados.",
   "language.selector.label": "Idioma",

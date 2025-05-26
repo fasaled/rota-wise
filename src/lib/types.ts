@@ -1,3 +1,4 @@
+
 import type { z } from 'zod';
 import type { scheduleFormSchema } from '@/components/rotawise/data-input-form'; // Updated path
 
@@ -10,6 +11,7 @@ export interface Doctor {
 export interface DoctorProfile extends Doctor {
   vacationDates: Date[];
   preAssignedWorkDates: Date[];
+  excludedDates: Date[];
 }
 
 // Input for a single doctor in the form
@@ -18,6 +20,7 @@ export interface DoctorFormFieldInput {
   name: string;
   vacationDates: Date[];
   preAssignedWorkDates: Date[];
+  excludedDates: Date[];
 }
 
 // Full form input schema type
@@ -55,14 +58,16 @@ export interface SerializedSchedule extends Omit<Schedule, 'startDate' | 'endDat
   entries: SerializedScheduleEntry[];
 }
 
-export interface SerializedDoctorProfile extends Omit<DoctorProfile, 'vacationDates' | 'preAssignedWorkDates'> {
+export interface SerializedDoctorProfile extends Omit<DoctorProfile, 'vacationDates' | 'preAssignedWorkDates' | 'excludedDates'> {
   vacationDates: string[]; // Array of ISO date strings
   preAssignedWorkDates: string[]; // Array of ISO date strings
+  excludedDates: string[]; // Array of ISO date strings
 }
 
-export interface SerializedDoctorFormFieldInput extends Omit<DoctorFormFieldInput, 'vacationDates' | 'preAssignedWorkDates'> {
+export interface SerializedDoctorFormFieldInput extends Omit<DoctorFormFieldInput, 'vacationDates' | 'preAssignedWorkDates' | 'excludedDates'> {
   vacationDates: string[]; // Array of ISO date strings
   preAssignedWorkDates: string[]; // Array of ISO date strings
+  excludedDates: string[]; // Array of ISO date strings
 }
 
 export interface SerializedScheduleFormValues extends Omit<ScheduleFormValues, 'startDate' | 'endDate' | 'doctors'> {

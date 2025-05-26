@@ -85,6 +85,21 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
             });
             return; 
         }
+
+        const isExcludedDayForDoctor = doctor.excludedDates.some(exDate =>
+            exDate.getFullYear() === date.getFullYear() &&
+            exDate.getMonth() === date.getMonth() &&
+            exDate.getDate() === date.getDate()
+        );
+
+        if (isExcludedDayForDoctor && (assignmentType === 'Work' || assignmentType === 'Pre-assigned')) {
+            toast({
+                title: t('dialog.toast.adjustmentWarning.title'), // Use same title or create a new one
+                description: t('dialog.toast.excludedDayWarning.description', { doctorName: doctor.name }),
+                variant: "destructive",
+            });
+            return;
+        }
     }
     
     onSave(updatedEntry);

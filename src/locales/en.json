@@ -1,3 +1,4 @@
+
 {
   "header.title": "RotaWise",
   "header.description": "Fair and Balanced Doctor Scheduling",
@@ -28,6 +29,7 @@
   "page.toast.errorSavingPdf.title": "Error Saving PDF",
   "page.toast.scheduleWarning.title": "Schedule Warning",
   "page.toast.scheduleWarning.description": "{doctorName} is scheduled to work on a vacation day.",
+  "page.toast.excludedDayWarning.description": "{doctorName} is scheduled to work on an excluded day.",
 
   "form.title": "Schedule Parameters",
   "form.description": "Define the doctors and date range for the schedule.",
@@ -41,6 +43,7 @@
   "form.doctorNamePlaceholder": "e.g., Dr. Smith",
   "form.vacationDates": "Vacation Dates",
   "form.preAssignedWorkDates": "Pre-assigned Work Dates",
+  "form.excludedDates": "Excluded Dates",
   "form.selectDates": "Select dates",
   "form.datesSelected": "{count} date(s) selected",
   "form.generateButton": "Generate Schedule",
@@ -69,6 +72,7 @@
   "dialog.toast.validationError.description": "Please select a doctor for this assignment type.",
   "dialog.toast.adjustmentWarning.title": "Adjustment Warning",
   "dialog.toast.adjustmentWarning.description": "{doctorName} is on vacation on this day. Cannot assign Work or Pre-assigned.",
+  "dialog.toast.excludedDayWarning.description": "{doctorName} has this day excluded. Cannot assign Work or Pre-assigned.",
   "dialog.toast.scheduleUpdated.title": "Schedule Updated",
   "dialog.toast.scheduleUpdated.description.modified": "Assignment for {date} has been modified.",
   "dialog.toast.scheduleUpdated.description.added": "Assignment for {date} has been added.",
@@ -87,6 +91,7 @@
   "pdf.preAssignedWork": "Pre-assigned Work",
   "pdf.generatedWork": "Generated Work",
   "pdf.vacation": "Vacation",
+  "pdf.excludedDates": "Excluded Dates",
 
   "footer.copyright": "© {year} RotaWise. All rights reserved.",
   "language.selector.label": "Language",

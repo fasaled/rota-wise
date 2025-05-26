@@ -12,7 +12,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { CalendarIcon, DoctorsIcon, PreferencesIcon, VacationIcon, PreAssignedIcon } from '@/components/icons';
+import { CalendarIcon, DoctorsIcon, PreferencesIcon, VacationIcon, PreAssignedIcon, CalendarXIcon } from '@/components/icons';
 import { format } from 'date-fns';
 import type { ScheduleFormValues } from '@/lib/types'; 
 import { cn } from '@/lib/utils';
@@ -25,6 +25,7 @@ const doctorSchema = z.object({
   name: z.string().min(1, "Doctor's name is required."), // Zod messages not translated in this iteration
   vacationDates: z.array(z.date()).default([]),
   preAssignedWorkDates: z.array(z.date()).default([]),
+  excludedDates: z.array(z.date()).default([]),
 });
 
 // Main form schema
@@ -60,9 +61,10 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                      id: doc.id || crypto.randomUUID(), 
                      name: doc.name || '',
                      vacationDates: doc.vacationDates || [],
-                     preAssignedWorkDates: doc.preAssignedWorkDates || []
+                     preAssignedWorkDates: doc.preAssignedWorkDates || [],
+                     excludedDates: doc.excludedDates || [],
                    }))
-                 : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [] }],
+                 : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] }],
     },
   });
 
@@ -79,7 +81,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 
     if (targetDoctorCount > currentDoctorCount) {
       for (let i = 0; i < targetDoctorCount - currentDoctorCount; i++) {
-        append({ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [] });
+        append({ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] });
       }
     } else if (targetDoctorCount < currentDoctorCount) {
       for (let i = 0; i < currentDoctorCount - targetDoctorCount; i++) {
@@ -103,9 +105,10 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                        id: doc.id || crypto.randomUUID(),
                        name: doc.name || '',
                        vacationDates: (doc.vacationDates || []).map(d => d instanceof Date ? d : new Date(d)),
-                       preAssignedWorkDates: (doc.preAssignedWorkDates || []).map(d => d instanceof Date ? d : new Date(d))
+                       preAssignedWorkDates: (doc.preAssignedWorkDates || []).map(d => d instanceof Date ? d : new Date(d)),
+                       excludedDates: (doc.excludedDates || []).map(d => d instanceof Date ? d : new Date(d)),
                      }))
-                   : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [] }],
+                   : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] }],
       });
     }
   }, [initialValues, form.reset, form]);
@@ -224,7 +227,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                     />
                     {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors[index]?.name?.message}</p>}
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <Label htmlFor={`doctors.${index}.vacationDates`} className="font-medium flex items-center gap-1"><VacationIcon className="w-4 h-4 text-accent"/>{t('form.vacationDates')}</Label>
                       <Controller
@@ -254,6 +257,31 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                       <Label htmlFor={`doctors.${index}.preAssignedWorkDates`} className="font-medium flex items-center gap-1"><PreAssignedIcon className="w-4 h-4 text-primary"/>{t('form.preAssignedWorkDates')}</Label>
                        <Controller
                         name={`doctors.${index}.preAssignedWorkDates`}
+                        control={form.control}
+                        render={({ field }) => (
+                           <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !field.value?.length && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {field.value?.length ? t('form.datesSelected', { count: field.value.length }) : <span>{t('form.selectDates')}</span>}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                               <Calendar 
+                                mode="multiple" 
+                                selected={field.value} 
+                                onSelect={field.onChange} 
+                                locale={currentDateFnsLocale}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`doctors.${index}.excludedDates`} className="font-medium flex items-center gap-1"><CalendarXIcon className="w-4 h-4 text-destructive"/>{t('form.excludedDates')}</Label>
+                       <Controller
+                        name={`doctors.${index}.excludedDates`}
                         control={form.control}
                         render={({ field }) => (
                            <Popover>

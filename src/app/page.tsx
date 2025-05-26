@@ -51,8 +51,8 @@ export default function RotaWisePage() {
     startDate: new Date(),
     endDate: new Date(new Date().setDate(new Date().getDate() + 29)), // Approx 1 month
     doctors: [
-      { id: crypto.randomUUID(), name: 'Dr. Alice', vacationDates: [], preAssignedWorkDates: [] },
-      { id: crypto.randomUUID(), name: 'Dr. Bob', vacationDates: [], preAssignedWorkDates: [] },
+      { id: crypto.randomUUID(), name: 'Dr. Alice', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] },
+      { id: crypto.randomUUID(), name: 'Dr. Bob', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] },
     ]
   };
 
@@ -63,6 +63,7 @@ export default function RotaWisePage() {
       name: doc.name,
       vacationDates: doc.vacationDates,
       preAssignedWorkDates: doc.preAssignedWorkDates,
+      excludedDates: doc.excludedDates,
     }));
     setDoctorsProfiles(profiles);
 
@@ -72,7 +73,7 @@ export default function RotaWisePage() {
     if (result.error) {
       toast({
         title: t('page.toast.errorGenerating.title'),
-        description: result.error, // Assuming error from action might not be translated yet
+        description: result.error, 
         variant: "destructive",
       });
       setSchedule(null);
@@ -119,6 +120,18 @@ export default function RotaWisePage() {
             variant: "destructive",
           });
         }
+        const isExcluded = doctorProfile.excludedDates.some(ed =>
+          ed.getFullYear() === updatedEntry.date.getFullYear() &&
+          ed.getMonth() === updatedEntry.date.getMonth() &&
+          ed.getDate() === updatedEntry.date.getDate()
+        );
+        if (isExcluded) {
+          toast({
+            title: t('page.toast.scheduleWarning.title'), // Same title, different description
+            description: t('page.toast.excludedDayWarning.description', { doctorName: doctorProfile.name }),
+            variant: "destructive",
+          });
+        }
       }
       return { ...prevSchedule, entries: newEntries };
     });
@@ -148,6 +161,7 @@ export default function RotaWisePage() {
         ...profile,
         vacationDates: profile.vacationDates.map(d => d.toISOString()),
         preAssignedWorkDates: profile.preAssignedWorkDates.map(d => d.toISOString()),
+        excludedDates: profile.excludedDates.map(d => d.toISOString()),
       })),
       formValues: {
         numberOfDoctors: doctorsProfiles.length,
@@ -158,6 +172,7 @@ export default function RotaWisePage() {
           name: p.name,
           vacationDates: p.vacationDates.map(d => d.toISOString()),
           preAssignedWorkDates: p.preAssignedWorkDates.map(d => d.toISOString()),
+          excludedDates: p.excludedDates.map(d => d.toISOString()),
         }))
       }
     };
@@ -213,6 +228,7 @@ export default function RotaWisePage() {
           ...profile,
           vacationDates: profile.vacationDates.map((d: string) => new Date(d)),
           preAssignedWorkDates: profile.preAssignedWorkDates.map((d: string) => new Date(d)),
+          excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)), // Handle potentially missing excludedDates
         }));
 
         const processedFormValues: ScheduleFormValues = {
@@ -224,6 +240,7 @@ export default function RotaWisePage() {
               name: doc.name,
               vacationDates: doc.vacationDates.map((d: string) => new Date(d)),
               preAssignedWorkDates: doc.preAssignedWorkDates.map((d: string) => new Date(d)),
+              excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)), // Handle potentially missing excludedDates
            }))
         };
 
@@ -366,7 +383,7 @@ export default function RotaWisePage() {
     setIsPdfExportMode(false);
 
     for (const doctor of doctorsProfiles) {
-        if (currentY + 60 > pdfHeight - margin) { 
+        if (currentY + 70 > pdfHeight - margin) { // Increased height check for more rows
           pdf.addPage();
           currentY = margin;
         }
@@ -379,6 +396,7 @@ export default function RotaWisePage() {
         
         const preAssignedWorkDates = doctor.preAssignedWorkDates;
         const vacationDates = doctor.vacationDates;
+        const excludedDates = doctor.excludedDates;
         const generatedWorkDates = schedule.entries
           .filter(e => e.doctorId === doctor.id && e.assignment === 'Work')
           .map(e => e.date);
@@ -390,6 +408,7 @@ export default function RotaWisePage() {
             [t('pdf.preAssignedWork'), getFormattedDates(preAssignedWorkDates)],
             [t('pdf.generatedWork'), getFormattedDates(generatedWorkDates)],
             [t('pdf.vacation'), getFormattedDates(vacationDates)],
+            [t('pdf.excludedDates'), getFormattedDates(excludedDates)],
           ],
           theme: 'grid',
           styles: { fontSize: 9, cellPadding: 1.5, overflow: 'linebreak' },
