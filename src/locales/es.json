@@ -92,9 +92,21 @@
   "pdf.generatedWork": "Trabajo Generado",
   "pdf.vacation": "Vacaciones",
   "pdf.excludedDates": "Fechas Excluidas",
+  "pdf.workdaysSummary.title": "Días de Trabajo por Médico por Día de la Semana",
+  "pdf.workdaysSummary.doctorHeader": "Médico",
+  "pdf.workdaysSummary.monHeader": "Lun",
+  "pdf.workdaysSummary.tueHeader": "Mar",
+  "pdf.workdaysSummary.wedHeader": "Mié",
+  "pdf.workdaysSummary.thuHeader": "Jue",
+  "pdf.workdaysSummary.friHeader": "Vie",
+  "pdf.workdaysSummary.satHeader": "Sáb",
+  "pdf.workdaysSummary.sunHeader": "Dom",
+  "pdf.workdaysSummary.totalHeader": "Total",
 
   "footer.copyright": "© {year} RotaWise. Todos los derechos reservados.",
   "language.selector.label": "Idioma",
   "language.en": "Inglés",
   "language.es": "Español"
 }
+
+    

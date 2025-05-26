@@ -20,7 +20,8 @@ import { buttonVariants } from '@/components/ui/button';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
-import { format, startOfMonth, addMonths } from 'date-fns';
+import { format, startOfMonth, addMonths, isSameDay } from 'date-fns';
+import { enUS } from 'date-fns/locale'; // Import enUS for consistent day of week keying
 import { useLanguage } from '@/context/language-context';
 
 
@@ -109,9 +110,7 @@ export default function RotaWisePage() {
       const doctorProfile = doctorsProfiles.find(dp => dp.id === updatedEntry.doctorId);
       if (doctorProfile && updatedEntry.assignment === 'Work') {
         const isVacation = doctorProfile.vacationDates.some(vd => 
-          vd.getFullYear() === updatedEntry.date.getFullYear() &&
-          vd.getMonth() === updatedEntry.date.getMonth() &&
-          vd.getDate() === updatedEntry.date.getDate()
+          isSameDay(vd, updatedEntry.date)
         );
         if (isVacation) {
           toast({
@@ -121,9 +120,7 @@ export default function RotaWisePage() {
           });
         }
         const isExcluded = doctorProfile.excludedDates.some(ed =>
-          ed.getFullYear() === updatedEntry.date.getFullYear() &&
-          ed.getMonth() === updatedEntry.date.getMonth() &&
-          ed.getDate() === updatedEntry.date.getDate()
+          isSameDay(ed, updatedEntry.date)
         );
         if (isExcluded) {
           toast({
@@ -335,7 +332,7 @@ export default function RotaWisePage() {
             return;
         }
 
-        if (currentY + 30 > pdfHeight - margin) { 
+        if (currentY + 30 > pdfHeight - margin && allMonthsToExport.indexOf(month) > 0) { // Add page only if not the first month and space needed
             pdf.addPage();
             currentY = margin;
         }
@@ -352,7 +349,7 @@ export default function RotaWisePage() {
             
             const spaceForImage = pdfHeight - currentY - margin;
             if (imgHeight > spaceForImage) {
-                 if (spaceForImage < 50 && allMonthsToExport.length > 1 && allMonthsToExport.indexOf(month) < allMonthsToExport.length -1) { 
+                 if (spaceForImage < 50 && allMonthsToExport.indexOf(month) < allMonthsToExport.length -1) { 
                     pdf.addPage();
                     currentY = margin;
                     pdf.setFontSize(16);
@@ -382,6 +379,7 @@ export default function RotaWisePage() {
     setPdfExportMonth(null);
     setIsPdfExportMode(false);
 
+    // Individual Doctor Details
     for (const doctor of doctorsProfiles) {
         if (currentY + 70 > pdfHeight - margin) { // Increased height check for more rows
           pdf.addPage();
@@ -419,6 +417,70 @@ export default function RotaWisePage() {
         // @ts-ignore
         currentY = (pdf as any).lastAutoTable.finalY + 10;
       }
+
+    // Workdays per Doctor by Day of the Week Summary
+    if (currentY + 50 > pdfHeight - margin) { // Check if space for title and a few rows
+        pdf.addPage();
+        currentY = margin;
+    }
+    pdf.setFontSize(16);
+    pdf.text(t('pdf.workdaysSummary.title'), margin, currentY);
+    currentY += 10;
+
+    const workdaySummaryData: any[] = [];
+    const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    for (const doctor of doctorsProfiles) {
+        const doctorSummary: { [key: string]: string | number } = { doctorName: doctor.name };
+        dayKeys.forEach(key => doctorSummary[key] = 0);
+        doctorSummary['Total'] = 0;
+
+        const workEntries = schedule.entries.filter(
+            entry => entry.doctorId === doctor.id && (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned')
+        );
+
+        for (const entry of workEntries) {
+            const dayOfWeekKey = format(entry.date, 'EEE', { locale: enUS }); // Use enUS for consistent keying
+            if (dayKeys.includes(dayOfWeekKey)) {
+                (doctorSummary[dayOfWeekKey] as number)++;
+                (doctorSummary['Total'] as number)++;
+            }
+        }
+        workdaySummaryData.push(doctorSummary);
+    }
+    
+    const summaryTableBody = workdaySummaryData.map(summary => [
+        summary.doctorName,
+        summary.Mon,
+        summary.Tue,
+        summary.Wed,
+        summary.Thu,
+        summary.Fri,
+        summary.Sat,
+        summary.Sun,
+        summary.Total,
+    ]);
+
+    autoTable(pdf, {
+        startY: currentY,
+        head: [[
+            t('pdf.workdaysSummary.doctorHeader'),
+            t('pdf.workdaysSummary.monHeader'),
+            t('pdf.workdaysSummary.tueHeader'),
+            t('pdf.workdaysSummary.wedHeader'),
+            t('pdf.workdaysSummary.thuHeader'),
+            t('pdf.workdaysSummary.friHeader'),
+            t('pdf.workdaysSummary.satHeader'),
+            t('pdf.workdaysSummary.sunHeader'),
+            t('pdf.workdaysSummary.totalHeader'),
+        ]],
+        body: summaryTableBody,
+        theme: 'striped',
+        styles: { fontSize: 9, cellPadding: 1.5 },
+        headStyles: { fillColor: [75, 150, 220], textColor: 255, fontStyle: 'bold' },
+        margin: { left: margin, right: margin },
+    });
+
 
     try {
       pdf.save('rotawise-report.pdf');
@@ -521,3 +583,5 @@ export default function RotaWisePage() {
     </div>
   );
 }
+
+    
