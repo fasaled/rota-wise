@@ -3,7 +3,7 @@
 
 import type React from 'react';
 import { useState, useMemo } from 'react';
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO, addDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,13 +12,14 @@ import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry } from '@/lib/t
 import { cn } from '@/lib/utils';
 import { VacationIcon, PreAssignedIcon, WorkIcon } from '@/components/icons';
 import ManualAdjustmentDialog from './manual-adjustment-dialog';
+import { useLanguage } from '@/context/language-context';
 
 interface ScheduleCalendarViewProps {
   schedule: Schedule;
   doctors: DoctorProfile[];
   onUpdateScheduleEntry: (updatedEntry: ScheduleEntry) => void;
-  forceDisplayMonth?: Date | null; // For PDF export: overrides internal currentMonth for display
-  isPdfExportMode?: boolean; // For PDF export: simplifies header and shows all doctors
+  forceDisplayMonth?: Date | null; 
+  isPdfExportMode?: boolean; 
 }
 
 const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({ 
@@ -28,6 +29,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     forceDisplayMonth,
     isPdfExportMode 
 }) => {
+  const { t, currentDateFnsLocale } = useLanguage();
   const [currentMonth, setCurrentMonth] = useState(schedule.startDate || new Date());
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | 'all'>('all');
   
@@ -38,7 +40,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
   const effectiveDisplayMonth = useMemo(() => forceDisplayMonth || currentMonth, [forceDisplayMonth, currentMonth]);
 
   const handleOpenAdjustmentDialog = (entry: ScheduleEntry | null, date: Date) => {
-    if (isPdfExportMode) return; // Disable adjustments during PDF export
+    if (isPdfExportMode) return; 
     setSelectedEntryForAdjustment(entry);
     setSelectedDateForAdjustment(date);
     setIsAdjustmentDialogOpen(true);
@@ -52,8 +54,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     const monthToDisplay = effectiveDisplayMonth;
     const monthStart = startOfMonth(monthToDisplay);
     const monthEnd = endOfMonth(monthToDisplay);
-    const startDateCal = startOfWeek(monthStart);
-    const endDateCal = endOfWeek(monthEnd);
+    const startDateCal = startOfWeek(monthStart, { locale: currentDateFnsLocale });
+    const endDateCal = endOfWeek(monthEnd, { locale: currentDateFnsLocale });
 
     return eachDayOfInterval({ start: startDateCal, end: endDateCal }).map(date => {
       const entriesForDay = schedule.entries.filter(entry => 
@@ -67,7 +69,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         assignments: entriesForDay,
       };
     });
-  }, [effectiveDisplayMonth, schedule.entries, selectedDoctorId, isPdfExportMode]);
+  }, [effectiveDisplayMonth, schedule.entries, selectedDoctorId, isPdfExportMode, currentDateFnsLocale]);
 
   const renderDayCell = (day: DayDetails) => {
     const cellBaseClasses = "h-28 md:h-32 lg:h-36 p-1.5 border flex flex-col overflow-hidden rounded-md";
@@ -85,7 +87,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         onClick={() => !isPdfExportMode && handleOpenAdjustmentDialog(null, day.date)}
         role={!isPdfExportMode ? "button" : undefined}
         tabIndex={!isPdfExportMode ? 0 : undefined}
-        aria-label={!isPdfExportMode ? `Schedule for ${format(day.date, 'PPP')}` : undefined}
+        aria-label={!isPdfExportMode ? t('calendar.scheduleFor', { date: format(day.date, 'PPP', { locale: currentDateFnsLocale }) }) : undefined}
       >
         <div className={cn("text-xs md:text-sm mb-1", dateTextClasses)}>
           <span className={todayMarkerClasses}>{format(day.date, 'd')}</span>
@@ -96,6 +98,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             let IconComponent;
             let bgColor = 'bg-opacity-20';
             let textColor = '';
+            let assignmentText = t(`assignmentType.${entry.assignment}` as any);
+
 
             switch (entry.assignment) {
               case 'Vacation':
@@ -116,7 +120,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
               default:
                 return (
                   <div key={index} className="p-1 rounded text-muted-foreground italic">
-                    {doctor?.name || entry.doctorId}: Off
+                    {doctor?.name || entry.doctorId}: {t('calendar.assignment.off')}
                   </div>
                 );
             }
@@ -140,6 +144,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                   !isPdfExportMode && "cursor-pointer"
                 )}
                 onClick={(e) => { if (!isPdfExportMode) { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date);}}}
+                title={`${doctor?.name || entry.doctorId}: ${assignmentText}`}
               >
                 {IconComponent && <IconComponent className={iconClasses} />}
                 <span className={doctorNameSpanClasses}>{doctor?.name || entry.doctorId}</span>
@@ -154,28 +159,32 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
   const nextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
   const prevMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
 
-  const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const weekDays = useMemo(() => {
+    const firstDayOfWeek = startOfWeek(new Date(), { locale: currentDateFnsLocale });
+    return Array.from({ length: 7 }).map((_, i) => format(addDays(firstDayOfWeek, i), 'EEE', { locale: currentDateFnsLocale }));
+  }, [currentDateFnsLocale]);
+
 
   return (
     <Card className="shadow-xl mt-8">
       <CardHeader className="flex flex-col md:flex-row justify-between items-center gap-4 p-4">
         <CardTitle className="text-2xl font-bold text-primary flex items-center gap-2">
-          <CalendarIconLucide /> Generated Schedule
+          <CalendarIconLucide /> {t('calendar.title')}
         </CardTitle>
         
         {isPdfExportMode ? (
             <div className="text-lg font-semibold w-full text-center md:text-right">
-                {format(effectiveDisplayMonth, 'MMMM yyyy')}
+                {t('calendar.header.monthYear', { monthYear: format(effectiveDisplayMonth, 'MMMM yyyy', { locale: currentDateFnsLocale }) })}
             </div>
         ) : (
             <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
                 <Select value={selectedDoctorId} onValueChange={(value) => setSelectedDoctorId(value as string)}>
                     <SelectTrigger className="w-full sm:w-[180px] bg-card">
                     <Users className="w-4 h-4 mr-2 text-muted-foreground" />
-                    <SelectValue placeholder="Filter by Doctor" />
+                    <SelectValue placeholder={t('calendar.filterDoctorPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                    <SelectItem value="all">All Doctors</SelectItem>
+                    <SelectItem value="all">{t('calendar.allDoctors')}</SelectItem>
                     {doctors.map(doc => (
                         <SelectItem key={doc.id} value={doc.id}>{doc.name}</SelectItem>
                     ))}
@@ -186,7 +195,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                     <ChevronLeft className="h-5 w-5" />
                     </Button>
                     <span className="text-lg font-semibold w-32 text-center">
-                    {format(effectiveDisplayMonth, 'MMMM yyyy')}
+                    {format(effectiveDisplayMonth, 'MMMM yyyy', { locale: currentDateFnsLocale })}
                     </span>
                     <Button variant="outline" size="icon" onClick={nextMonth} aria-label="Next month">
                     <ChevronRight className="h-5 w-5" />
@@ -203,9 +212,9 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
           {daysInMonth.map(renderDayCell)}
         </div>
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
-            <div className="flex items-center gap-1"><WorkIcon className="w-3 h-3 text-blue-700 dark:text-blue-300"/> <span className="p-0.5 rounded-sm bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-300">Work</span></div>
-            <div className="flex items-center gap-1"><VacationIcon className="w-3 h-3 text-accent-foreground"/> <span className="p-0.5 rounded-sm bg-accent text-accent-foreground">Vacation</span></div>
-            <div className="flex items-center gap-1"><PreAssignedIcon className="w-3 h-3 text-primary-foreground"/> <span className="p-0.5 rounded-sm bg-primary/80 text-primary-foreground">Pre-assigned</span></div>
+            <div className="flex items-center gap-1"><WorkIcon className="w-3 h-3 text-blue-700 dark:text-blue-300"/> <span className="p-0.5 rounded-sm bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-300">{t('calendar.legend.work')}</span></div>
+            <div className="flex items-center gap-1"><VacationIcon className="w-3 h-3 text-accent-foreground"/> <span className="p-0.5 rounded-sm bg-accent text-accent-foreground">{t('calendar.legend.vacation')}</span></div>
+            <div className="flex items-center gap-1"><PreAssignedIcon className="w-3 h-3 text-primary-foreground"/> <span className="p-0.5 rounded-sm bg-primary/80 text-primary-foreground">{t('calendar.legend.preAssigned')}</span></div>
         </div>
       </CardContent>
        {!isPdfExportMode && selectedDateForAdjustment && (
@@ -223,4 +232,3 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 };
 
 export default ScheduleCalendarView;
-

@@ -1,3 +1,4 @@
+
 "use client";
 
 import type React from 'react';
@@ -17,12 +18,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { ScheduleEntry, DoctorProfile } from '@/lib/types';
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from '@/context/language-context';
 
 interface ManualAdjustmentDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  entry: ScheduleEntry | null; // Existing entry to edit, or null if creating new
-  date: Date; // The date for which adjustment is being made
+  entry: ScheduleEntry | null; 
+  date: Date; 
   doctors: DoctorProfile[];
   onSave: (updatedEntry: ScheduleEntry) => void;
 }
@@ -35,6 +37,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
   doctors,
   onSave,
 }) => {
+  const { t, currentDateFnsLocale } = useLanguage();
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(entry?.doctorId || '');
   const [assignmentType, setAssignmentType] = useState<ScheduleEntry['assignment']>(entry?.assignment || 'Work');
   const { toast } = useToast();
@@ -44,33 +47,28 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
       setSelectedDoctorId(entry.doctorId);
       setAssignmentType(entry.assignment);
     } else {
-      // Reset for new entry
       setSelectedDoctorId(doctors.length > 0 ? doctors[0].id : '');
       setAssignmentType('Work');
     }
-  }, [entry, doctors, isOpen]); // Re-initialize when dialog opens or entry changes
+  }, [entry, doctors, isOpen]); 
 
   const handleSave = () => {
     if (!selectedDoctorId && (assignmentType === 'Work' || assignmentType === 'Pre-assigned' || assignmentType === 'Vacation')) {
         toast({
-            title: "Validation Error",
-            description: "Please select a doctor for this assignment type.",
+            title: t('dialog.toast.validationError.title'),
+            description: t('dialog.toast.validationError.description'),
             variant: "destructive",
         });
         return;
     }
     
-    // Create a new entry object. If editing, it replaces the old one.
-    // If 'entry' is null, this is a new assignment.
-    // The actual replacement logic (finding by date and original doctorId if necessary) happens in the parent component.
     const updatedEntry: ScheduleEntry = {
       date: date,
-      doctorId: selectedDoctorId || (assignmentType === 'Off' ? 'system' : ''), // 'system' or similar for 'Off' if no doctor context
+      doctorId: selectedDoctorId || (assignmentType === 'Off' ? 'system' : ''), 
       assignment: assignmentType,
-      dayOfWeek: format(date, 'EEEE'), // e.g., "Monday"
+      dayOfWeek: format(date, 'EEEE', { locale: currentDateFnsLocale }), 
     };
 
-    // Basic validation: A doctor on vacation cannot be assigned Work or Pre-assigned.
     const doctor = doctors.find(d => d.id === selectedDoctorId);
     if (doctor) {
         const isVacationDayForDoctor = doctor.vacationDates.some(vacDate => 
@@ -81,19 +79,22 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
 
         if (isVacationDayForDoctor && (assignmentType === 'Work' || assignmentType === 'Pre-assigned')) {
             toast({
-                title: "Adjustment Warning",
-                description: `${doctor.name} is on vacation on this day. Cannot assign Work or Pre-assigned.`,
+                title: t('dialog.toast.adjustmentWarning.title'),
+                description: t('dialog.toast.adjustmentWarning.description', { doctorName: doctor.name }),
                 variant: "destructive",
             });
-            return; // Prevent saving
+            return; 
         }
     }
     
     onSave(updatedEntry);
     onClose();
-     toast({
-        title: "Schedule Updated",
-        description: `Assignment for ${format(date, 'PPP')} has been ${entry ? 'modified' : 'added'}.`,
+    const formattedDate = format(date, 'PPP', { locale: currentDateFnsLocale });
+    toast({
+        title: t('dialog.toast.scheduleUpdated.title'),
+        description: entry 
+            ? t('dialog.toast.scheduleUpdated.description.modified', { date: formattedDate })
+            : t('dialog.toast.scheduleUpdated.description.added', { date: formattedDate }),
     });
   };
 
@@ -103,15 +104,15 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Adjust Schedule for {format(date, 'PPP')}</DialogTitle>
+          <DialogTitle>{t('dialog.adjustTitle', { date: format(date, 'PPP', { locale: currentDateFnsLocale }) })}</DialogTitle>
           <DialogDescription>
-            {entry ? 'Modify the assignment for this day.' : 'Add a new assignment for this day.'}
+            {entry ? t('dialog.modifyDescription') : t('dialog.addDescription')}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="doctor" className="text-right">
-              Doctor
+              {t('dialog.doctorLabel')}
             </Label>
             <Select
               value={selectedDoctorId}
@@ -119,7 +120,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
               disabled={assignmentType === 'Off'}
             >
               <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select Doctor" />
+                <SelectValue placeholder={t('dialog.selectDoctorPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
                 {doctors.map((doc) => (
@@ -132,16 +133,16 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="assignment" className="text-right">
-              Assignment
+              {t('dialog.assignmentLabel')}
             </Label>
             <Select value={assignmentType} onValueChange={(value) => setAssignmentType(value as ScheduleEntry['assignment'])}>
               <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select Assignment Type" />
+                <SelectValue placeholder={t('dialog.selectAssignmentPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
                 {assignmentTypes.map((type) => (
                   <SelectItem key={type} value={type}>
-                    {type}
+                    {t(`assignmentType.${type}` as any)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -150,9 +151,9 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline">Cancel</Button>
+            <Button type="button" variant="outline">{t('dialog.cancelButton')}</Button>
           </DialogClose>
-          <Button type="button" onClick={handleSave}>Save Changes</Button>
+          <Button type="button" onClick={handleSave}>{t('dialog.saveButton')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

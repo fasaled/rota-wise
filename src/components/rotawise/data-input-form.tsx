@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react'; // Ensure React is imported for JSX
+import React from 'react'; 
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,14 +14,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { CalendarIcon, DoctorsIcon, PreferencesIcon, VacationIcon, PreAssignedIcon } from '@/components/icons';
 import { format } from 'date-fns';
-import type { ScheduleFormValues } from '@/lib/types'; // DoctorFormFieldInput is part of ScheduleFormValues
+import type { ScheduleFormValues } from '@/lib/types'; 
 import { cn } from '@/lib/utils';
 import { Trash2 } from 'lucide-react';
+import { useLanguage } from '@/context/language-context';
 
 // Schema for a single doctor
 const doctorSchema = z.object({
-  id: z.string(), // For react-hook-form key
-  name: z.string().min(1, "Doctor's name is required."),
+  id: z.string(), 
+  name: z.string().min(1, "Doctor's name is required."), // Zod messages not translated in this iteration
   vacationDates: z.array(z.date()).default([]),
   preAssignedWorkDates: z.array(z.date()).default([]),
 });
@@ -47,16 +48,16 @@ interface DataInputFormProps {
 }
 
 const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, initialValues }) => {
+  const { t, currentDateFnsLocale } = useLanguage();
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleFormSchema),
-    // Ensure defaultValues prioritize initialValues from props
     defaultValues: {
       numberOfDoctors: initialValues?.numberOfDoctors || 1,
       startDate: initialValues?.startDate || new Date(),
       endDate: initialValues?.endDate || new Date(new Date().setDate(new Date().getDate() + 30)),
       doctors: initialValues?.doctors && initialValues.doctors.length > 0 
                  ? initialValues.doctors.map(doc => ({
-                     id: doc.id || crypto.randomUUID(), // Ensure ID exists
+                     id: doc.id || crypto.randomUUID(), 
                      name: doc.name || '',
                      vacationDates: doc.vacationDates || [],
                      preAssignedWorkDates: doc.preAssignedWorkDates || []
@@ -72,10 +73,9 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 
   const numberOfDoctors = form.watch('numberOfDoctors');
 
-  // Effect to synchronize the number of doctor fields with the 'numberOfDoctors' input
   React.useEffect(() => {
     const currentDoctorCount = fields.length;
-    const targetDoctorCount = numberOfDoctors > 0 ? numberOfDoctors : 1; // Ensure at least 1
+    const targetDoctorCount = numberOfDoctors > 0 ? numberOfDoctors : 1; 
 
     if (targetDoctorCount > currentDoctorCount) {
       for (let i = 0; i < targetDoctorCount - currentDoctorCount; i++) {
@@ -86,14 +86,12 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
         remove(currentDoctorCount - 1 - i);
       }
     }
-     // If numberOfDoctors is set to 0 or less, reset it to 1 in the form state
     if (numberOfDoctors <= 0) {
       form.setValue('numberOfDoctors', 1, { shouldValidate: true });
     }
 
   }, [numberOfDoctors, fields.length, append, remove, form]);
   
-  // Effect to reset form when initialValues change (e.g., loading from file)
   React.useEffect(() => {
     if (initialValues) {
       form.reset({
@@ -117,15 +115,15 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-2xl">
-          <PreferencesIcon className="text-primary" /> Schedule Parameters
+          <PreferencesIcon className="text-primary" /> {t('form.title')}
         </CardTitle>
-        <CardDescription>Define the doctors and date range for the schedule.</CardDescription>
+        <CardDescription>{t('form.description')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <Label htmlFor="numberOfDoctors" className="font-semibold">Number of Doctors</Label>
+              <Label htmlFor="numberOfDoctors" className="font-semibold">{t('form.numDoctors')}</Label>
               <Controller
                 name="numberOfDoctors"
                 control={form.control}
@@ -143,7 +141,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
               {form.formState.errors.numberOfDoctors && <p className="text-sm text-destructive mt-1">{form.formState.errors.numberOfDoctors.message}</p>}
             </div>
             <div>
-              <Label htmlFor="startDate" className="font-semibold">Schedule Start Date</Label>
+              <Label htmlFor="startDate" className="font-semibold">{t('form.startDate')}</Label>
               <Controller
                 name="startDate"
                 control={form.control}
@@ -152,11 +150,17 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                     <PopoverTrigger asChild>
                       <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}>
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
+                        {field.value ? format(field.value, 'PPP', { locale: currentDateFnsLocale }) : <span>{t('form.pickDate')}</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                      <Calendar 
+                        mode="single" 
+                        selected={field.value} 
+                        onSelect={field.onChange} 
+                        initialFocus 
+                        locale={currentDateFnsLocale}
+                      />
                     </PopoverContent>
                   </Popover>
                 )}
@@ -164,7 +168,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
               {form.formState.errors.startDate && <p className="text-sm text-destructive mt-1">{form.formState.errors.startDate.message}</p>}
             </div>
             <div>
-              <Label htmlFor="endDate" className="font-semibold">Schedule End Date</Label>
+              <Label htmlFor="endDate" className="font-semibold">{t('form.endDate')}</Label>
               <Controller
                 name="endDate"
                 control={form.control}
@@ -173,11 +177,17 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                     <PopoverTrigger asChild>
                       <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}>
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
+                        {field.value ? format(field.value, 'PPP', { locale: currentDateFnsLocale }) : <span>{t('form.pickDate')}</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                       <Calendar 
+                        mode="single" 
+                        selected={field.value} 
+                        onSelect={field.onChange} 
+                        initialFocus 
+                        locale={currentDateFnsLocale}
+                      />
                     </PopoverContent>
                   </Popover>
                 )}
@@ -190,13 +200,13 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 
           <div>
             <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <DoctorsIcon className="text-primary"/> Doctor Details
+              <DoctorsIcon className="text-primary"/> {t('form.doctorDetails')}
             </h3>
             {fields.map((item, index) => (
               <Card key={item.id} className="mb-6 p-2 md:p-4 bg-secondary/30 shadow-md">
                 <CardHeader className="p-2 md:p-4">
                   <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg">Doctor {index + 1}</CardTitle>
+                    <CardTitle className="text-lg">{t('form.doctorNum', { index: index + 1 })}</CardTitle>
                     {fields.length > 1 && (
                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive-foreground hover:bg-destructive/90">
                         <Trash2 className="h-4 w-4" />
@@ -206,17 +216,17 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                 </CardHeader>
                 <CardContent className="space-y-4 p-2 md:p-4">
                   <div>
-                    <Label htmlFor={`doctors.${index}.name`} className="font-medium">Name</Label>
+                    <Label htmlFor={`doctors.${index}.name`} className="font-medium">{t('form.doctorNameLabel')}</Label>
                     <Controller
                       name={`doctors.${index}.name`}
                       control={form.control}
-                      render={({ field }) => <Input {...field} id={`doctors.${index}.name`} placeholder="e.g., Dr. Smith" className="mt-1 bg-background"/>}
+                      render={({ field }) => <Input {...field} id={`doctors.${index}.name`} placeholder={t('form.doctorNamePlaceholder')} className="mt-1 bg-background"/>}
                     />
                     {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors[index]?.name?.message}</p>}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor={`doctors.${index}.vacationDates`} className="font-medium flex items-center gap-1"><VacationIcon className="w-4 h-4 text-accent"/>Vacation Dates</Label>
+                      <Label htmlFor={`doctors.${index}.vacationDates`} className="font-medium flex items-center gap-1"><VacationIcon className="w-4 h-4 text-accent"/>{t('form.vacationDates')}</Label>
                       <Controller
                         name={`doctors.${index}.vacationDates`}
                         control={form.control}
@@ -225,18 +235,23 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                             <PopoverTrigger asChild>
                               <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !field.value?.length && "text-muted-foreground")}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
-                                {field.value?.length ? `${field.value.length} date(s) selected` : <span>Select dates</span>}
+                                {field.value?.length ? t('form.datesSelected', { count: field.value.length }) : <span>{t('form.selectDates')}</span>}
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
-                              <Calendar mode="multiple" selected={field.value} onSelect={field.onChange} />
+                              <Calendar 
+                                mode="multiple" 
+                                selected={field.value} 
+                                onSelect={field.onChange} 
+                                locale={currentDateFnsLocale}
+                              />
                             </PopoverContent>
                           </Popover>
                         )}
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`doctors.${index}.preAssignedWorkDates`} className="font-medium flex items-center gap-1"><PreAssignedIcon className="w-4 h-4 text-primary"/>Pre-assigned Work Dates</Label>
+                      <Label htmlFor={`doctors.${index}.preAssignedWorkDates`} className="font-medium flex items-center gap-1"><PreAssignedIcon className="w-4 h-4 text-primary"/>{t('form.preAssignedWorkDates')}</Label>
                        <Controller
                         name={`doctors.${index}.preAssignedWorkDates`}
                         control={form.control}
@@ -245,11 +260,16 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                             <PopoverTrigger asChild>
                               <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !field.value?.length && "text-muted-foreground")}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
-                                {field.value?.length ? `${field.value.length} date(s) selected` : <span>Select dates</span>}
+                                {field.value?.length ? t('form.datesSelected', { count: field.value.length }) : <span>{t('form.selectDates')}</span>}
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
-                              <Calendar mode="multiple" selected={field.value} onSelect={field.onChange} />
+                               <Calendar 
+                                mode="multiple" 
+                                selected={field.value} 
+                                onSelect={field.onChange} 
+                                locale={currentDateFnsLocale}
+                              />
                             </PopoverContent>
                           </Popover>
                         )}
@@ -275,9 +295,9 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Generating...
+                  {t('form.generatingButton')}
                 </div>
-              ) : 'Generate Schedule'}
+              ) : t('form.generateButton')}
             </Button>
           </div>
         </form>
