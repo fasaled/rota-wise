@@ -18,21 +18,21 @@ interface ScheduleCalendarViewProps {
   schedule: Schedule;
   doctors: DoctorProfile[];
   onUpdateScheduleEntry: (updatedEntry: ScheduleEntry) => void;
-  forceDisplayMonth?: Date | null; 
-  isPdfExportMode?: boolean; 
+  forceDisplayMonth?: Date | null;
+  isPdfExportMode?: boolean;
 }
 
-const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({ 
-    schedule, 
-    doctors, 
+const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
+    schedule,
+    doctors,
     onUpdateScheduleEntry,
     forceDisplayMonth,
-    isPdfExportMode 
+    isPdfExportMode
 }) => {
   const { t, currentDateFnsLocale } = useLanguage();
   const [currentMonth, setCurrentMonth] = useState(schedule.startDate || new Date());
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | 'all'>('all');
-  
+
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
   const [selectedEntryForAdjustment, setSelectedEntryForAdjustment] = useState<ScheduleEntry | null>(null);
   const [selectedDateForAdjustment, setSelectedDateForAdjustment] = useState<Date | null>(null);
@@ -40,7 +40,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
   const effectiveDisplayMonth = useMemo(() => forceDisplayMonth || currentMonth, [forceDisplayMonth, currentMonth]);
 
   const handleOpenAdjustmentDialog = (entry: ScheduleEntry | null, date: Date) => {
-    if (isPdfExportMode) return; 
+    if (isPdfExportMode) return;
     setSelectedEntryForAdjustment(entry);
     setSelectedDateForAdjustment(date);
     setIsAdjustmentDialogOpen(true);
@@ -58,10 +58,20 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     const endDateCal = endOfWeek(monthEnd, { locale: currentDateFnsLocale });
 
     return eachDayOfInterval({ start: startDateCal, end: endDateCal }).map(date => {
-      const entriesForDay = schedule.entries.filter(entry => 
-        isSameDay(entry.date instanceof Date ? entry.date : parseISO(entry.date as unknown as string), date) &&
-        (isPdfExportMode || selectedDoctorId === 'all' || entry.doctorId === selectedDoctorId)
+      let entriesForDay = schedule.entries.filter(entry =>
+        isSameDay(entry.date instanceof Date ? entry.date : parseISO(entry.date as unknown as string), date)
       );
+
+      if (isPdfExportMode) {
+        // For PDF, show only Work and Pre-assigned, and always for all doctors
+        entriesForDay = entriesForDay.filter(entry => entry.assignment === 'Work' || entry.assignment === 'Pre-assigned');
+      } else {
+        // For web view, filter by selected doctor if not 'all'
+        entriesForDay = entriesForDay.filter(entry =>
+          selectedDoctorId === 'all' || entry.doctorId === selectedDoctorId
+        );
+      }
+
       return {
         date,
         isCurrentMonth: isSameMonth(date, monthToDisplay),
@@ -75,7 +85,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     const cellBaseClasses = "h-28 md:h-32 lg:h-36 p-1.5 border flex flex-col overflow-hidden rounded-md";
     const dateTextClasses = day.isCurrentMonth ? "font-medium" : "text-muted-foreground/70";
     const todayMarkerClasses = day.isToday ? "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center" : "";
-    
+
     return (
       <div
         key={day.date.toString()}
@@ -102,7 +112,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 
 
             switch (entry.assignment) {
-              case 'Vacation':
+              case 'Vacation': // This case will only be hit in non-PDF mode due to filtering in daysInMonth
                 IconComponent = VacationIcon;
                 bgColor = 'bg-accent';
                 textColor = 'text-accent-foreground';
@@ -117,7 +127,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                 bgColor = 'bg-blue-200 dark:bg-blue-800';
                 textColor = 'text-blue-700 dark:text-blue-300';
                 break;
-              default:
+              default: // Off or other (only in non-PDF mode)
                 return (
                   <div key={index} className="p-1 rounded text-muted-foreground italic">
                     {doctor?.name || entry.doctorId}: {t('calendar.assignment.off')}
@@ -132,15 +142,15 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             const itemGap = isPdfExportMode ? "gap-0.5" : "gap-1";
 
             return (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className={cn(
-                  "rounded-md flex items-center", 
+                  "rounded-md flex items-center",
                   itemGap,
                   assignmentPadding,
-                  assignmentTextClasses, 
-                  bgColor, 
-                  textColor, 
+                  assignmentTextClasses,
+                  bgColor,
+                  textColor,
                   !isPdfExportMode && "cursor-pointer"
                 )}
                 onClick={(e) => { if (!isPdfExportMode) { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date);}}}
@@ -171,7 +181,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         <CardTitle className="text-2xl font-bold text-primary flex items-center gap-2">
           <CalendarIconLucide /> {t('calendar.title')}
         </CardTitle>
-        
+
         {isPdfExportMode ? (
             <div className="text-lg font-semibold w-full text-center md:text-right">
                 {t('calendar.header.monthYear', { monthYear: format(effectiveDisplayMonth, 'MMMM yyyy', { locale: currentDateFnsLocale }) })}
@@ -213,8 +223,10 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         </div>
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
             <div className="flex items-center gap-1"><WorkIcon className="w-3 h-3 text-blue-700 dark:text-blue-300"/> <span className="p-0.5 rounded-sm bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-300">{t('calendar.legend.work')}</span></div>
-            <div className="flex items-center gap-1"><VacationIcon className="w-3 h-3 text-accent-foreground"/> <span className="p-0.5 rounded-sm bg-accent text-accent-foreground">{t('calendar.legend.vacation')}</span></div>
             <div className="flex items-center gap-1"><PreAssignedIcon className="w-3 h-3 text-primary-foreground"/> <span className="p-0.5 rounded-sm bg-primary/80 text-primary-foreground">{t('calendar.legend.preAssigned')}</span></div>
+            {!isPdfExportMode && (
+                <div className="flex items-center gap-1"><VacationIcon className="w-3 h-3 text-accent-foreground"/> <span className="p-0.5 rounded-sm bg-accent text-accent-foreground">{t('calendar.legend.vacation')}</span></div>
+            )}
         </div>
       </CardContent>
        {!isPdfExportMode && selectedDateForAdjustment && (
@@ -232,3 +244,4 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 };
 
 export default ScheduleCalendarView;
+
