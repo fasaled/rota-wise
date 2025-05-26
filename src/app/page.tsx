@@ -124,7 +124,7 @@ export default function RotaWisePage() {
         );
         if (isExcluded) {
           toast({
-            title: t('page.toast.scheduleWarning.title'), // Same title, different description
+            title: t('page.toast.scheduleWarning.title'), 
             description: t('page.toast.excludedDayWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
@@ -225,7 +225,7 @@ export default function RotaWisePage() {
           ...profile,
           vacationDates: profile.vacationDates.map((d: string) => new Date(d)),
           preAssignedWorkDates: profile.preAssignedWorkDates.map((d: string) => new Date(d)),
-          excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)), // Handle potentially missing excludedDates
+          excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)),
         }));
 
         const processedFormValues: ScheduleFormValues = {
@@ -237,7 +237,7 @@ export default function RotaWisePage() {
               name: doc.name,
               vacationDates: doc.vacationDates.map((d: string) => new Date(d)),
               preAssignedWorkDates: doc.preAssignedWorkDates.map((d: string) => new Date(d)),
-              excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)), // Handle potentially missing excludedDates
+              excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
            }))
         };
 
@@ -317,6 +317,7 @@ export default function RotaWisePage() {
 
     for (const month of allMonthsToExport) {
         setPdfExportMonth(month);
+        // Short delay to allow React to re-render the calendar for the specific month
         await new Promise(resolve => setTimeout(resolve, 250)); 
 
         const calendarElement = calendarRef.current;
@@ -331,15 +332,22 @@ export default function RotaWisePage() {
             setIsExportingPdf(false);
             return;
         }
+        
+        const monthTitle = format(month, 'MMMM yyyy', { locale: currentDateFnsLocale });
+        const titleHeight = 10; // Estimated height for month title
+        const minImageHeight = 100; // Minimum estimated height for a calendar image
+        const requiredSpaceForBlock = titleHeight + minImageHeight + 10; // Title + Image + Padding
 
-        if (currentY + 30 > pdfHeight - margin && allMonthsToExport.indexOf(month) > 0) { // Add page only if not the first month and space needed
+        // Check if there's enough space for this month's block (title + min image height)
+        if (allMonthsToExport.indexOf(month) > 0 && (currentY + requiredSpaceForBlock > pdfHeight - margin)) {
             pdf.addPage();
             currentY = margin;
         }
 
+        // Add month title
         pdf.setFontSize(16);
-        pdf.text(format(month, 'MMMM yyyy', { locale: currentDateFnsLocale }), margin, currentY);
-        currentY += 10;
+        pdf.text(monthTitle, margin, currentY);
+        currentY += titleHeight; // Space after title
 
         try {
             const canvas = await html2canvas(calendarElement, { scale: 3, useCORS: true, logging: false });
@@ -347,30 +355,31 @@ export default function RotaWisePage() {
             const imgProps = pdf.getImageProperties(imgData);
             let imgHeight = (imgProps.height * contentWidth) / imgProps.width;
             
-            const spaceForImage = pdfHeight - currentY - margin;
-            if (imgHeight > spaceForImage) {
-                 if (spaceForImage < 50 && allMonthsToExport.indexOf(month) < allMonthsToExport.length -1) { 
-                    pdf.addPage();
-                    currentY = margin;
-                    pdf.setFontSize(16);
-                    pdf.text(format(month, 'MMMM yyyy', { locale: currentDateFnsLocale }), margin, currentY);
-                    currentY += 10;
-                    imgHeight = Math.min(imgHeight, pdfHeight - margin * 2 - 10); 
-                } else {
-                   imgHeight = spaceForImage; 
-                }
+            const spaceForImageOnCurrentPage = pdfHeight - currentY - margin;
+
+            if (imgHeight > spaceForImageOnCurrentPage) {
+                // Image doesn't fit on the current page after its title.
+                // Move to a new page for this image.
+                pdf.addPage();
+                currentY = margin;
+
+                // Re-add month title on the new page
+                pdf.setFontSize(16);
+                pdf.text(monthTitle, margin, currentY);
+                currentY += titleHeight; // Space after title
+
+                // Constrain image height to fit the new page (after title)
+                imgHeight = Math.min(imgHeight, pdfHeight - currentY - margin);
             }
             
             pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
-            currentY += imgHeight + 5; 
-             if (allMonthsToExport.indexOf(month) < allMonthsToExport.length -1 && currentY < pdfHeight - margin) {
-                currentY += 5; 
-            }
+            currentY += imgHeight + 10; // Space after image, before next month or next section
+
         } catch (captureError) {
-            console.error("Error capturing calendar for month:", format(month, 'MMMM yyyy', { locale: currentDateFnsLocale }), captureError);
+            console.error("Error capturing calendar for month:", monthTitle, captureError);
             toast({ 
               title: t('page.toast.errorCapturingCalendarForMonth.title'), 
-              description: t('page.toast.errorCapturingCalendarForMonth.description', { month: format(month, 'MMMM yyyy', { locale: currentDateFnsLocale }) }), 
+              description: t('page.toast.errorCapturingCalendarForMonth.description', { month: monthTitle }), 
               variant: "destructive" 
             });
         }
@@ -379,9 +388,8 @@ export default function RotaWisePage() {
     setPdfExportMonth(null);
     setIsPdfExportMode(false);
 
-    // Individual Doctor Details
     for (const doctor of doctorsProfiles) {
-        if (currentY + 70 > pdfHeight - margin) { // Increased height check for more rows
+        if (currentY + 70 > pdfHeight - margin) { 
           pdf.addPage();
           currentY = margin;
         }
@@ -418,8 +426,7 @@ export default function RotaWisePage() {
         currentY = (pdf as any).lastAutoTable.finalY + 10;
       }
 
-    // Workdays per Doctor by Day of the Week Summary
-    if (currentY + 50 > pdfHeight - margin) { // Check if space for title and a few rows
+    if (currentY + 50 > pdfHeight - margin) { 
         pdf.addPage();
         currentY = margin;
     }
@@ -440,7 +447,7 @@ export default function RotaWisePage() {
         );
 
         for (const entry of workEntries) {
-            const dayOfWeekKey = format(entry.date, 'EEE', { locale: enUS }); // Use enUS for consistent keying
+            const dayOfWeekKey = format(entry.date, 'EEE', { locale: enUS }); 
             if (dayKeys.includes(dayOfWeekKey)) {
                 (doctorSummary[dayOfWeekKey] as number)++;
                 (doctorSummary['Total'] as number)++;
@@ -481,7 +488,6 @@ export default function RotaWisePage() {
         margin: { left: margin, right: margin },
     });
 
-
     try {
       pdf.save('rotawise-report.pdf');
       toast({ 
@@ -499,7 +505,6 @@ export default function RotaWisePage() {
       setIsExportingPdf(false);
     }
   };
-
 
   if (!isMounted) {
     return (
