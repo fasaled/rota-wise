@@ -1,3 +1,4 @@
+
 "use client";
 
 import type React from 'react';
@@ -10,25 +11,34 @@ import { ChevronLeft, ChevronRight, Users, CalendarDays as CalendarIconLucide } 
 import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { VacationIcon, PreAssignedIcon, WorkIcon } from '@/components/icons';
-import ManualAdjustmentDialog from './manual-adjustment-dialog'; // Path is relative to current dir
+import ManualAdjustmentDialog from './manual-adjustment-dialog';
 
 interface ScheduleCalendarViewProps {
   schedule: Schedule;
-  doctors: DoctorProfile[]; // Use DoctorProfile which includes id, name, and possibly other display info
-  onUpdateScheduleEntry: (updatedEntry: ScheduleEntry) => void; // Callback to update schedule in parent
+  doctors: DoctorProfile[];
+  onUpdateScheduleEntry: (updatedEntry: ScheduleEntry) => void;
+  forceDisplayMonth?: Date | null; // For PDF export: overrides internal currentMonth for display
+  isPdfExportMode?: boolean; // For PDF export: simplifies header and shows all doctors
 }
 
-const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({ schedule, doctors, onUpdateScheduleEntry }) => {
+const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({ 
+    schedule, 
+    doctors, 
+    onUpdateScheduleEntry,
+    forceDisplayMonth,
+    isPdfExportMode 
+}) => {
   const [currentMonth, setCurrentMonth] = useState(schedule.startDate || new Date());
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | 'all'>('all');
-  const [viewMode, setViewMode] = useState<'calendar' | 'doctor' | 'day'>('calendar');
   
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
   const [selectedEntryForAdjustment, setSelectedEntryForAdjustment] = useState<ScheduleEntry | null>(null);
   const [selectedDateForAdjustment, setSelectedDateForAdjustment] = useState<Date | null>(null);
 
+  const effectiveDisplayMonth = useMemo(() => forceDisplayMonth || currentMonth, [forceDisplayMonth, currentMonth]);
 
   const handleOpenAdjustmentDialog = (entry: ScheduleEntry | null, date: Date) => {
+    if (isPdfExportMode) return; // Disable adjustments during PDF export
     setSelectedEntryForAdjustment(entry);
     setSelectedDateForAdjustment(date);
     setIsAdjustmentDialogOpen(true);
@@ -39,28 +49,28 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({ schedule, d
   }, [doctors]);
 
   const daysInMonth = useMemo(() : DayDetails[] => {
-    const monthStart = startOfMonth(currentMonth);
-    const monthEnd = endOfMonth(currentMonth);
-    const startDate = startOfWeek(monthStart);
-    const endDate = endOfWeek(monthEnd);
+    const monthToDisplay = effectiveDisplayMonth;
+    const monthStart = startOfMonth(monthToDisplay);
+    const monthEnd = endOfMonth(monthToDisplay);
+    const startDateCal = startOfWeek(monthStart);
+    const endDateCal = endOfWeek(monthEnd);
 
-    return eachDayOfInterval({ start: startDate, end: endDate }).map(date => {
-      // Ensure schedule entries dates are proper Date objects
+    return eachDayOfInterval({ start: startDateCal, end: endDateCal }).map(date => {
       const entriesForDay = schedule.entries.filter(entry => 
         isSameDay(entry.date instanceof Date ? entry.date : parseISO(entry.date as unknown as string), date) &&
-        (selectedDoctorId === 'all' || entry.doctorId === selectedDoctorId)
+        (isPdfExportMode || selectedDoctorId === 'all' || entry.doctorId === selectedDoctorId)
       );
       return {
         date,
-        isCurrentMonth: isSameMonth(date, currentMonth),
+        isCurrentMonth: isSameMonth(date, monthToDisplay),
         isToday: isSameDay(date, new Date()),
         assignments: entriesForDay,
       };
     });
-  }, [currentMonth, schedule.entries, selectedDoctorId]);
+  }, [effectiveDisplayMonth, schedule.entries, selectedDoctorId, isPdfExportMode]);
 
   const renderDayCell = (day: DayDetails) => {
-    const cellBaseClasses = "h-28 md:h-32 lg:h-36 p-1.5 border flex flex-col overflow-hidden hover:shadow-md transition-shadow duration-200 rounded-md";
+    const cellBaseClasses = "h-28 md:h-32 lg:h-36 p-1.5 border flex flex-col overflow-hidden rounded-md";
     const dateTextClasses = day.isCurrentMonth ? "font-medium" : "text-muted-foreground/70";
     const todayMarkerClasses = day.isToday ? "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center" : "";
     
@@ -70,12 +80,12 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({ schedule, d
         className={cn(
           cellBaseClasses,
           day.isCurrentMonth ? 'bg-card' : 'bg-muted/30',
-           "cursor-pointer"
+          !isPdfExportMode && "cursor-pointer hover:shadow-md transition-shadow duration-200"
         )}
-        onClick={() => handleOpenAdjustmentDialog(null, day.date)} // Allow adding new assignment
-        role="button"
-        tabIndex={0}
-        aria-label={`Schedule for ${format(day.date, 'PPP')}`}
+        onClick={() => !isPdfExportMode && handleOpenAdjustmentDialog(null, day.date)}
+        role={!isPdfExportMode ? "button" : undefined}
+        tabIndex={!isPdfExportMode ? 0 : undefined}
+        aria-label={!isPdfExportMode ? `Schedule for ${format(day.date, 'PPP')}` : undefined}
       >
         <div className={cn("text-xs md:text-sm mb-1", dateTextClasses)}>
           <span className={todayMarkerClasses}>{format(day.date, 'd')}</span>
@@ -95,15 +105,15 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({ schedule, d
                 break;
               case 'Pre-assigned':
                 IconComponent = PreAssignedIcon;
-                bgColor = 'bg-primary/80'; // More opaque for pre-assigned
+                bgColor = 'bg-primary/80';
                 textColor = 'text-primary-foreground';
                 break;
               case 'Work':
                 IconComponent = WorkIcon;
-                bgColor = 'bg-blue-200 dark:bg-blue-800'; // A neutral work color
+                bgColor = 'bg-blue-200 dark:bg-blue-800';
                 textColor = 'text-blue-700 dark:text-blue-300';
                 break;
-              default: // Off or other
+              default:
                 return (
                   <div key={index} className="p-1 rounded text-muted-foreground italic">
                     {doctor?.name || entry.doctorId}: Off
@@ -113,8 +123,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({ schedule, d
             return (
               <div 
                 key={index} 
-                className={cn("p-1.5 rounded-md text-xs flex items-center gap-1", bgColor, textColor, "cursor-pointer")}
-                onClick={(e) => { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date);}}
+                className={cn("p-1.5 rounded-md text-xs flex items-center gap-1", bgColor, textColor, !isPdfExportMode && "cursor-pointer")}
+                onClick={(e) => { if (!isPdfExportMode) { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date);}}}
               >
                 {IconComponent && <IconComponent className="w-3 h-3 shrink-0" />}
                 <span className="truncate">{doctor?.name || entry.doctorId}</span>
@@ -126,8 +136,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({ schedule, d
     );
   };
 
-  const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
-  const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
+  const nextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
+  const prevMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
 
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -137,31 +147,38 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({ schedule, d
         <CardTitle className="text-2xl font-bold text-primary flex items-center gap-2">
           <CalendarIconLucide /> Generated Schedule
         </CardTitle>
-        <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
-           <Select value={selectedDoctorId} onValueChange={(value) => setSelectedDoctorId(value as string)}>
-            <SelectTrigger className="w-full sm:w-[180px] bg-card">
-              <Users className="w-4 h-4 mr-2 text-muted-foreground" />
-              <SelectValue placeholder="Filter by Doctor" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Doctors</SelectItem>
-              {doctors.map(doc => (
-                <SelectItem key={doc.id} value={doc.id}>{doc.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={prevMonth} aria-label="Previous month">
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-            <span className="text-lg font-semibold w-32 text-center">
-              {format(currentMonth, 'MMMM yyyy')}
-            </span>
-            <Button variant="outline" size="icon" onClick={nextMonth} aria-label="Next month">
-              <ChevronRight className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
+        
+        {isPdfExportMode ? (
+            <div className="text-lg font-semibold w-full text-center md:text-right">
+                {format(effectiveDisplayMonth, 'MMMM yyyy')}
+            </div>
+        ) : (
+            <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+                <Select value={selectedDoctorId} onValueChange={(value) => setSelectedDoctorId(value as string)}>
+                    <SelectTrigger className="w-full sm:w-[180px] bg-card">
+                    <Users className="w-4 h-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder="Filter by Doctor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                    <SelectItem value="all">All Doctors</SelectItem>
+                    {doctors.map(doc => (
+                        <SelectItem key={doc.id} value={doc.id}>{doc.name}</SelectItem>
+                    ))}
+                    </SelectContent>
+                </Select>
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" size="icon" onClick={prevMonth} aria-label="Previous month">
+                    <ChevronLeft className="h-5 w-5" />
+                    </Button>
+                    <span className="text-lg font-semibold w-32 text-center">
+                    {format(effectiveDisplayMonth, 'MMMM yyyy')}
+                    </span>
+                    <Button variant="outline" size="icon" onClick={nextMonth} aria-label="Next month">
+                    <ChevronRight className="h-5 w-5" />
+                    </Button>
+                </div>
+            </div>
+        )}
       </CardHeader>
       <CardContent className="p-2 sm:p-4">
         <div className="grid grid-cols-7 gap-1 text-center font-medium text-muted-foreground text-sm mb-2">
@@ -176,7 +193,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({ schedule, d
             <div className="flex items-center gap-1"><PreAssignedIcon className="w-3 h-3 text-primary-foreground"/> <span className="p-0.5 rounded-sm bg-primary/80 text-primary-foreground">Pre-assigned</span></div>
         </div>
       </CardContent>
-       {selectedDateForAdjustment && (
+       {!isPdfExportMode && selectedDateForAdjustment && (
         <ManualAdjustmentDialog
           isOpen={isAdjustmentDialogOpen}
           onClose={() => setIsAdjustmentDialogOpen(false)}

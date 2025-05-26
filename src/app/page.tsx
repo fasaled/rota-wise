@@ -19,7 +19,7 @@ import { buttonVariants } from '@/components/ui/button';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
-import { format } from 'date-fns';
+import { format, startOfMonth, addMonths } from 'date-fns';
 
 
 export default function RotaWisePage() {
@@ -33,6 +33,10 @@ export default function RotaWisePage() {
   const [loadedFormValues, setLoadedFormValues] = useState<Partial<ScheduleFormValues> | null>(null);
   const [dataInputFormKey, setDataInputFormKey] = useState(0);
   const calendarRef = useRef<HTMLDivElement>(null);
+
+  const [pdfExportMonth, setPdfExportMonth] = useState<Date | null>(null);
+  const [isPdfExportMode, setIsPdfExportMode] = useState(false);
+
 
   useEffect(() => {
     setIsMounted(true);
@@ -94,14 +98,9 @@ export default function RotaWisePage() {
         !(e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === (updatedEntry.assignment === 'Off' ? e.doctorId : updatedEntry.doctorId))
       );
       
-      // Only add if not 'Off' or if 'Off' and there was no previous entry for this specific doctor on this day
-      // Or if it's an 'Off' assignment meant to clear a specific doctor.
-      // A more robust way would be to identify the specific entry to replace or remove.
-      // For now, simple add:
       if (updatedEntry.assignment !== 'Off' || !prevSchedule.entries.find(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId)) {
           newEntries.push(updatedEntry);
       }
-
 
       const doctorProfile = doctorsProfiles.find(dp => dp.id === updatedEntry.doctorId);
       if (doctorProfile && updatedEntry.assignment === 'Work') {
@@ -243,56 +242,103 @@ export default function RotaWisePage() {
       return;
     }
     setIsExportingPdf(true);
+    setIsPdfExportMode(true);
 
-    const calendarElement = calendarRef.current;
-    if (!calendarElement) {
-      toast({ title: "Error capturing calendar element", description: "Please try again.", variant: "destructive" });
-      setIsExportingPdf(false);
-      return;
+    const pdf = new jsPDF({
+      orientation: 'p', // portrait
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const margin = 10;
+    const contentWidth = pdfWidth - 2 * margin;
+    let currentY = margin;
+
+    pdf.setFontSize(20);
+    pdf.text('RotaWise Schedule Report', pdfWidth / 2, currentY + 5, { align: 'center' });
+    currentY += 15;
+
+    pdf.setFontSize(12);
+    pdf.text(`Schedule Period: ${format(schedule.startDate, 'PPP')} - ${format(schedule.endDate, 'PPP')}`, margin, currentY);
+    currentY += 10;
+    
+    const getMonthsInRange = (start: Date, end: Date): Date[] => {
+        const months: Date[] = [];
+        let currentIterationDate = startOfMonth(new Date(start));
+        const finalMonthStart = startOfMonth(new Date(end));
+        while (currentIterationDate <= finalMonthStart) {
+            months.push(new Date(currentIterationDate));
+            currentIterationDate = addMonths(currentIterationDate, 1);
+        }
+        return months;
+    };
+
+    const allMonthsToExport = getMonthsInRange(schedule.startDate, schedule.endDate);
+
+    for (const month of allMonthsToExport) {
+        setPdfExportMonth(month);
+        await new Promise(resolve => setTimeout(resolve, 250)); // Wait for re-render
+
+        const calendarElement = calendarRef.current;
+        if (!calendarElement) {
+            toast({ title: "Error capturing calendar element", description: "Please try again.", variant: "destructive" });
+            setIsPdfExportMode(false);
+            setPdfExportMonth(null);
+            setIsExportingPdf(false);
+            return;
+        }
+
+        if (currentY + 30 > pdfHeight - margin) { // Check space for month title + image placeholder
+            pdf.addPage();
+            currentY = margin;
+        }
+
+        pdf.setFontSize(16);
+        pdf.text(format(month, 'MMMM yyyy'), margin, currentY);
+        currentY += 10;
+
+        try {
+            const canvas = await html2canvas(calendarElement, { scale: 2, useCORS: true, logging: false });
+            const imgData = canvas.toDataURL('image/png');
+            const imgProps = pdf.getImageProperties(imgData);
+            let imgHeight = (imgProps.height * contentWidth) / imgProps.width;
+            
+            const spaceForImage = pdfHeight - currentY - margin;
+            if (imgHeight > spaceForImage) {
+                 if (spaceForImage < 50 && allMonthsToExport.length > 1) { // If too little space and not the only month, new page
+                    pdf.addPage();
+                    currentY = margin;
+                    pdf.setFontSize(16); // Re-add month title on new page
+                    pdf.text(format(month, 'MMMM yyyy'), margin, currentY);
+                    currentY += 10;
+                    // Recalculate available height on new page
+                    imgHeight = Math.min(imgHeight, pdfHeight - margin * 2 - 10); 
+                } else {
+                   imgHeight = spaceForImage; // Scale down to fit remaining space
+                }
+            }
+            
+            pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
+            currentY += imgHeight + 5; // Small gap after image
+             if (allMonthsToExport.indexOf(month) < allMonthsToExport.length -1 && currentY < pdfHeight - margin) {
+                currentY += 5; // Add a bit more space before next month's calendar if on same page
+            }
+
+
+        } catch (captureError) {
+            console.error("Error capturing calendar for month:", format(month, 'MMMM yyyy'), captureError);
+            toast({ title: "Error Capturing Calendar", description: `Failed for ${format(month, 'MMMM yyyy')}. Report may be incomplete.`, variant: "destructive" });
+        }
     }
+    
+    setPdfExportMonth(null);
+    setIsPdfExportMode(false);
 
-    try {
-      const canvas = await html2canvas(calendarElement, { 
-        scale: 2, // Improves image quality
-        useCORS: true, // If you have external images/styles
-        logging: false // Reduce console noise
-      });
-      const imgData = canvas.toDataURL('image/png');
-
-      const pdf = new jsPDF({
-        orientation: 'p', // portrait
-        unit: 'mm',
-        format: 'a4',
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const margin = 10;
-      const contentWidth = pdfWidth - 2 * margin;
-      let currentY = margin;
-
-      pdf.setFontSize(20);
-      pdf.text('RotaWise Schedule Report', pdfWidth / 2, currentY + 5, { align: 'center' });
-      currentY += 15;
-
-      pdf.setFontSize(12);
-      pdf.text(`Schedule Period: ${format(schedule.startDate, 'PPP')} - ${format(schedule.endDate, 'PPP')}`, margin, currentY);
-      currentY += 10;
-      
-      const imgProps = pdf.getImageProperties(imgData);
-      let imgHeight = (imgProps.height * contentWidth) / imgProps.width;
-      
-      const maxImgHeight = pdfHeight - currentY - margin - 10; // Max height for image on current page
-      if (imgHeight > maxImgHeight) {
-        imgHeight = maxImgHeight; // Scale down if too large for one page part
-      }
-
-      pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
-      currentY += imgHeight + 10;
-
-      for (const doctor of doctorsProfiles) {
-        // Check if new page is needed for doctor's table
-        if (currentY + 60 > pdfHeight - margin) { // Rough estimate for table height
+    // Add Doctor Details Tables
+    for (const doctor of doctorsProfiles) {
+        if (currentY + 60 > pdfHeight - margin) { // Rough estimate for table height + title
           pdf.addPage();
           currentY = margin;
         }
@@ -317,25 +363,22 @@ export default function RotaWisePage() {
             ['Generated Work', getFormattedDates(generatedWorkDates)],
             ['Vacation', getFormattedDates(vacationDates)],
           ],
-          theme: 'grid', // 'striped' or 'grid'
+          theme: 'grid',
           styles: { fontSize: 9, cellPadding: 1.5, overflow: 'linebreak' },
-          headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' }, // Example: Blue header
+          headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
           columnStyles: { 1: { cellWidth: 'auto'} },
           margin: { left: margin, right: margin },
-          didDrawPage: (data) => { // Handle page numbering if needed
-            // You can add footers/headers here per page
-          }
         });
-        // @ts-ignore The jspdf-autotable typings might not perfectly match the dynamic properties added.
+        // @ts-ignore
         currentY = (pdf as any).lastAutoTable.finalY + 10;
       }
 
+    try {
       pdf.save('rotawise-report.pdf');
       toast({ title: "PDF Report Exported", description: "rotawise-report.pdf has been downloaded." });
-
     } catch (error) {
-      console.error("Error exporting PDF:", error);
-      toast({ title: "Error Exporting PDF", description: (error as Error).message, variant: "destructive" });
+      console.error("Error saving PDF:", error);
+      toast({ title: "Error Saving PDF", description: (error as Error).message, variant: "destructive" });
     } finally {
       setIsExportingPdf(false);
     }
@@ -388,7 +431,13 @@ export default function RotaWisePage() {
 
         {schedule ? (
           <div ref={calendarRef}> {/* Wrapper for html2canvas */}
-            <ScheduleCalendarView schedule={schedule} doctors={doctorsProfiles} onUpdateScheduleEntry={handleUpdateScheduleEntry} />
+            <ScheduleCalendarView 
+                schedule={schedule} 
+                doctors={doctorsProfiles} 
+                onUpdateScheduleEntry={handleUpdateScheduleEntry}
+                forceDisplayMonth={pdfExportMonth}
+                isPdfExportMode={isPdfExportMode}
+            />
           </div>
         ) : (
           <Card className="mt-8 shadow-lg text-center">
