@@ -300,14 +300,14 @@ export default function RotaWisePage() {
         currentY += 10;
 
         try {
-            const canvas = await html2canvas(calendarElement, { scale: 2, useCORS: true, logging: false });
+            const canvas = await html2canvas(calendarElement, { scale: 3, useCORS: true, logging: false }); // Increased scale to 3
             const imgData = canvas.toDataURL('image/png');
             const imgProps = pdf.getImageProperties(imgData);
             let imgHeight = (imgProps.height * contentWidth) / imgProps.width;
             
             const spaceForImage = pdfHeight - currentY - margin;
             if (imgHeight > spaceForImage) {
-                 if (spaceForImage < 50 && allMonthsToExport.length > 1) { // If too little space and not the only month, new page
+                 if (spaceForImage < 50 && allMonthsToExport.length > 1 && allMonthsToExport.indexOf(month) < allMonthsToExport.length -1) { // If too little space and not the only/last month, new page
                     pdf.addPage();
                     currentY = margin;
                     pdf.setFontSize(16); // Re-add month title on new page
@@ -321,9 +321,9 @@ export default function RotaWisePage() {
             }
             
             pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
-            currentY += imgHeight + 5; // Small gap after image
+            currentY += imgHeight + 5; 
              if (allMonthsToExport.indexOf(month) < allMonthsToExport.length -1 && currentY < pdfHeight - margin) {
-                currentY += 5; // Add a bit more space before next month's calendar if on same page
+                currentY += 5; 
             }
 
 
@@ -338,7 +338,7 @@ export default function RotaWisePage() {
 
     // Add Doctor Details Tables
     for (const doctor of doctorsProfiles) {
-        if (currentY + 60 > pdfHeight - margin) { // Rough estimate for table height + title
+        if (currentY + 60 > pdfHeight - margin) { 
           pdf.addPage();
           currentY = margin;
         }
@@ -465,3 +465,4 @@ export default function RotaWisePage() {
     </div>
   );
 }
+

@@ -90,7 +90,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         <div className={cn("text-xs md:text-sm mb-1", dateTextClasses)}>
           <span className={todayMarkerClasses}>{format(day.date, 'd')}</span>
         </div>
-        <div className="space-y-1 overflow-y-auto text-xs flex-grow">
+        <div className="space-y-1 overflow-y-auto flex-grow">
           {day.assignments.map((entry, index) => {
             const doctor = doctorMap.get(entry.doctorId);
             let IconComponent;
@@ -120,14 +120,29 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                   </div>
                 );
             }
+
+            const assignmentTextClasses = isPdfExportMode ? "text-sm" : "text-xs";
+            const assignmentPadding = isPdfExportMode ? "p-1" : "p-1.5";
+            const doctorNameSpanClasses = isPdfExportMode ? "break-words" : "truncate";
+            const iconClasses = cn("shrink-0", isPdfExportMode ? "w-2.5 h-2.5" : "w-3 h-3");
+            const itemGap = isPdfExportMode ? "gap-0.5" : "gap-1";
+
             return (
               <div 
                 key={index} 
-                className={cn("p-1.5 rounded-md text-xs flex items-center gap-1", bgColor, textColor, !isPdfExportMode && "cursor-pointer")}
+                className={cn(
+                  "rounded-md flex items-center", 
+                  itemGap,
+                  assignmentPadding,
+                  assignmentTextClasses, 
+                  bgColor, 
+                  textColor, 
+                  !isPdfExportMode && "cursor-pointer"
+                )}
                 onClick={(e) => { if (!isPdfExportMode) { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date);}}}
               >
-                {IconComponent && <IconComponent className="w-3 h-3 shrink-0" />}
-                <span className="truncate">{doctor?.name || entry.doctorId}</span>
+                {IconComponent && <IconComponent className={iconClasses} />}
+                <span className={doctorNameSpanClasses}>{doctor?.name || entry.doctorId}</span>
               </div>
             );
           })}
@@ -208,3 +223,4 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 };
 
 export default ScheduleCalendarView;
+
