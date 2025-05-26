@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { scheduleFormSchema } from '@/components/equischedule/data-input-form';
+import type { scheduleFormSchema } from '@/components/rotawise/data-input-form'; // Updated path
 
 export interface Doctor {
   id: string;
@@ -41,4 +41,38 @@ export interface DayDetails {
   isCurrentMonth: boolean;
   isToday: boolean;
   assignments: ScheduleEntry[];
+}
+
+// --- Types for JSON Serialization/Deserialization ---
+
+export interface SerializedScheduleEntry extends Omit<ScheduleEntry, 'date'> {
+  date: string; // ISO date string
+}
+
+export interface SerializedSchedule extends Omit<Schedule, 'startDate' | 'endDate' | 'entries'> {
+  startDate: string; // ISO date string
+  endDate: string; // ISO date string
+  entries: SerializedScheduleEntry[];
+}
+
+export interface SerializedDoctorProfile extends Omit<DoctorProfile, 'vacationDates' | 'preAssignedWorkDates'> {
+  vacationDates: string[]; // Array of ISO date strings
+  preAssignedWorkDates: string[]; // Array of ISO date strings
+}
+
+export interface SerializedDoctorFormFieldInput extends Omit<DoctorFormFieldInput, 'vacationDates' | 'preAssignedWorkDates'> {
+  vacationDates: string[]; // Array of ISO date strings
+  preAssignedWorkDates: string[]; // Array of ISO date strings
+}
+
+export interface SerializedScheduleFormValues extends Omit<ScheduleFormValues, 'startDate' | 'endDate' | 'doctors'> {
+  startDate: string; // ISO date string
+  endDate: string; // ISO date string
+  doctors: SerializedDoctorFormFieldInput[];
+}
+
+export interface PersistedScheduleData {
+  schedule: SerializedSchedule;
+  doctorsProfiles: SerializedDoctorProfile[];
+  formValues: SerializedScheduleFormValues;
 }

@@ -1,6 +1,7 @@
+
 "use client";
 
-import React from 'react';
+import React from 'react'; // Ensure React is imported for JSX
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,10 +13,10 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { CalendarIcon, DoctorsIcon, PreferencesIcon, VacationIcon, PreAssignedIcon } from '@/components/icons';
-import { format, parseISO } from 'date-fns';
-import type { ScheduleFormValues, DoctorFormFieldInput } from '@/lib/types';
+import { format } from 'date-fns';
+import type { ScheduleFormValues } from '@/lib/types'; // DoctorFormFieldInput is part of ScheduleFormValues
 import { cn } from '@/lib/utils';
-import { PlusCircle, Trash2, UserPlus, Users } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 
 // Schema for a single doctor
 const doctorSchema = z.object({
@@ -30,8 +31,8 @@ export const scheduleFormSchema = z.object({
   numberOfDoctors: z.coerce.number().min(1, "At least one doctor is required.").max(20, "Maximum of 20 doctors allowed."),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." })
-    .refine((data) => data > new Date(new Date().setDate(new Date().getDate() -1)), { // Ensure end date is today or in future
-      message: "End date must be today or a future date.", // Custom message if needed
+    .refine((data) => data >= new Date(new Date().setHours(0,0,0,0)), { 
+      message: "End date must be today or a future date.",
     }),
   doctors: z.array(doctorSchema).min(1, "At least one doctor's details must be provided."),
 }).refine(data => data.endDate >= data.startDate, {
@@ -48,41 +49,68 @@ interface DataInputFormProps {
 const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, initialValues }) => {
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleFormSchema),
+    // Ensure defaultValues prioritize initialValues from props
     defaultValues: {
       numberOfDoctors: initialValues?.numberOfDoctors || 1,
       startDate: initialValues?.startDate || new Date(),
       endDate: initialValues?.endDate || new Date(new Date().setDate(new Date().getDate() + 30)),
-      doctors: initialValues?.doctors || [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [] }],
+      doctors: initialValues?.doctors && initialValues.doctors.length > 0 
+                 ? initialValues.doctors.map(doc => ({
+                     id: doc.id || crypto.randomUUID(), // Ensure ID exists
+                     name: doc.name || '',
+                     vacationDates: doc.vacationDates || [],
+                     preAssignedWorkDates: doc.preAssignedWorkDates || []
+                   }))
+                 : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [] }],
     },
   });
 
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "doctors",
   });
 
   const numberOfDoctors = form.watch('numberOfDoctors');
 
+  // Effect to synchronize the number of doctor fields with the 'numberOfDoctors' input
   React.useEffect(() => {
     const currentDoctorCount = fields.length;
-    if (numberOfDoctors > currentDoctorCount) {
-      for (let i = 0; i < numberOfDoctors - currentDoctorCount; i++) {
+    const targetDoctorCount = numberOfDoctors > 0 ? numberOfDoctors : 1; // Ensure at least 1
+
+    if (targetDoctorCount > currentDoctorCount) {
+      for (let i = 0; i < targetDoctorCount - currentDoctorCount; i++) {
         append({ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [] });
       }
-    } else if (numberOfDoctors < currentDoctorCount && numberOfDoctors > 0) {
-      for (let i = 0; i < currentDoctorCount - numberOfDoctors; i++) {
+    } else if (targetDoctorCount < currentDoctorCount) {
+      for (let i = 0; i < currentDoctorCount - targetDoctorCount; i++) {
         remove(currentDoctorCount - 1 - i);
       }
-    } else if (numberOfDoctors <= 0 && currentDoctorCount > 0) {
-       // Prevent removing all doctors if number becomes 0 or less, reset to 1 doctor
-       form.setValue('numberOfDoctors', 1);
-       if (currentDoctorCount > 1) {
-         for (let i = 0; i < currentDoctorCount - 1; i++) {
-           remove(currentDoctorCount - 1 - i);
-         }
-       }
     }
+     // If numberOfDoctors is set to 0 or less, reset it to 1 in the form state
+    if (numberOfDoctors <= 0) {
+      form.setValue('numberOfDoctors', 1, { shouldValidate: true });
+    }
+
   }, [numberOfDoctors, fields.length, append, remove, form]);
+  
+  // Effect to reset form when initialValues change (e.g., loading from file)
+  React.useEffect(() => {
+    if (initialValues) {
+      form.reset({
+        numberOfDoctors: initialValues.numberOfDoctors || 1,
+        startDate: initialValues.startDate || new Date(),
+        endDate: initialValues.endDate || new Date(new Date().setDate(new Date().getDate() + 30)),
+        doctors: initialValues.doctors && initialValues.doctors.length > 0
+                   ? initialValues.doctors.map(doc => ({
+                       id: doc.id || crypto.randomUUID(),
+                       name: doc.name || '',
+                       vacationDates: (doc.vacationDates || []).map(d => d instanceof Date ? d : new Date(d)),
+                       preAssignedWorkDates: (doc.preAssignedWorkDates || []).map(d => d instanceof Date ? d : new Date(d))
+                     }))
+                   : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [] }],
+      });
+    }
+  }, [initialValues, form.reset, form]);
 
 
   return (
@@ -184,7 +212,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                       control={form.control}
                       render={({ field }) => <Input {...field} id={`doctors.${index}.name`} placeholder="e.g., Dr. Smith" className="mt-1 bg-background"/>}
                     />
-                    {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors?.[index]?.name?.message}</p>}
+                    {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors[index]?.name?.message}</p>}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -201,7 +229,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
-                              <Calendar mode="multiple" selected={field.value} onSelect={field.onChange} min={0} />
+                              <Calendar mode="multiple" selected={field.value} onSelect={field.onChange} />
                             </PopoverContent>
                           </Popover>
                         )}
@@ -221,7 +249,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
-                              <Calendar mode="multiple" selected={field.value} onSelect={field.onChange} min={0} />
+                              <Calendar mode="multiple" selected={field.value} onSelect={field.onChange} />
                             </PopoverContent>
                           </Popover>
                         )}
@@ -231,7 +259,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                 </CardContent>
               </Card>
             ))}
-            {form.formState.errors.doctors && typeof form.formState.errors.doctors === 'string' && (
+            {(form.formState.errors.doctors && typeof form.formState.errors.doctors.message === 'string') && (
                 <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors.message}</p>
             )}
              {form.formState.errors.doctors?.root &&  (
