@@ -31,14 +31,6 @@ const dateFnsLocaleMap: Record<Language, Locale> = {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-// Helper to get nested values from an object: e.g., "a.b.c" from {a: {b: {c: "value"}}}
-const getNestedValue = (obj: any, path: string): string | undefined => {
-  if (!obj || typeof path !== 'string') {
-    return undefined;
-  }
-  return path.split('.').reduce((acc, part) => acc && acc[part], obj);
-};
-
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>('en');
   const [loadedTranslations, setLoadedTranslations] = useState<any>(translationsMap.en);
@@ -59,19 +51,24 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const t = useMemo(() => (key: string, replacements?: Record<string, string | number>): string => {
-    let translation = getNestedValue(loadedTranslations, key);
+    let translation = loadedTranslations ? loadedTranslations[key] : undefined;
+    
     if (translation === undefined) {
-      // Fallback to English if key not found in current language, then to key itself
-      translation = getNestedValue(translationsMap.en, key) || key;
+      // Fallback to English if key not found in current language
+      translation = translationsMap.en ? translationsMap.en[key] : undefined;
+      if (translation === undefined) {
+        // Final fallback to the key itself if not found in English either
+        translation = key;
+      }
     }
     
-    if (replacements) {
+    if (replacements && typeof translation === 'string') {
       Object.keys(replacements).forEach(placeholder => {
         translation = translation!.replace(new RegExp(`{${placeholder}}`, 'g'), String(replacements[placeholder]));
       });
     }
-    return translation!;
-  }, [loadedTranslations]);
+    return translation! ?? key; // Ensure we always return a string
+  }, [loadedTranslations, language]); // Added language to dependency array for safety, though loadedTranslations should cover it.
 
   const currentDateFnsLocale = useMemo(() => dateFnsLocaleMap[language], [language]);
 
@@ -89,3 +86,4 @@ export const useLanguage = (): LanguageContextType => {
   }
   return context;
 };
+
