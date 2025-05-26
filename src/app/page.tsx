@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Schedule, ScheduleFormValues, DoctorProfile, ScheduleEntry, PersistedScheduleData, SerializedDoctorFormFieldInput } from '@/lib/types';
 import DataInputForm from '@/components/rotawise/data-input-form';
 import ScheduleCalendarView from '@/components/rotawise/schedule-calendar-view';
@@ -12,21 +12,27 @@ import { ThemeIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
-import { Save, Upload } from 'lucide-react';
+import { Save, Upload, FileDown } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import autoTable from 'jspdf-autotable';
+import { format } from 'date-fns';
 
 
 export default function RotaWisePage() {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [doctorsProfiles, setDoctorsProfiles] = useState<DoctorProfile[]>([]);
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
 
   const [loadedFormValues, setLoadedFormValues] = useState<Partial<ScheduleFormValues> | null>(null);
   const [dataInputFormKey, setDataInputFormKey] = useState(0);
+  const calendarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -87,7 +93,16 @@ export default function RotaWisePage() {
       const newEntries = prevSchedule.entries.filter(e => 
         !(e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === (updatedEntry.assignment === 'Off' ? e.doctorId : updatedEntry.doctorId))
       );
-      newEntries.push(updatedEntry);
+      
+      // Only add if not 'Off' or if 'Off' and there was no previous entry for this specific doctor on this day
+      // Or if it's an 'Off' assignment meant to clear a specific doctor.
+      // A more robust way would be to identify the specific entry to replace or remove.
+      // For now, simple add:
+      if (updatedEntry.assignment !== 'Off' || !prevSchedule.entries.find(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId)) {
+          newEntries.push(updatedEntry);
+      }
+
+
       const doctorProfile = doctorsProfiles.find(dp => dp.id === updatedEntry.doctorId);
       if (doctorProfile && updatedEntry.assignment === 'Work') {
         const isVacation = doctorProfile.vacationDates.some(vd => 
@@ -212,19 +227,120 @@ export default function RotaWisePage() {
       } catch (err) {
         console.error("Error loading schedule:", err);
         toast({ title: "Error Loading Schedule", description: (err as Error).message, variant: "destructive" });
-        // Optionally reset state if loading fails
-        // setSchedule(null);
-        // setDoctorsProfiles([]);
-        // setLoadedFormValues(null);
       } finally {
         setIsLoading(false);
         if (event.target) {
-          event.target.value = ""; // Reset file input
+          event.target.value = ""; 
         }
       }
     };
     reader.readAsText(file);
   };
+
+  const handleExportPdf = async () => {
+    if (!schedule || !doctorsProfiles.length) {
+      toast({ title: "No schedule to export", description: "Generate or load a schedule first.", variant: "destructive" });
+      return;
+    }
+    setIsExportingPdf(true);
+
+    const calendarElement = calendarRef.current;
+    if (!calendarElement) {
+      toast({ title: "Error capturing calendar element", description: "Please try again.", variant: "destructive" });
+      setIsExportingPdf(false);
+      return;
+    }
+
+    try {
+      const canvas = await html2canvas(calendarElement, { 
+        scale: 2, // Improves image quality
+        useCORS: true, // If you have external images/styles
+        logging: false // Reduce console noise
+      });
+      const imgData = canvas.toDataURL('image/png');
+
+      const pdf = new jsPDF({
+        orientation: 'p', // portrait
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const contentWidth = pdfWidth - 2 * margin;
+      let currentY = margin;
+
+      pdf.setFontSize(20);
+      pdf.text('RotaWise Schedule Report', pdfWidth / 2, currentY + 5, { align: 'center' });
+      currentY += 15;
+
+      pdf.setFontSize(12);
+      pdf.text(`Schedule Period: ${format(schedule.startDate, 'PPP')} - ${format(schedule.endDate, 'PPP')}`, margin, currentY);
+      currentY += 10;
+      
+      const imgProps = pdf.getImageProperties(imgData);
+      let imgHeight = (imgProps.height * contentWidth) / imgProps.width;
+      
+      const maxImgHeight = pdfHeight - currentY - margin - 10; // Max height for image on current page
+      if (imgHeight > maxImgHeight) {
+        imgHeight = maxImgHeight; // Scale down if too large for one page part
+      }
+
+      pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
+      currentY += imgHeight + 10;
+
+      for (const doctor of doctorsProfiles) {
+        // Check if new page is needed for doctor's table
+        if (currentY + 60 > pdfHeight - margin) { // Rough estimate for table height
+          pdf.addPage();
+          currentY = margin;
+        }
+
+        pdf.setFontSize(14);
+        pdf.text(`${doctor.name}'s Schedule Details`, margin, currentY);
+        currentY += 8;
+
+        const getFormattedDates = (dates: Date[]) => dates.length > 0 ? dates.map(d => format(d, 'PPP')).join('\n') : 'None';
+        
+        const preAssignedWorkDates = doctor.preAssignedWorkDates;
+        const vacationDates = doctor.vacationDates;
+        const generatedWorkDates = schedule.entries
+          .filter(e => e.doctorId === doctor.id && e.assignment === 'Work')
+          .map(e => e.date);
+
+        autoTable(pdf, {
+          startY: currentY,
+          head: [['Assignment Type', 'Dates']],
+          body: [
+            ['Pre-assigned Work', getFormattedDates(preAssignedWorkDates)],
+            ['Generated Work', getFormattedDates(generatedWorkDates)],
+            ['Vacation', getFormattedDates(vacationDates)],
+          ],
+          theme: 'grid', // 'striped' or 'grid'
+          styles: { fontSize: 9, cellPadding: 1.5, overflow: 'linebreak' },
+          headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' }, // Example: Blue header
+          columnStyles: { 1: { cellWidth: 'auto'} },
+          margin: { left: margin, right: margin },
+          didDrawPage: (data) => { // Handle page numbering if needed
+            // You can add footers/headers here per page
+          }
+        });
+        // @ts-ignore The jspdf-autotable typings might not perfectly match the dynamic properties added.
+        currentY = (pdf as any).lastAutoTable.finalY + 10;
+      }
+
+      pdf.save('rotawise-report.pdf');
+      toast({ title: "PDF Report Exported", description: "rotawise-report.pdf has been downloaded." });
+
+    } catch (error) {
+      console.error("Error exporting PDF:", error);
+      toast({ title: "Error Exporting PDF", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
 
   if (!isMounted) {
     return (
@@ -257,17 +373,23 @@ export default function RotaWisePage() {
         />
 
         <div className="flex flex-col sm:flex-row gap-4 mt-6 mb-8 justify-center items-center">
-          <Button onClick={handleSaveSchedule} variant="outline" disabled={!schedule || isLoading} className="w-full sm:w-auto">
+          <Button onClick={handleSaveSchedule} variant="outline" disabled={!schedule || isLoading || isExportingPdf} className="w-full sm:w-auto">
             <Save className="mr-2 h-4 w-4" /> Save Schedule
           </Button>
-          <Label htmlFor="load-schedule-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", isLoading && "opacity-50 cursor-not-allowed")}>
+          <Label htmlFor="load-schedule-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf) && "opacity-50 cursor-not-allowed")}>
             <Upload className="mr-2 h-4 w-4" /> Load Schedule
-            <input id="load-schedule-input" type="file" accept=".json" className="hidden" onChange={handleFileUpload} disabled={isLoading}/>
+            <input id="load-schedule-input" type="file" accept=".json" className="hidden" onChange={handleFileUpload} disabled={isLoading || isExportingPdf}/>
           </Label>
+           <Button onClick={handleExportPdf} variant="outline" disabled={!schedule || isLoading || isExportingPdf} className="w-full sm:w-auto">
+            <FileDown className="mr-2 h-4 w-4" /> Export PDF Report
+            {isExportingPdf && <span className="animate-spin ml-2 h-4 w-4 border-t-2 border-b-2 border-primary rounded-full"></span>}
+          </Button>
         </div>
 
         {schedule ? (
-          <ScheduleCalendarView schedule={schedule} doctors={doctorsProfiles} onUpdateScheduleEntry={handleUpdateScheduleEntry} />
+          <div ref={calendarRef}> {/* Wrapper for html2canvas */}
+            <ScheduleCalendarView schedule={schedule} doctors={doctorsProfiles} onUpdateScheduleEntry={handleUpdateScheduleEntry} />
+          </div>
         ) : (
           <Card className="mt-8 shadow-lg text-center">
             <CardHeader>
