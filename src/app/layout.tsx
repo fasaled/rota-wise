@@ -5,7 +5,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"; // Import Toaster for app-wide notifications
 
 export const metadata: Metadata = {
-  title: 'EquiSchedule - Doctor Scheduling',
+  title: 'RotaWise - Doctor Scheduling',
   description: 'Fair and Balanced Doctor Scheduling Application',
 };
 

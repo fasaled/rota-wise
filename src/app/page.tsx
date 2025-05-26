@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import type { Schedule, ScheduleFormValues, DoctorProfile, ScheduleEntry } from '@/lib/types';
-import DataInputForm from '@/components/equischedule/data-input-form';
-import ScheduleCalendarView from '@/components/equischedule/schedule-calendar-view';
+import DataInputForm from '@/components/rotawise/data-input-form';
+import ScheduleCalendarView from '@/components/rotawise/schedule-calendar-view';
 import { generateScheduleAction } from '@/lib/actions';
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from "@/hooks/use-toast";
@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
 
-export default function EquiSchedulePage() {
+export default function RotaWisePage() {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [doctorsProfiles, setDoctorsProfiles] = useState<DoctorProfile[]>([]);
@@ -125,7 +125,7 @@ export default function EquiSchedulePage() {
           <div className="flex items-center gap-3">
             <ThemeIcon className="h-10 w-10 text-primary" />
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-primary">EquiSchedule</h1>
+              <h1 className="text-3xl md:text-4xl font-bold text-primary">RotaWise</h1>
               <p className="text-sm text-muted-foreground">Fair and Balanced Doctor Scheduling</p>
             </div>
           </div>
@@ -159,7 +159,7 @@ export default function EquiSchedulePage() {
       </main>
       <Toaster />
       <footer className="py-6 text-center text-sm text-muted-foreground border-t mt-12">
-        © {new Date().getFullYear()} EquiSchedule. All rights reserved.
+        © {new Date().getFullYear()} RotaWise. All rights reserved.
       </footer>
     </div>
   );
