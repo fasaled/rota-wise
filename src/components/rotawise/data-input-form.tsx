@@ -77,18 +77,22 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 
   React.useEffect(() => {
     const currentDoctorCount = fields.length;
-    const targetDoctorCount = numberOfDoctors > 0 ? numberOfDoctors : 1; 
+    // Ensure targetDoctorCount is at least 1, even if numberOfDoctors is somehow less (e.g. during initial load or invalid manual input)
+    const targetDoctorCount = Math.max(1, numberOfDoctors || 0); 
+
 
     if (targetDoctorCount > currentDoctorCount) {
       for (let i = 0; i < targetDoctorCount - currentDoctorCount; i++) {
         append({ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] });
       }
     } else if (targetDoctorCount < currentDoctorCount) {
+      // Remove doctors from the end of the array if targetDoctorCount is less
       for (let i = 0; i < currentDoctorCount - targetDoctorCount; i++) {
         remove(currentDoctorCount - 1 - i);
       }
     }
-    if (numberOfDoctors <= 0) {
+    // Ensure the form's numberOfDoctors value is at least 1
+    if (form.getValues('numberOfDoctors') < 1) {
       form.setValue('numberOfDoctors', 1, { shouldValidate: true });
     }
 
@@ -136,7 +140,10 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                     type="number"
                     min="1" max="20"
                     {...field}
-                    onChange={e => field.onChange(parseInt(e.target.value, 10))}
+                    onChange={e => {
+                      const val = parseInt(e.target.value, 10);
+                      field.onChange(isNaN(val) ? 1 : val); // Ensure value is a number, default to 1 if NaN
+                    }}
                     className="mt-1"
                   />
                 )}
@@ -211,7 +218,18 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-lg">{t('form.doctorNum', { index: index + 1 })}</CardTitle>
                     {fields.length > 1 && (
-                       <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive-foreground hover:bg-destructive/90">
+                       <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => {
+                          remove(index);
+                          // Also update the numberOfDoctors in the form state
+                          const currentNum = form.getValues('numberOfDoctors');
+                          form.setValue('numberOfDoctors', Math.max(1, currentNum - 1), { shouldValidate: true });
+                        }} 
+                        className="text-destructive hover:text-destructive-foreground hover:bg-destructive/90"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
@@ -335,3 +353,5 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 };
 
 export default DataInputForm;
+
+    
