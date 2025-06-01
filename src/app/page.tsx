@@ -48,12 +48,11 @@ export default function RotaWisePage() {
 
   // Default values for the form, used when no data is loaded
   const defaultPageFormValues: Partial<ScheduleFormValues> = {
-    numberOfDoctors: 2,
+    numberOfDoctors: 1,
     startDate: new Date(),
     endDate: new Date(new Date().setDate(new Date().getDate() + 29)), // Approx 1 month
     doctors: [
       { id: crypto.randomUUID(), name: 'Dr. Alice', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] },
-      { id: crypto.randomUUID(), name: 'Dr. Bob', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] },
     ]
   };
 
@@ -74,7 +73,7 @@ export default function RotaWisePage() {
     if (result.error) {
       toast({
         title: t('page.toast.errorGenerating.title'),
-        description: result.error, 
+        description: result.error,
         variant: "destructive",
       });
       setSchedule(null);
@@ -99,17 +98,17 @@ export default function RotaWisePage() {
   const handleUpdateScheduleEntry = (updatedEntry: ScheduleEntry) => {
     setSchedule(prevSchedule => {
       if (!prevSchedule) return null;
-      const newEntries = prevSchedule.entries.filter(e => 
+      const newEntries = prevSchedule.entries.filter(e =>
         !(e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === (updatedEntry.assignment === 'Off' ? e.doctorId : updatedEntry.doctorId))
       );
-      
+
       if (updatedEntry.assignment !== 'Off' || !prevSchedule.entries.find(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId)) {
           newEntries.push(updatedEntry);
       }
 
       const doctorProfile = doctorsProfiles.find(dp => dp.id === updatedEntry.doctorId);
       if (doctorProfile && updatedEntry.assignment === 'Work') {
-        const isVacation = doctorProfile.vacationDates.some(vd => 
+        const isVacation = doctorProfile.vacationDates.some(vd =>
           isSameDay(vd, updatedEntry.date)
         );
         if (isVacation) {
@@ -124,7 +123,7 @@ export default function RotaWisePage() {
         );
         if (isExcluded) {
           toast({
-            title: t('page.toast.scheduleWarning.title'), 
+            title: t('page.toast.scheduleWarning.title'),
             description: t('page.toast.excludedDayWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
@@ -136,10 +135,10 @@ export default function RotaWisePage() {
 
   const handleSaveSchedule = () => {
     if (!schedule || !doctorsProfiles.length) {
-      toast({ 
-        title: t('page.toast.nothingToSave.title'), 
-        description: t('page.toast.nothingToSave.description'), 
-        variant: "destructive" 
+      toast({
+        title: t('page.toast.nothingToSave.title'),
+        description: t('page.toast.nothingToSave.description'),
+        variant: "destructive"
       });
       return;
     }
@@ -184,9 +183,9 @@ export default function RotaWisePage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast({ 
-      title: t('page.toast.scheduleSaved.title'), 
-      description: t('page.toast.scheduleSaved.description') 
+    toast({
+      title: t('page.toast.scheduleSaved.title'),
+      description: t('page.toast.scheduleSaved.description')
     });
   };
 
@@ -244,23 +243,23 @@ export default function RotaWisePage() {
         setSchedule(processedSchedule);
         setDoctorsProfiles(processedDoctorsProfiles);
         setLoadedFormValues(processedFormValues);
-        setDataInputFormKey(prevKey => prevKey + 1); 
+        setDataInputFormKey(prevKey => prevKey + 1);
 
-        toast({ 
-          title: t('page.toast.scheduleLoaded.title'), 
-          description: t('page.toast.scheduleLoaded.description') 
+        toast({
+          title: t('page.toast.scheduleLoaded.title'),
+          description: t('page.toast.scheduleLoaded.description')
         });
       } catch (err) {
         console.error("Error loading schedule:", err);
-        toast({ 
-          title: t('page.toast.errorLoading.title'), 
-          description: (err as Error).message, 
-          variant: "destructive" 
+        toast({
+          title: t('page.toast.errorLoading.title'),
+          description: (err as Error).message,
+          variant: "destructive"
         });
       } finally {
         setIsLoading(false);
         if (event.target) {
-          event.target.value = ""; 
+          event.target.value = "";
         }
       }
     };
@@ -269,10 +268,10 @@ export default function RotaWisePage() {
 
   const handleExportPdf = async () => {
     if (!schedule || !doctorsProfiles.length) {
-      toast({ 
-        title: t('page.toast.noScheduleToExport.title'), 
-        description: t('page.toast.noScheduleToExport.description'), 
-        variant: "destructive" 
+      toast({
+        title: t('page.toast.noScheduleToExport.title'),
+        description: t('page.toast.noScheduleToExport.description'),
+        variant: "destructive"
       });
       return;
     }
@@ -296,12 +295,12 @@ export default function RotaWisePage() {
     currentY += 15;
 
     pdf.setFontSize(12);
-    pdf.text(t('pdf.schedulePeriod', { 
-        startDate: format(schedule.startDate, 'PPP', { locale: currentDateFnsLocale }), 
-        endDate: format(schedule.endDate, 'PPP', { locale: currentDateFnsLocale }) 
+    pdf.text(t('pdf.schedulePeriod', {
+        startDate: format(schedule.startDate, 'PPP', { locale: currentDateFnsLocale }),
+        endDate: format(schedule.endDate, 'PPP', { locale: currentDateFnsLocale })
     }), margin, currentY);
     currentY += 10;
-    
+
     const getMonthsInRange = (start: Date, end: Date): Date[] => {
         const months: Date[] = [];
         let currentIterationDate = startOfMonth(new Date(start));
@@ -318,78 +317,75 @@ export default function RotaWisePage() {
     for (const month of allMonthsToExport) {
         setPdfExportMonth(month);
         // Short delay to allow React to re-render the calendar for the specific month
-        await new Promise(resolve => setTimeout(resolve, 250)); 
+        await new Promise(resolve => setTimeout(resolve, 250));
 
         const calendarElement = calendarRef.current;
         if (!calendarElement) {
-            toast({ 
-              title: t('page.toast.errorCapturingCalendarElement.title'), 
-              description: t('page.toast.errorCapturingCalendarElement.description'), 
-              variant: "destructive" 
+            toast({
+              title: t('page.toast.errorCapturingCalendarElement.title'),
+              description: t('page.toast.errorCapturingCalendarElement.description'),
+              variant: "destructive"
             });
             setIsPdfExportMode(false);
             setPdfExportMonth(null);
             setIsExportingPdf(false);
             return;
         }
-        
+
         const monthTitle = format(month, 'MMMM yyyy', { locale: currentDateFnsLocale });
         const titleHeight = 10; // Estimated height for month title
         const minImageHeight = 100; // Minimum estimated height for a calendar image
         const requiredSpaceForBlock = titleHeight + minImageHeight + 10; // Title + Image + Padding
 
-        // Check if there's enough space for this month's block (title + min image height)
         if (allMonthsToExport.indexOf(month) > 0 && (currentY + requiredSpaceForBlock > pdfHeight - margin)) {
             pdf.addPage();
             currentY = margin;
         }
 
-        // Add month title
         pdf.setFontSize(16);
         pdf.text(monthTitle, margin, currentY);
-        currentY += titleHeight; // Space after title
+        currentY += titleHeight;
 
         try {
             const canvas = await html2canvas(calendarElement, { scale: 3, useCORS: true, logging: false });
             const imgData = canvas.toDataURL('image/png');
             const imgProps = pdf.getImageProperties(imgData);
             let imgHeight = (imgProps.height * contentWidth) / imgProps.width;
-            
+
             const spaceForImageOnCurrentPage = pdfHeight - currentY - margin;
 
-            if (imgHeight > spaceForImageOnCurrentPage) {
-                // Image doesn't fit on the current page after its title.
-                // Move to a new page for this image.
+            if (imgHeight > spaceForImageOnCurrentPage && spaceForImageOnCurrentPage < minImageHeight ) {
                 pdf.addPage();
                 currentY = margin;
 
-                // Re-add month title on the new page
                 pdf.setFontSize(16);
                 pdf.text(monthTitle, margin, currentY);
-                currentY += titleHeight; // Space after title
-
-                // Constrain image height to fit the new page (after title)
+                currentY += titleHeight;
                 imgHeight = Math.min(imgHeight, pdfHeight - currentY - margin);
+
+            } else if (imgHeight > spaceForImageOnCurrentPage) {
+                 imgHeight = spaceForImageOnCurrentPage;
             }
-            
+
+
             pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
-            currentY += imgHeight + 10; // Space after image, before next month or next section
+            currentY += imgHeight + 10;
 
         } catch (captureError) {
             console.error("Error capturing calendar for month:", monthTitle, captureError);
-            toast({ 
-              title: t('page.toast.errorCapturingCalendarForMonth.title'), 
-              description: t('page.toast.errorCapturingCalendarForMonth.description', { month: monthTitle }), 
-              variant: "destructive" 
+            toast({
+              title: t('page.toast.errorCapturingCalendarForMonth.title'),
+              description: t('page.toast.errorCapturingCalendarForMonth.description', { month: monthTitle }),
+              variant: "destructive"
             });
         }
     }
-    
+
     setPdfExportMonth(null);
     setIsPdfExportMode(false);
 
     for (const doctor of doctorsProfiles) {
-        if (currentY + 70 > pdfHeight - margin) { 
+        if (currentY + 70 > pdfHeight - margin) {
           pdf.addPage();
           currentY = margin;
         }
@@ -399,7 +395,7 @@ export default function RotaWisePage() {
         currentY += 8;
 
         const getFormattedDates = (dates: Date[]) => dates.length > 0 ? dates.map(d => format(d, 'PPP', { locale: currentDateFnsLocale })).join('\n') : t('pdf.none');
-        
+
         const preAssignedWorkDates = doctor.preAssignedWorkDates;
         const vacationDates = doctor.vacationDates;
         const excludedDates = doctor.excludedDates;
@@ -426,7 +422,7 @@ export default function RotaWisePage() {
         currentY = (pdf as any).lastAutoTable.finalY + 10;
       }
 
-    if (currentY + 50 > pdfHeight - margin) { 
+    if (currentY + 50 > pdfHeight - margin) {
         pdf.addPage();
         currentY = margin;
     }
@@ -447,7 +443,7 @@ export default function RotaWisePage() {
         );
 
         for (const entry of workEntries) {
-            const dayOfWeekKey = format(entry.date, 'EEE', { locale: enUS }); 
+            const dayOfWeekKey = format(entry.date, 'EEE', { locale: enUS });
             if (dayKeys.includes(dayOfWeekKey)) {
                 (doctorSummary[dayOfWeekKey] as number)++;
                 (doctorSummary['Total'] as number)++;
@@ -455,7 +451,7 @@ export default function RotaWisePage() {
         }
         workdaySummaryData.push(doctorSummary);
     }
-    
+
     const summaryTableBody = workdaySummaryData.map(summary => [
         summary.doctorName,
         summary.Mon,
@@ -490,16 +486,16 @@ export default function RotaWisePage() {
 
     try {
       pdf.save('rotawise-report.pdf');
-      toast({ 
-        title: t('page.toast.pdfReportExported.title'), 
-        description: t('page.toast.pdfReportExported.description') 
+      toast({
+        title: t('page.toast.pdfReportExported.title'),
+        description: t('page.toast.pdfReportExported.description')
       });
     } catch (error) {
       console.error("Error saving PDF:", error);
-      toast({ 
-        title: t('page.toast.errorSavingPdf.title'), 
-        description: (error as Error).message, 
-        variant: "destructive" 
+      toast({
+        title: t('page.toast.errorSavingPdf.title'),
+        description: (error as Error).message,
+        variant: "destructive"
       });
     } finally {
       setIsExportingPdf(false);
@@ -546,17 +542,17 @@ export default function RotaWisePage() {
             <input id="load-schedule-input" type="file" accept=".json" className="hidden" onChange={handleFileUpload} disabled={isLoading || isExportingPdf}/>
           </Label>
            <Button onClick={handleExportPdf} variant="outline" disabled={!schedule || isLoading || isExportingPdf} className="w-full sm:w-auto">
-            <FileDown className="mr-2 h-4 w-4" /> 
+            <FileDown className="mr-2 h-4 w-4" />
             {isExportingPdf ? t('page.exportingPdf') : t('page.exportPdf')}
             {isExportingPdf && <span className="animate-spin ml-2 h-4 w-4 border-t-2 border-b-2 border-primary rounded-full"></span>}
           </Button>
         </div>
 
         {schedule ? (
-          <div ref={calendarRef}> 
-            <ScheduleCalendarView 
-                schedule={schedule} 
-                doctors={doctorsProfiles} 
+          <div ref={calendarRef}>
+            <ScheduleCalendarView
+                schedule={schedule}
+                doctors={doctorsProfiles}
                 onUpdateScheduleEntry={handleUpdateScheduleEntry}
                 forceDisplayMonth={pdfExportMonth}
                 isPdfExportMode={isPdfExportMode}
@@ -569,7 +565,7 @@ export default function RotaWisePage() {
               <CardDescription>{t('page.noSchedule.description')}</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center p-6 min-h-[200px]">
-                <Image 
+                <Image
                     src="https://placehold.co/300x200.png"
                     alt="Calendar illustration"
                     width={300}
@@ -588,5 +584,3 @@ export default function RotaWisePage() {
     </div>
   );
 }
-
-    
