@@ -53,8 +53,8 @@ export default function RotaWisePage() {
   // Make defaultPageFormValues stable using useState
   const [stableDefaultPageFormValues] = useState<Partial<ScheduleFormValues>>(() => ({
     numberOfDoctors: 1,
-    startDate: new Date(),
-    endDate: new Date(new Date().setDate(new Date().getDate() + 29)),
+    startDate: undefined, // Ensures user must pick a date
+    endDate: undefined,   // Ensures user must pick a date
     minIntervalBetweenWorkDays: 1,
     doctors: [
       { id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] },
@@ -72,10 +72,6 @@ export default function RotaWisePage() {
       excludedDates: doc.excludedDates || [],
     }));
     setDoctorsProfiles(profiles);
-
-    // Pass the submitted data to potentially update the form's initial values if needed,
-    // although stabilizing defaultPageFormValues should be the primary fix.
-    // setLoadedFormValues(null); // Ensure we don't use stale loaded values
 
     const result = await generateScheduleAction(data);
     setIsLoading(false);
@@ -291,6 +287,9 @@ export default function RotaWisePage() {
         }
         if (typeof loadedData.schedule.startDate !== 'string' || typeof loadedData.schedule.endDate !== 'string') {
           throw new Error("Invalid date format in schedule data.");
+        }
+        if (typeof loadedData.formValues.startDate !== 'string' || typeof loadedData.formValues.endDate !== 'string') {
+             throw new Error("Invalid date format in form values data for schedule.");
         }
 
         const deserializedScheduleEntries = loadedData.schedule.entries.map(entry => ({
@@ -735,5 +734,3 @@ export default function RotaWisePage() {
     </div>
   );
 }
-
-    
