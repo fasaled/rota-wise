@@ -1,5 +1,5 @@
 
-# RotaWise - Doctor Scheduling Application
+# Rotawise - Doctor Scheduling Application
 
 This is a Next.js application for fair and balanced doctor scheduling, built in Firebase Studio.
 
