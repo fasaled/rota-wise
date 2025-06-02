@@ -289,7 +289,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                               onCheckedChange={field.onChange}
                               className="bg-background"
                             />
-                            <Label htmlFor={`doctors.${index}.isExcludedFromAutomaticAssignment`} className="font-medium text-sm whitespace-nowrap">
+                            <Label htmlFor={`doctors.${index}.isExcludedFromAutomaticAssignment`} className="font-medium text-sm">
                               {t('form.excludeFromAutoAssignment')}
                             </Label>
                           </div>
