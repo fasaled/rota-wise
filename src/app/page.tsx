@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import type { Schedule, ScheduleFormValues, DoctorProfile, ScheduleEntry, PersistedScheduleData, SerializedDoctorFormFieldInput, DoctorFormFieldInput } from '@/lib/types';
 import DataInputForm from '@/components/rotawise/data-input-form';
 import ScheduleCalendarView from '@/components/rotawise/schedule-calendar-view';
@@ -50,7 +50,8 @@ export default function RotaWisePage() {
     setIsMounted(true);
   }, []);
 
-  const defaultPageFormValues: Partial<ScheduleFormValues> = {
+  // Make defaultPageFormValues stable using useState
+  const [stableDefaultPageFormValues] = useState<Partial<ScheduleFormValues>>(() => ({
     numberOfDoctors: 1,
     startDate: new Date(),
     endDate: new Date(new Date().setDate(new Date().getDate() + 29)),
@@ -58,7 +59,7 @@ export default function RotaWisePage() {
     doctors: [
       { id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] },
     ]
-  };
+  }));
 
   const handleSubmitForm = async (data: ScheduleFormValues) => {
     setIsLoading(true);
@@ -71,6 +72,10 @@ export default function RotaWisePage() {
       excludedDates: doc.excludedDates || [],
     }));
     setDoctorsProfiles(profiles);
+
+    // Pass the submitted data to potentially update the form's initial values if needed,
+    // although stabilizing defaultPageFormValues should be the primary fix.
+    // setLoadedFormValues(null); // Ensure we don't use stale loaded values
 
     const result = await generateScheduleAction(data);
     setIsLoading(false);
@@ -666,7 +671,7 @@ export default function RotaWisePage() {
           key={dataInputFormKey}
           onSubmit={handleSubmitForm}
           isLoading={isLoading}
-          initialValues={loadedFormValues || defaultPageFormValues}
+          initialValues={loadedFormValues || stableDefaultPageFormValues}
         />
 
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 mt-6 mb-8 justify-center items-center">
@@ -730,3 +735,5 @@ export default function RotaWisePage() {
     </div>
   );
 }
+
+    
