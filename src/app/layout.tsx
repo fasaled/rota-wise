@@ -12,15 +12,15 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fasl.dev';
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: 'RotaWise - Doctor Scheduling',
-    template: '%s | RotaWise',
+    default: 'Rotawise - Doctor Scheduling',
+    template: '%s | Rotawise',
   },
-  description: 'Fair and Balanced Doctor Scheduling Application. Create, manage, and optimize doctor rotas efficiently with RotaWise. PWA-enabled for offline use.',
-  applicationName: 'RotaWise',
-  keywords: ['doctor scheduling', 'rota management', 'physician schedule', 'medical rota', 'on-call schedule', 'fair scheduling', 'balanced rota', 'PWA', 'RotaWise', 'schedule optimization'],
-  authors: [{ name: 'RotaWise Team', url: APP_URL }],
-  creator: 'RotaWise Team',
-  publisher: 'RotaWise Team',
+  description: 'Fair and Balanced Doctor Scheduling Application. Create, manage, and optimize doctor rotas efficiently with Rotawise. PWA-enabled for offline use.',
+  applicationName: 'Rotawise',
+  keywords: ['doctor scheduling', 'rota management', 'physician schedule', 'medical rota', 'on-call schedule', 'fair scheduling', 'balanced rota', 'PWA', 'Rotawise', 'schedule optimization'],
+  authors: [{ name: 'Rotawise Team', url: APP_URL }],
+  creator: 'Rotawise Team',
+  publisher: 'Rotawise Team',
   robots: {
     index: true,
     follow: true,
@@ -33,16 +33,16 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'RotaWise - Efficient & Fair Doctor Scheduling',
-    description: 'Optimize doctor rotas seamlessly with RotaWise. Ensure fair, balanced schedules with an easy-to-use, PWA-enabled application.',
+    title: 'Rotawise - Efficient & Fair Doctor Scheduling',
+    description: 'Optimize doctor rotas seamlessly with Rotawise. Ensure fair, balanced schedules with an easy-to-use, PWA-enabled application.',
     url: APP_URL,
-    siteName: 'RotaWise',
+    siteName: 'Rotawise',
     images: [
       {
         url: '/icons/og-image-1200x630.png', // User needs to create this image at public/icons/og-image-1200x630.png
         width: 1200,
         height: 630,
-        alt: 'RotaWise Application Interface for Doctor Scheduling',
+        alt: 'Rotawise Application Interface for Doctor Scheduling',
       },
     ],
     locale: 'en_US', // Adjust if your primary language is different or handle dynamically
@@ -50,15 +50,15 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'RotaWise - Smart Doctor Scheduling Solution',
-    description: 'Streamline your doctor scheduling process with RotaWise. Fair, balanced, and easy to manage rotas.',
+    title: 'Rotawise - Smart Doctor Scheduling Solution',
+    description: 'Streamline your doctor scheduling process with Rotawise. Fair, balanced, and easy to manage rotas.',
     // site: '@YourTwitterAppHandle', // Optional: Your app's Twitter handle
     creator: '@YourTwitterHandle', // Optional: Creator's Twitter handle (replace or remove)
     images: ['/icons/twitter-image-1200x600.png'], // User needs to create this image at public/icons/twitter-image-1200x600.png
   },
   appleWebApp: {
     capable: true,
-    title: 'RotaWise',
+    title: 'Rotawise',
     statusBarStyle: 'default',
   },
   formatDetection: {

@@ -1,6 +1,6 @@
 
 {
-  "header.title": "RotaWise",
+  "header.title": "Rotawise",
   "header.description": "Fair and Balanced Doctor Scheduling",
   "page.saveSchedule": "Save Schedule",
   "page.loadSchedule": "Load Schedule",
@@ -89,7 +89,7 @@
   "assignmentType.Pre-assigned": "Pre-assigned",
   "assignmentType.Off": "Off",
 
-  "pdf.reportTitle": "RotaWise Schedule Report",
+  "pdf.reportTitle": "Rotawise Schedule Report",
   "pdf.schedulePeriod": "Schedule Period: {startDate} - {endDate}",
   "pdf.minIntervalInfo": "Minimum interval between work days: {interval} day(s)",
   "pdf.doctorDetailsTitle": "{doctorName}'s Schedule Details",
@@ -123,7 +123,7 @@
   "summaryTable.sunHeader": "Sun",
   "summaryTable.totalHeader": "Total",
 
-  "footer.copyright": "© {year} RotaWise. All rights reserved.",
+  "footer.copyright": "© {year} Rotawise. All rights reserved.",
   "language.selector.label": "Language",
   "language.en": "English",
   "language.es": "Español"

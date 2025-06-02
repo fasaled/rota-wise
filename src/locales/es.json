@@ -1,6 +1,6 @@
 
 {
-  "header.title": "RotaWise",
+  "header.title": "Rotawise",
   "header.description": "Programación de Médicos Justa y Equilibrada",
   "page.saveSchedule": "Guardar Horario",
   "page.loadSchedule": "Cargar Horario",
@@ -89,7 +89,7 @@
   "assignmentType.Pre-assigned": "Preasignado",
   "assignmentType.Off": "Libre",
   
-  "pdf.reportTitle": "Informe de Horario RotaWise",
+  "pdf.reportTitle": "Informe de Horario Rotawise",
   "pdf.schedulePeriod": "Período del Horario: {startDate} - {endDate}",
   "pdf.minIntervalInfo": "Intervalo mínimo entre días de trabajo: {interval} día(s)",
   "pdf.doctorDetailsTitle": "Detalles del Horario de {doctorName}",
@@ -123,7 +123,7 @@
   "summaryTable.sunHeader": "Dom",
   "summaryTable.totalHeader": "Total",
 
-  "footer.copyright": "© {year} RotaWise. Todos los derechos reservados.",
+  "footer.copyright": "© {year} Rotawise. Todos los derechos reservados.",
   "language.selector.label": "Idioma",
   "language.en": "Inglés",
   "language.es": "Español"
