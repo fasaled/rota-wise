@@ -54,7 +54,7 @@ export default function RotaWisePage() {
     endDate: new Date(new Date().setDate(new Date().getDate() + 29)),
     minIntervalBetweenWorkDays: 1,
     doctors: [
-      { id: crypto.randomUUID(), name: 'Dr. Alice', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] },
+      { id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] },
     ]
   };
 
@@ -678,5 +678,7 @@ export default function RotaWisePage() {
     </div>
   );
 }
+
+    
 
     
