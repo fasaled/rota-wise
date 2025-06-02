@@ -1,0 +1,19 @@
+# See https://www.robotstxt.org/robotstxt.html for documentation on how to use the robots.txt file
+#
+# Allow all friendly crawlers access to the site
+User-agent: *
+Allow: /
+Sitemap: https://your-app-url.com/sitemap.xml # Replace your-app-url.com with your actual domain
+
+# Disallow specific AI crawlers if desired.
+# Users can choose to remove or modify these lines.
+User-agent: GPTBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+# Add other specific bot rules below if needed
+# Example:
+# User-agent: BadBot
+# Disallow: /
