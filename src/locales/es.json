@@ -53,6 +53,7 @@
   "form.datesSelected": "{count} fecha(s) seleccionada(s)",
   "form.generateButton": "Generar Horario",
   "form.generatingButton": "Generando...",
+  "form.shiftClickTip": "Consejo: Mantén pulsada la tecla Mayús y haz clic para seleccionar un rango de fechas.",
 
   "calendar.title": "Horario Generado",
   "calendar.filterDoctorPlaceholder": "Filtrar por Médico",

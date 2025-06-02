@@ -53,6 +53,7 @@
   "form.datesSelected": "{count} date(s) selected",
   "form.generateButton": "Generate Schedule",
   "form.generatingButton": "Generating...",
+  "form.shiftClickTip": "Tip: Hold Shift and click to select a range of dates.",
 
   "calendar.title": "Generated Schedule",
   "calendar.filterDoctorPlaceholder": "Filter by Doctor",

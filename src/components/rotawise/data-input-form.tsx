@@ -293,6 +293,9 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 onSelect={field.onChange}
                                 locale={currentDateFnsLocale}
                               />
+                              <p className="text-xs text-muted-foreground p-2 text-center border-t">
+                                {t('form.shiftClickTip')}
+                              </p>
                             </PopoverContent>
                           </Popover>
                         )}
@@ -318,6 +321,9 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 onSelect={field.onChange}
                                 locale={currentDateFnsLocale}
                               />
+                              <p className="text-xs text-muted-foreground p-2 text-center border-t">
+                                {t('form.shiftClickTip')}
+                              </p>
                             </PopoverContent>
                           </Popover>
                         )}
@@ -343,6 +349,9 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 onSelect={field.onChange}
                                 locale={currentDateFnsLocale}
                               />
+                              <p className="text-xs text-muted-foreground p-2 text-center border-t">
+                                {t('form.shiftClickTip')}
+                              </p>
                             </PopoverContent>
                           </Popover>
                         )}
@@ -380,6 +389,3 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 };
 
 export default DataInputForm;
-
-
-    
