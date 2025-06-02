@@ -65,7 +65,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
             description: t('dialog.toast.validationError.description'),
             variant: "destructive",
         });
-        return; // Still return for basic validation error like no doctor selected
+        return; 
     }
     
     const updatedEntryData: ScheduleEntry = {
@@ -88,10 +88,9 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
                 description: t('dialog.toast.adjustmentWarning.description', { doctorName: doctor.name }),
                 variant: "destructive",
             });
-            // Removed: return; // Allow save despite warning
         }
 
-        const isExcludedDayForDoctor = doctor.excludedDates.some(exDate =>
+        const isExcludedDayForDoctor = (doctor.excludedDates || []).some(exDate =>
             isSameDay(exDate, date)
         );
 
@@ -101,7 +100,6 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
                 description: t('dialog.toast.excludedDayWarning.description', { doctorName: doctor.name }),
                 variant: "destructive",
             });
-            // Removed: return; // Allow save despite warning
         }
 
         // Check min interval
@@ -125,7 +123,6 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
                     description: t('page.toast.minIntervalWarning.description', { doctorName: doctor.name, interval: minIntervalBetweenWorkDays }),
                     variant: "destructive",
                 });
-                // Removed: return; // Allow save despite warning
             }
         }
         if(closestWorkDayAfter) {
@@ -136,15 +133,12 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
                     description: t('page.toast.minIntervalWarning.description', { doctorName: doctor.name, interval: minIntervalBetweenWorkDays }),
                     variant: "destructive",
                 });
-                // Removed: return; // Allow save despite warning
             }
         }
     }
     
     onSave(updatedEntryData);
     onClose();
-    // Toast for successful update moved to handleUpdateScheduleEntry or handled by its existing toasts.
-    // For simplicity, we can keep a generic update message here or rely on page.tsx's more specific ones.
     const formattedDate = format(date, 'PPP', { locale: currentDateFnsLocale });
     toast({
         title: t('dialog.toast.scheduleUpdated.title'),

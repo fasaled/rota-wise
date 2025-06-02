@@ -68,7 +68,7 @@ export default function RotaWisePage() {
       name: doc.name,
       vacationDates: doc.vacationDates,
       preAssignedWorkDates: doc.preAssignedWorkDates,
-      excludedDates: doc.excludedDates,
+      excludedDates: doc.excludedDates || [],
     }));
     setDoctorsProfiles(profiles);
 
@@ -191,7 +191,7 @@ export default function RotaWisePage() {
             variant: "destructive",
           });
         }
-        const isExcluded = doctorProfile.excludedDates.some(ed =>
+        const isExcluded = (doctorProfile.excludedDates || []).some(ed =>
           isSameDay(ed, updatedEntry.date)
         );
         if (isExcluded) {
@@ -231,7 +231,7 @@ export default function RotaWisePage() {
         ...profile,
         vacationDates: profile.vacationDates.map(d => d.toISOString()),
         preAssignedWorkDates: profile.preAssignedWorkDates.map(d => d.toISOString()),
-        excludedDates: profile.excludedDates.map(d => d.toISOString()),
+        excludedDates: (profile.excludedDates || []).map(d => d.toISOString()),
       })),
       formValues: {
         numberOfDoctors: doctorsProfiles.length,
@@ -243,7 +243,7 @@ export default function RotaWisePage() {
           name: p.name,
           vacationDates: p.vacationDates.map(d => d.toISOString()),
           preAssignedWorkDates: p.preAssignedWorkDates.map(d => d.toISOString()),
-          excludedDates: p.excludedDates.map(d => d.toISOString()),
+          excludedDates: (p.excludedDates || []).map(d => d.toISOString()),
         }))
       }
     };
@@ -314,7 +314,7 @@ export default function RotaWisePage() {
         if (mode === 'as-pre-assigned') {
             const originalWorkDatesByDoctor = new Map<string, Date[]>();
             deserializedScheduleEntries.forEach(entry => {
-              if (entry.assignment === 'Work' && entry.doctorId !== 'system') { // Ensure not 'system' doctor
+              if (entry.assignment === 'Work' && entry.doctorId !== 'system') { 
                 if (!originalWorkDatesByDoctor.has(entry.doctorId)) {
                   originalWorkDatesByDoctor.set(entry.doctorId, []);
                 }
@@ -532,7 +532,7 @@ export default function RotaWisePage() {
 
         const preAssignedWorkDates = doctor.preAssignedWorkDates;
         const vacationDates = doctor.vacationDates;
-        const excludedDates = doctor.excludedDates;
+        const excludedDates = doctor.excludedDates || [];
         const generatedWorkDates = schedule.entries
           .filter(e => e.doctorId === doctor.id && e.assignment === 'Work') 
           .map(e => e.date);

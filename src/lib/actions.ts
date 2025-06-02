@@ -22,7 +22,8 @@ export async function generateScheduleAction(
     
     const doctorsWithIds: DoctorFormFieldInput[] = doctorInputs.map(doc => ({
         ...doc,
-        id: doc.id || `doc-${Math.random().toString(36).substr(2, 9)}` 
+        id: doc.id || `doc-${Math.random().toString(36).substr(2, 9)}`,
+        excludedDates: doc.excludedDates || [], // Ensure excludedDates is always an array
     }));
 
     const mockEntries: ScheduleEntry[] = [];
@@ -94,7 +95,7 @@ export async function generateScheduleAction(
       if (!dayHasWorkAssignment && doctorsWithIds.length > 0) {
         const eligibleDoctors = doctorsWithIds.filter(doc => {
             const isDoctorOnVacation = isDateInArray(currentDate, doc.vacationDates);
-            const isDoctorExcluded = isDateInArray(currentDate, doc.excludedDates);
+            const isDoctorExcluded = isDateInArray(currentDate, doc.excludedDates || []); // Handle potentially undefined excludedDates
             
             const lastWork = doctorLastWorkDay[doc.id];
             let respectsMinInterval = true;
