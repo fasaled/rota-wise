@@ -21,14 +21,13 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   icons: {
-    shortcut: '/favicon.ico', // Main browser tab icon
-    icon: [ // Generic icons for various purposes
-      { url: '/favicon.ico', type: 'image/x-icon', sizes: 'any' }, // Added for robustness
+    shortcut: '/favicon.ico', // For favicon.ico, main browser tab icon
+    icon: [ // For other general purpose icons (e.g., larger PNGs, specific sizes)
       { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: [ // Apple touch icons
-      { url: '/icons/icon-180x180.png' }, 
+      { url: '/icons/icon-180x180.png' },
       { url: '/icons/icon-152x152.png', sizes: '152x152', type: 'image/png' },
       { url: '/icons/icon-167x167.png', sizes: '167x167', type: 'image/png' },
     ],
