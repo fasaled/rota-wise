@@ -3,9 +3,15 @@
 
 import type { ScheduleFormValues, Schedule, ScheduleEntry, DoctorFormFieldInput } from "./types";
 import { parse, isSameDay, format, differenceInCalendarDays, subDays } from 'date-fns';
+import { enUS } from 'date-fns/locale';
 
 function isDateInArray(date: Date, dateArray: Date[]): boolean {
   return dateArray.some(d => isSameDay(d, date));
+}
+
+interface DoctorWorkloadStats {
+  totalWorkdays: number;
+  workloadByDayOfWeek: { [dayKey: string]: number }; // e.g. { 'Mon': 0, 'Tue': 0, ... }
 }
 
 export async function generateScheduleAction(
@@ -22,122 +28,131 @@ export async function generateScheduleAction(
     const mockEntries: ScheduleEntry[] = [];
     let currentDate = new Date(startDate);
     const finalEndDate = new Date(endDate);
-    let workDoctorIndex = 0; 
     
-    // Track the last work day for each doctor
+    const doctorStats: { [doctorId: string]: DoctorWorkloadStats } = {};
     const doctorLastWorkDay: { [doctorId: string]: Date | null } = {};
-    doctorsWithIds.forEach(doc => doctorLastWorkDay[doc.id] = null);
+    const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-    // Populate initial last work days from pre-assignments *before* the schedule start date
-    // This is a simplified approach; a more robust solution might need to look further back.
-    for (const doctor of doctorsWithIds) {
-        let latestPreAssignmentBeforeStart: Date | null = null;
-        for (const preAssignedDate of doctor.preAssignedWorkDates) {
-            if (preAssignedDate < startDate) {
-                if (!latestPreAssignmentBeforeStart || preAssignedDate > latestPreAssignmentBeforeStart) {
-                    latestPreAssignmentBeforeStart = preAssignedDate;
-                }
-            }
-        }
-        if (latestPreAssignmentBeforeStart) {
-            doctorLastWorkDay[doctor.id] = latestPreAssignmentBeforeStart;
-        }
-    }
+    doctorsWithIds.forEach(doc => {
+      doctorLastWorkDay[doc.id] = null;
+      const initialWorkloadByDay: { [dayKey: string]: number } = {};
+      dayKeys.forEach(key => initialWorkloadByDay[key] = 0);
+      doctorStats[doc.id] = {
+        totalWorkdays: 0,
+        workloadByDayOfWeek: initialWorkloadByDay,
+      };
+
+      // Initialize lastWorkDay from pre-assignments *before* the schedule's start date
+      const preAssignmentsBeforeStart = doc.preAssignedWorkDates
+        .filter(d => d < startDate)
+        .sort((a, b) => b.getTime() - a.getTime()); // Sort descending, latest first
+      if (preAssignmentsBeforeStart.length > 0) {
+        doctorLastWorkDay[doc.id] = preAssignmentsBeforeStart[0];
+      }
+    });
 
 
     while (currentDate <= finalEndDate) {
-      const dayOfWeek = format(currentDate, 'EEEE'); 
-      let dayHasAssignment = false;
-      let assignedDoctorOnDay: string | null = null;
+      const dayOfWeekFullName = format(currentDate, 'EEEE', { locale: enUS }); // For ScheduleEntry
+      const dayOfWeekKey = format(currentDate, 'EEE', { locale: enUS }); // For stats, e.g., "Mon"
+      let dayHasWorkAssignment = false;
 
-      // Process pre-assignments first
+      // Process pre-assignments first for the current day
       for (const doctor of doctorsWithIds) {
         if (isDateInArray(currentDate, doctor.preAssignedWorkDates)) {
-          // Check min interval for pre-assignments IF they are not the very first assignment
-          const lastWorkDay = doctorLastWorkDay[doctor.id];
-          if (lastWorkDay && differenceInCalendarDays(currentDate, lastWorkDay) <= minIntervalBetweenWorkDays) {
-             // This pre-assignment violates the interval. For now, we'll log and potentially skip,
-             // or the business rule might be that pre-assignments override this.
-             // For this implementation, pre-assignments will override the interval but this is a point for refinement.
-             // console.warn(`Doctor ${doctor.name} pre-assigned on ${format(currentDate, 'yyyy-MM-dd')} violates min interval.`);
-          }
-          
           mockEntries.push({
             date: new Date(currentDate),
             doctorId: doctor.id,
             assignment: 'Pre-assigned',
-            dayOfWeek,
+            dayOfWeek: dayOfWeekFullName,
           });
           doctorLastWorkDay[doctor.id] = new Date(currentDate);
-          dayHasAssignment = true; 
-          assignedDoctorOnDay = doctor.id;
+          if (doctorStats[doctor.id]) { // Ensure stats exist
+            doctorStats[doctor.id].totalWorkdays++;
+            if (doctorStats[doctor.id].workloadByDayOfWeek[dayOfWeekKey] !== undefined) {
+                doctorStats[doctor.id].workloadByDayOfWeek[dayOfWeekKey]++;
+            }
+          }
+          dayHasWorkAssignment = true; 
           break; // Assume only one doctor can be pre-assigned to work on a given day
         }
       }
       
-      // Process vacations (these don't set dayHasAssignment to true for work purposes)
+      // Add vacation entries regardless of work assignments
       for (const doctor of doctorsWithIds) {
          if (isDateInArray(currentDate, doctor.vacationDates)) {
           mockEntries.push({
             date: new Date(currentDate),
             doctorId: doctor.id,
             assignment: 'Vacation',
-            dayOfWeek,
+            dayOfWeek: dayOfWeekFullName,
           });
         }
       }
 
-      if (!dayHasAssignment && doctorsWithIds.length > 0) {
-        let assignedWork = false;
-        let attempts = 0;
-        // Try to assign work, respecting vacations, exclusions, and min interval
-        // Rotate through doctors ensuring fairness
-        const startingDoctorIndex = workDoctorIndex % doctorsWithIds.length; 
-        
-        for (let i = 0; i < doctorsWithIds.length; i++) {
-            const currentDoctorAttemptIndex = (startingDoctorIndex + i) % doctorsWithIds.length;
-            const doctorToAssign = doctorsWithIds[currentDoctorAttemptIndex];
-
-            const isDoctorOnVacation = isDateInArray(currentDate, doctorToAssign.vacationDates);
-            const isDoctorExcluded = isDateInArray(currentDate, doctorToAssign.excludedDates);
+      // If no pre-assigned work, try to assign work automatically
+      if (!dayHasWorkAssignment && doctorsWithIds.length > 0) {
+        const eligibleDoctors = doctorsWithIds.filter(doc => {
+            const isDoctorOnVacation = isDateInArray(currentDate, doc.vacationDates);
+            const isDoctorExcluded = isDateInArray(currentDate, doc.excludedDates);
             
-            const lastWorkDay = doctorLastWorkDay[doctorToAssign.id];
+            const lastWork = doctorLastWorkDay[doc.id];
             let respectsMinInterval = true;
-            if (lastWorkDay) {
-                // Interval is number of full days *between* work days. So difference must be > interval.
-                respectsMinInterval = differenceInCalendarDays(currentDate, lastWorkDay) > minIntervalBetweenWorkDays;
+            if (lastWork) {
+                respectsMinInterval = differenceInCalendarDays(currentDate, lastWork) > minIntervalBetweenWorkDays;
             }
+            return !isDoctorOnVacation && !isDoctorExcluded && respectsMinInterval;
+        });
 
-            if (!isDoctorOnVacation && !isDoctorExcluded && respectsMinInterval) {
-                mockEntries.push({
+        if (eligibleDoctors.length > 0) {
+            eligibleDoctors.sort((a, b) => {
+                const statsA = doctorStats[a.id];
+                const statsB = doctorStats[b.id];
+
+                // 1. Fewest shifts on this specific day of the week
+                const dayOfWeekComparison = (statsA?.workloadByDayOfWeek[dayOfWeekKey] ?? 0) - (statsB?.workloadByDayOfWeek[dayOfWeekKey] ?? 0);
+                if (dayOfWeekComparison !== 0) return dayOfWeekComparison;
+
+                // 2. Fewest total shifts overall
+                const totalWorkdaysComparison = (statsA?.totalWorkdays ?? 0) - (statsB?.totalWorkdays ?? 0);
+                if (totalWorkdaysComparison !== 0) return totalWorkdaysComparison;
+
+                // 3. Longest since last worked (earlier date is preferred, null is earliest)
+                const lastWorkA_Time = doctorLastWorkDay[a.id]?.getTime();
+                const lastWorkB_Time = doctorLastWorkDay[b.id]?.getTime();
+
+                if (lastWorkA_Time === undefined && lastWorkB_Time !== undefined) return -1; // a hasn't worked, b has
+                if (lastWorkA_Time !== undefined && lastWorkB_Time === undefined) return 1;  // b hasn't worked, a has
+                if (lastWorkA_Time === undefined && lastWorkB_Time === undefined) return 0; // both haven't worked (or no record)
+                
+                return (lastWorkA_Time || 0) - (lastWorkB_Time || 0); // Both have worked, compare timestamps
+            });
+
+            const doctorToAssign = eligibleDoctors[0];
+            mockEntries.push({
                 date: new Date(currentDate),
                 doctorId: doctorToAssign.id,
                 assignment: 'Work',
-                dayOfWeek,
-                });
-                doctorLastWorkDay[doctorToAssign.id] = new Date(currentDate);
-                assignedWork = true;
-                assignedDoctorOnDay = doctorToAssign.id;
-                workDoctorIndex = currentDoctorAttemptIndex + 1; // Next attempt starts after this doctor
-                break; 
-            }
-        }
-
-
-        if (!assignedWork) { 
-            mockEntries.push({
-                date: new Date(currentDate),
-                doctorId: 'system', 
-                assignment: 'Off',
-                dayOfWeek,
+                dayOfWeek: dayOfWeekFullName,
             });
+            doctorLastWorkDay[doctorToAssign.id] = new Date(currentDate);
+            if (doctorStats[doctorToAssign.id]) { // Ensure stats exist
+                doctorStats[doctorToAssign.id].totalWorkdays++;
+                if (doctorStats[doctorToAssign.id].workloadByDayOfWeek[dayOfWeekKey] !== undefined) {
+                    doctorStats[doctorToAssign.id].workloadByDayOfWeek[dayOfWeekKey]++;
+                }
+            }
+            dayHasWorkAssignment = true;
         }
-      } else if (doctorsWithIds.length === 0 && !dayHasAssignment) {
+      }
+      
+      // If no doctor was assigned work (neither pre-assigned nor automatically)
+      if (!dayHasWorkAssignment) {
          mockEntries.push({
             date: new Date(currentDate),
-            doctorId: 'system',
+            doctorId: 'system', // Placeholder for no specific doctor
             assignment: 'Off',
-            dayOfWeek,
+            dayOfWeek: dayOfWeekFullName,
         });
       }
 
