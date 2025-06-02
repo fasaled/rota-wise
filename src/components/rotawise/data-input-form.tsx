@@ -55,8 +55,8 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
     resolver: zodResolver(scheduleFormSchema),
     defaultValues: {
       numberOfDoctors: initialValues?.numberOfDoctors || 1,
-      startDate: initialValues?.startDate, // No fallback, will be undefined if initialValues.startDate is undefined
-      endDate: initialValues?.endDate,     // No fallback, will be undefined if initialValues.endDate is undefined
+      startDate: initialValues?.startDate,
+      endDate: initialValues?.endDate,
       minIntervalBetweenWorkDays: initialValues?.minIntervalBetweenWorkDays || 1,
       doctors: initialValues?.doctors && initialValues.doctors.length > 0
                  ? initialValues.doctors.map(doc => ({
@@ -101,8 +101,8 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
     if (initialValues) {
       form.reset({
         numberOfDoctors: initialValues.numberOfDoctors || 1,
-        startDate: initialValues.startDate, // Use directly from initialValues (can be undefined)
-        endDate: initialValues.endDate,     // Use directly from initialValues (can be undefined)
+        startDate: initialValues.startDate,
+        endDate: initialValues.endDate,
         minIntervalBetweenWorkDays: initialValues.minIntervalBetweenWorkDays || 1,
         doctors: initialValues.doctors && initialValues.doctors.length > 0
                    ? initialValues.doctors.map(doc => ({
@@ -169,7 +169,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                         selected={field.value}
                         onSelect={field.onChange}
                         locale={currentDateFnsLocale}
-                        onOpenAutoFocus={(e) => e.preventDefault()}
+                        initialFocus
                       />
                     </PopoverContent>
                   </Popover>
@@ -196,7 +196,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                         selected={field.value}
                         onSelect={field.onChange}
                         locale={currentDateFnsLocale}
-                        onOpenAutoFocus={(e) => e.preventDefault()}
+                        initialFocus
                       />
                     </PopoverContent>
                   </Popover>
@@ -292,7 +292,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 selected={field.value}
                                 onSelect={field.onChange}
                                 locale={currentDateFnsLocale}
-                                
+                                initialFocus
                               />
                               <p className="text-xs text-muted-foreground p-2 text-center border-t">
                                 {t('form.shiftClickTip')}
@@ -321,7 +321,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 selected={field.value}
                                 onSelect={field.onChange}
                                 locale={currentDateFnsLocale}
-                                
+                                initialFocus
                               />
                               <p className="text-xs text-muted-foreground p-2 text-center border-t">
                                 {t('form.shiftClickTip')}
@@ -350,7 +350,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 selected={field.value}
                                 onSelect={field.onChange}
                                 locale={currentDateFnsLocale}
-                                
+                                initialFocus
                               />
                               <p className="text-xs text-muted-foreground p-2 text-center border-t">
                                 {t('form.shiftClickTip')}
