@@ -23,29 +23,22 @@ const baseNextConfig: NextConfig = {
   },
 };
 
-let finalConfig: NextConfig = baseNextConfig;
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const withPWA = require('@ducanh2912/next-pwa').default({
+  dest: 'public',
+  register: true,
+  skipWaiting: true,
+  disable: isDev, // Let the PWA plugin itself handle disabling in dev mode
+  workboxOptions: {
+    maximumFileSizeToCacheInBytes: 10_000_000,
+    exclude: [], 
+  },
+  fallbacks: {
+    document: '/_offline.html', // Example: Custom offline page in public/_offline.html
+  },
+  cacheStartUrl: true,
+  dynamicStartUrl: true,
+  reloadOnOnline: true,
+});
 
-if (!isDev) {
-  // Only load and apply PWA settings for non-development (production) environments
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const withPWAInit = require('@ducanh2912/next-pwa').default;
-  const withPWA = withPWAInit({
-    dest: 'public',
-    register: true,
-    skipWaiting: true,
-    // PWA is enabled by default in production, no need for disable: false
-    workboxOptions: {
-      maximumFileSizeToCacheInBytes: 10_000_000, // Production build value
-      exclude: [], // Production-specific exclusions, if any
-    },
-    fallbacks: {
-      // document: '/offline', // Example: Custom offline page
-    },
-    cacheStartUrl: true,
-    dynamicStartUrl: true,
-    reloadOnOnline: true,
-  });
-  finalConfig = withPWA(baseNextConfig);
-}
-
-export default finalConfig;
+export default withPWA(baseNextConfig);
