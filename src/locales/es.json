@@ -107,6 +107,17 @@
   "pdf.workdaysSummary.sunHeader": "Dom",
   "pdf.workdaysSummary.totalHeader": "Total",
 
+  "summaryTable.title": "Resumen de Días de Trabajo",
+  "summaryTable.doctorHeader": "Médico",
+  "summaryTable.monHeader": "Lun",
+  "summaryTable.tueHeader": "Mar",
+  "summaryTable.wedHeader": "Mié",
+  "summaryTable.thuHeader": "Jue",
+  "summaryTable.friHeader": "Vie",
+  "summaryTable.satHeader": "Sáb",
+  "summaryTable.sunHeader": "Dom",
+  "summaryTable.totalHeader": "Total",
+
   "footer.copyright": "© {year} RotaWise. Todos los derechos reservados.",
   "language.selector.label": "Idioma",
   "language.en": "Inglés",

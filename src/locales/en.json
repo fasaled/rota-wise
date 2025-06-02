@@ -107,6 +107,16 @@
   "pdf.workdaysSummary.sunHeader": "Sun",
   "pdf.workdaysSummary.totalHeader": "Total",
 
+  "summaryTable.title": "Workdays Summary",
+  "summaryTable.doctorHeader": "Doctor",
+  "summaryTable.monHeader": "Mon",
+  "summaryTable.tueHeader": "Tue",
+  "summaryTable.wedHeader": "Wed",
+  "summaryTable.thuHeader": "Thu",
+  "summaryTable.friHeader": "Fri",
+  "summaryTable.satHeader": "Sat",
+  "summaryTable.sunHeader": "Sun",
+  "summaryTable.totalHeader": "Total",
 
   "footer.copyright": "© {year} RotaWise. All rights reserved.",
   "language.selector.label": "Language",

@@ -24,6 +24,7 @@ import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, s
 import { enUS } from 'date-fns/locale';
 import { useLanguage } from '@/context/language-context';
 import { ThemeToggle } from '@/components/theme-toggle';
+import ScheduleSummaryTable from '@/components/rotawise/schedule-summary-table';
 
 
 export default function RotaWisePage() {
@@ -127,7 +128,7 @@ export default function RotaWisePage() {
               description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
               variant: "destructive",
             });
-            // Removed: return prevSchedule; // Allow update despite warning
+            // Allow update despite warning
           }
         }
         if (closestWorkDayAfter) {
@@ -138,7 +139,7 @@ export default function RotaWisePage() {
               description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
               variant: "destructive",
             });
-            // Removed: return prevSchedule; // Allow update despite warning
+            // Allow update despite warning
           }
         }
       }
@@ -197,7 +198,7 @@ export default function RotaWisePage() {
             description: t('page.toast.scheduleWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
-           // Removed: return prevSchedule; // Allow update despite warning
+           // Allow update despite warning
         }
         const isExcluded = doctorProfile.excludedDates.some(ed =>
           isSameDay(ed, updatedEntry.date)
@@ -208,7 +209,7 @@ export default function RotaWisePage() {
             description: t('page.toast.excludedDayWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
-           // Removed: return prevSchedule; // Allow update despite warning
+           // Allow update despite warning
         }
       }
       return { ...prevSchedule, entries: newEntries };
@@ -653,17 +654,20 @@ export default function RotaWisePage() {
         </div>
 
         {schedule ? (
-          <div ref={calendarRef}>
-            <ScheduleCalendarView
-                schedule={schedule}
-                doctors={doctorsProfiles}
-                onUpdateScheduleEntry={handleUpdateScheduleEntry}
-                forceDisplayMonth={pdfExportMonth}
-                isPdfExportMode={isPdfExportMode}
-                minIntervalBetweenWorkDays={currentMinInterval}
-                allScheduleEntries={schedule.entries}
-            />
-          </div>
+          <>
+            <div ref={calendarRef}>
+              <ScheduleCalendarView
+                  schedule={schedule}
+                  doctors={doctorsProfiles}
+                  onUpdateScheduleEntry={handleUpdateScheduleEntry}
+                  forceDisplayMonth={pdfExportMonth}
+                  isPdfExportMode={isPdfExportMode}
+                  minIntervalBetweenWorkDays={currentMinInterval}
+                  allScheduleEntries={schedule.entries}
+              />
+            </div>
+            <ScheduleSummaryTable schedule={schedule} doctors={doctorsProfiles} />
+          </>
         ) : (
           <Card className="mt-8 shadow-lg text-center">
             <CardHeader>
