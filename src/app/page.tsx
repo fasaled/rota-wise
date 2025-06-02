@@ -128,7 +128,6 @@ export default function RotaWisePage() {
               description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
               variant: "destructive",
             });
-            // Allow update despite warning
           }
         }
         if (closestWorkDayAfter) {
@@ -139,7 +138,6 @@ export default function RotaWisePage() {
               description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
               variant: "destructive",
             });
-            // Allow update despite warning
           }
         }
       }
@@ -154,27 +152,20 @@ export default function RotaWisePage() {
           if (idx > -1) newEntries.splice(idx, 1);
           
           if (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') {
-            // Remove any existing 'Off' or other doctor's 'Work'/'Pre-assigned' for this day
             newEntries = newEntries.filter(e => {
                 const isSameDayEntry = e.date.getTime() === updatedEntry.date.getTime();
-                if (!isSameDayEntry) return true; // Keep entries for other days
-                // For the same day, keep if it's not an 'Off' assignment,
-                // or if it's a 'Work'/'Pre-assigned' for a *different* doctor (will be handled by new entry)
-                // Or if it's any other assignment type (like Vacation) for any doctor
+                if (!isSameDayEntry) return true; 
                 const isConflictingWork = (e.assignment === 'Work' || e.assignment === 'Pre-assigned') && e.doctorId !== updatedEntry.doctorId;
                 return !(e.assignment === 'Off' || isConflictingWork);
             });
           }
           newEntries.push(updatedEntry);
-      } else { // updatedEntry.assignment === 'Off'
-          // Remove existing assignment for this doctor on this day
+      } else { 
           const idx = newEntries.findIndex(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId);
           if (idx > -1) newEntries.splice(idx, 1);
 
-          // If no other doctor is working, add a system 'Off' entry
           const otherDoctorWorking = newEntries.some(e => e.date.getTime() === updatedEntry.date.getTime() && (e.assignment === 'Work' || e.assignment === 'Pre-assigned'));
           if (!otherDoctorWorking) {
-            // Ensure no existing 'Off' entry for 'system' before adding
             const systemOffExists = newEntries.some(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === 'system' && e.assignment === 'Off');
             if (!systemOffExists) {
                 newEntries.push({
@@ -198,7 +189,6 @@ export default function RotaWisePage() {
             description: t('page.toast.scheduleWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
-           // Allow update despite warning
         }
         const isExcluded = doctorProfile.excludedDates.some(ed =>
           isSameDay(ed, updatedEntry.date)
@@ -209,7 +199,6 @@ export default function RotaWisePage() {
             description: t('page.toast.excludedDayWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
-           // Allow update despite warning
         }
       }
       return { ...prevSchedule, entries: newEntries };
@@ -298,23 +287,49 @@ export default function RotaWisePage() {
           throw new Error("Invalid date format in schedule data.");
         }
 
+        const originalScheduleEntries = loadedData.schedule.entries.map(entry => ({
+          ...entry,
+          date: new Date(entry.date), 
+        }));
+
+        const originalWorkDatesByDoctor = new Map<string, Date[]>();
+        originalScheduleEntries.forEach(entry => {
+          if (entry.assignment === 'Work') {
+            if (!originalWorkDatesByDoctor.has(entry.doctorId)) {
+              originalWorkDatesByDoctor.set(entry.doctorId, []);
+            }
+            originalWorkDatesByDoctor.get(entry.doctorId)!.push(entry.date);
+          }
+        });
+
+        const processedScheduleEntries: ScheduleEntry[] = originalScheduleEntries.map(entry => {
+          if (entry.assignment === 'Work') {
+            return { ...entry, assignment: 'Pre-assigned' };
+          }
+          return entry;
+        });
+
         const processedSchedule: Schedule = {
           ...loadedData.schedule,
           startDate: new Date(loadedData.schedule.startDate),
           endDate: new Date(loadedData.schedule.endDate),
           minIntervalBetweenWorkDays: loadedData.schedule.minIntervalBetweenWorkDays || 1,
-          entries: loadedData.schedule.entries.map(entry => ({
-            ...entry,
-            date: new Date(entry.date),
-          })),
+          entries: processedScheduleEntries,
         };
 
-        const processedDoctorsProfiles: DoctorProfile[] = loadedData.doctorsProfiles.map(profile => ({
-          ...profile,
-          vacationDates: profile.vacationDates.map((d: string) => new Date(d)),
-          preAssignedWorkDates: profile.preAssignedWorkDates.map((d: string) => new Date(d)),
-          excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)),
-        }));
+        const processedDoctorsProfiles: DoctorProfile[] = loadedData.doctorsProfiles.map(profile => {
+          const existingPreAssigned = profile.preAssignedWorkDates.map((d: string) => new Date(d));
+          const workDatesForThisDoctor = originalWorkDatesByDoctor.get(profile.id) || [];
+          const allPreAssignedDates = [...existingPreAssigned, ...workDatesForThisDoctor];
+          const uniquePreAssignedDates = Array.from(new Set(allPreAssignedDates.map(d => d.getTime())))
+                                           .map(time => new Date(time));
+          return {
+            ...profile,
+            vacationDates: profile.vacationDates.map((d: string) => new Date(d)),
+            preAssignedWorkDates: uniquePreAssignedDates,
+            excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)),
+          };
+        });
         
         const formVals = loadedData.formValues;
         const processedFormValues: ScheduleFormValues = {
@@ -322,13 +337,20 @@ export default function RotaWisePage() {
            startDate: new Date(formVals.startDate),
            endDate: new Date(formVals.endDate),
            minIntervalBetweenWorkDays: formVals.minIntervalBetweenWorkDays || 1,
-           doctors: formVals.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
-              id: doc.id,
-              name: doc.name,
-              vacationDates: doc.vacationDates.map((d: string) => new Date(d)),
-              preAssignedWorkDates: doc.preAssignedWorkDates.map((d: string) => new Date(d)),
-              excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
-           }))
+           doctors: formVals.doctors.map((doc: SerializedDoctorFormFieldInput) => {
+              const existingPreAssigned = doc.preAssignedWorkDates.map((d: string) => new Date(d));
+              const workDatesForThisDoctor = originalWorkDatesByDoctor.get(doc.id) || [];
+              const allPreAssignedDates = [...existingPreAssigned, ...workDatesForThisDoctor];
+              const uniquePreAssignedDates = Array.from(new Set(allPreAssignedDates.map(d => d.getTime())))
+                                               .map(time => new Date(time));
+              return {
+                  id: doc.id,
+                  name: doc.name,
+                  vacationDates: doc.vacationDates.map((d: string) => new Date(d)),
+                  preAssignedWorkDates: uniquePreAssignedDates,
+                  excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
+              };
+           })
         };
 
         setSchedule(processedSchedule);
@@ -496,7 +518,7 @@ export default function RotaWisePage() {
         const vacationDates = doctor.vacationDates;
         const excludedDates = doctor.excludedDates;
         const generatedWorkDates = schedule.entries
-          .filter(e => e.doctorId === doctor.id && e.assignment === 'Work')
+          .filter(e => e.doctorId === doctor.id && e.assignment === 'Work') // For PDF "Generated Work" means actual "Work" not "Pre-assigned" after load
           .map(e => e.date);
 
         autoTable(pdf, {
