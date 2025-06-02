@@ -163,7 +163,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                         {field.value ? format(field.value, 'PPP', { locale: currentDateFnsLocale }) : <span>{t('form.pickDate')}</span>}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
                       <Calendar
                         mode="single"
                         selected={field.value}
@@ -190,7 +190,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                         {field.value ? format(field.value, 'PPP', { locale: currentDateFnsLocale }) : <span>{t('form.pickDate')}</span>}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
                        <Calendar
                         mode="single"
                         selected={field.value}
@@ -286,7 +286,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 {field.value?.length ? t('form.datesSelected', { count: field.value.length }) : <span>{t('form.selectDates')}</span>}
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
+                            <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
                               <Calendar
                                 mode="multiple"
                                 selected={field.value}
@@ -315,7 +315,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 {field.value?.length ? t('form.datesSelected', { count: field.value.length }) : <span>{t('form.selectDates')}</span>}
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
+                            <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
                                <Calendar
                                 mode="multiple"
                                 selected={field.value}
@@ -344,7 +344,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 {field.value?.length ? t('form.datesSelected', { count: field.value.length }) : <span>{t('form.selectDates')}</span>}
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
+                            <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
                                <Calendar
                                 mode="multiple"
                                 selected={field.value}
@@ -392,5 +392,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 };
 
 export default DataInputForm;
+
+    
 
     
