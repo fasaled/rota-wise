@@ -21,7 +21,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
 import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays } from 'date-fns';
-import { enUS } from 'date-fns/locale'; 
+import { enUS } from 'date-fns/locale';
 import { useLanguage } from '@/context/language-context';
 import { ThemeToggle } from '@/components/theme-toggle';
 
@@ -51,7 +51,7 @@ export default function RotaWisePage() {
   const defaultPageFormValues: Partial<ScheduleFormValues> = {
     numberOfDoctors: 1,
     startDate: new Date(),
-    endDate: new Date(new Date().setDate(new Date().getDate() + 29)), 
+    endDate: new Date(new Date().setDate(new Date().getDate() + 29)),
     minIntervalBetweenWorkDays: 1,
     doctors: [
       { id: crypto.randomUUID(), name: 'Dr. Alice', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] },
@@ -127,7 +127,7 @@ export default function RotaWisePage() {
               description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
               variant: "destructive",
             });
-            return prevSchedule; 
+            return prevSchedule;
           }
         }
         if (closestWorkDayAfter) {
@@ -138,7 +138,7 @@ export default function RotaWisePage() {
               description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
               variant: "destructive",
             });
-            return prevSchedule; 
+            return prevSchedule;
           }
         }
       }
@@ -160,14 +160,14 @@ export default function RotaWisePage() {
             });
           }
           newEntries.push(updatedEntry);
-      } else { 
+      } else {
           const idx = newEntries.findIndex(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId);
           if (idx > -1) newEntries.splice(idx, 1);
           const otherDoctorWorking = newEntries.some(e => e.date.getTime() === updatedEntry.date.getTime() && (e.assignment === 'Work' || e.assignment === 'Pre-assigned'));
           if (!otherDoctorWorking) {
             newEntries.push({
                 date: updatedEntry.date,
-                doctorId: 'system', 
+                doctorId: 'system',
                 assignment: 'Off',
                 dayOfWeek: updatedEntry.dayOfWeek,
             });
@@ -185,7 +185,7 @@ export default function RotaWisePage() {
             description: t('page.toast.scheduleWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
-           return prevSchedule; 
+           return prevSchedule;
         }
         const isExcluded = doctorProfile.excludedDates.some(ed =>
           isSameDay(ed, updatedEntry.date)
@@ -196,7 +196,7 @@ export default function RotaWisePage() {
             description: t('page.toast.excludedDayWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
-           return prevSchedule; 
+           return prevSchedule;
         }
       }
       return { ...prevSchedule, entries: newEntries };
@@ -265,6 +265,13 @@ export default function RotaWisePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Clear current schedule and profiles before attempting to load new ones
+    setSchedule(null);
+    setDoctorsProfiles([]);
+    // We don't reset loadedFormValues here immediately,
+    // as it should only be updated upon successful parsing of new form values.
+    // If parsing fails, the form should retain its current state or default.
+
     setIsLoading(true);
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -318,8 +325,8 @@ export default function RotaWisePage() {
         setSchedule(processedSchedule);
         setDoctorsProfiles(processedDoctorsProfiles);
         setCurrentMinInterval(processedFormValues.minIntervalBetweenWorkDays || 1);
-        setLoadedFormValues(processedFormValues);
-        setDataInputFormKey(prevKey => prevKey + 1);
+        setLoadedFormValues(processedFormValues); // This will trigger form re-initialization
+        setDataInputFormKey(prevKey => prevKey + 1); // Re-key the form
 
         toast({
           title: t('page.toast.scheduleLoaded.title'),
@@ -332,10 +339,13 @@ export default function RotaWisePage() {
           description: (err as Error).message,
           variant: "destructive"
         });
+        // If loading fails, the form will retain its previous values or default,
+        // and schedule/doctorsProfiles remain null/empty from the pre-load reset.
+        // setLoadedFormValues(null); // Optionally reset loadedFormValues if load fails
       } finally {
         setIsLoading(false);
         if (event.target) {
-          event.target.value = "";
+          event.target.value = ""; // Reset file input
         }
       }
     };
@@ -413,40 +423,43 @@ export default function RotaWisePage() {
         }
 
         const monthTitle = format(month, 'MMMM yyyy', { locale: currentDateFnsLocale });
-        const titleHeight = 10; 
-        const minImageHeight = 100; 
-        const requiredSpaceForBlock = titleHeight + minImageHeight + 10; 
+        const titleHeight = 10;
+        const minImageHeight = 100;
+        const estimatedSpaceForBlock = titleHeight + minImageHeight + 10;
 
-        if (allMonthsToExport.indexOf(month) > 0 && (currentY + requiredSpaceForBlock > pdfHeight - margin)) {
+        if (allMonthsToExport.indexOf(month) > 0 && (currentY + estimatedSpaceForBlock > pdfHeight - margin)) {
             pdf.addPage();
             currentY = margin;
         }
-
+        
         pdf.setFontSize(16);
         pdf.text(monthTitle, margin, currentY);
         currentY += titleHeight;
+        
+        if (currentY + minImageHeight > pdfHeight - margin && allMonthsToExport.indexOf(month) > 0) { // Check if image itself needs new page after title
+            pdf.addPage();
+            currentY = margin;
+            pdf.setFontSize(16); // Re-add title on new page
+            pdf.text(monthTitle, margin, currentY);
+            currentY += titleHeight;
+        }
+
 
         try {
             const canvas = await html2canvas(calendarElement, { scale: 3, useCORS: true, logging: false });
             const imgData = canvas.toDataURL('image/png');
             const imgProps = pdf.getImageProperties(imgData);
             let imgHeight = (imgProps.height * contentWidth) / imgProps.width;
-
+            
             const spaceForImageOnCurrentPage = pdfHeight - currentY - margin;
 
-            if (imgHeight > spaceForImageOnCurrentPage && spaceForImageOnCurrentPage < minImageHeight ) {
-                pdf.addPage();
-                currentY = margin;
-                pdf.setFontSize(16);
-                pdf.text(monthTitle, margin, currentY);
-                currentY += titleHeight;
-                imgHeight = Math.min(imgHeight, pdfHeight - currentY - margin);
-            } else if (imgHeight > spaceForImageOnCurrentPage) {
-                 imgHeight = spaceForImageOnCurrentPage;
+            if (imgHeight > spaceForImageOnCurrentPage ) {
+                 imgHeight = spaceForImageOnCurrentPage; // Fit to remaining space if too tall
             }
 
+
             pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
-            currentY += imgHeight + 10;
+            currentY += imgHeight + 10; // Add some padding after the image
 
         } catch (captureError) {
             console.error("Error capturing calendar for month:", monthTitle, captureError);
@@ -462,7 +475,7 @@ export default function RotaWisePage() {
     setIsPdfExportMode(false);
 
     for (const doctor of doctorsProfiles) {
-        if (currentY + 70 > pdfHeight - margin) {
+        if (currentY + 70 > pdfHeight - margin) { // Estimate space for doctor details table
           pdf.addPage();
           currentY = margin;
         }
@@ -498,7 +511,7 @@ export default function RotaWisePage() {
         currentY = (pdf as any).lastAutoTable.finalY + 10;
       }
 
-    if (currentY + 50 > pdfHeight - margin) {
+    if (currentY + 50 > pdfHeight - margin) { // Estimate space for summary table
         pdf.addPage();
         currentY = margin;
     }
@@ -665,3 +678,5 @@ export default function RotaWisePage() {
     </div>
   );
 }
+
+    
