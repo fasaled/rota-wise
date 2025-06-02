@@ -12,6 +12,7 @@ export interface DoctorProfile extends Doctor {
   vacationDates: Date[];
   preAssignedWorkDates: Date[];
   excludedDates: Date[];
+  isExcludedFromAutomaticAssignment: boolean;
 }
 
 // Input for a single doctor in the form
@@ -21,6 +22,7 @@ export interface DoctorFormFieldInput {
   vacationDates: Date[];
   preAssignedWorkDates: Date[];
   excludedDates: Date[];
+  isExcludedFromAutomaticAssignment: boolean;
 }
 
 // Full form input schema type
@@ -66,12 +68,14 @@ export interface SerializedDoctorProfile extends Omit<DoctorProfile, 'vacationDa
   vacationDates: string[]; // Array of ISO date strings
   preAssignedWorkDates: string[]; // Array of ISO date strings
   excludedDates: string[]; // Array of ISO date strings
+  isExcludedFromAutomaticAssignment: boolean;
 }
 
 export interface SerializedDoctorFormFieldInput extends Omit<DoctorFormFieldInput, 'vacationDates' | 'preAssignedWorkDates' | 'excludedDates'> {
   vacationDates: string[]; // Array of ISO date strings
   preAssignedWorkDates: string[]; // Array of ISO date strings
   excludedDates: string[]; // Array of ISO date strings
+  isExcludedFromAutomaticAssignment: boolean;
 }
 
 export interface SerializedScheduleFormValues extends Omit<ScheduleFormValues, 'startDate' | 'endDate' | 'doctors' | 'minIntervalBetweenWorkDays'> {

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -26,6 +27,7 @@ const doctorSchema = z.object({
   vacationDates: z.array(z.date()).default([]),
   preAssignedWorkDates: z.array(z.date()).default([]),
   excludedDates: z.array(z.date()).default([]),
+  isExcludedFromAutomaticAssignment: z.boolean().optional().default(false),
 });
 
 // Main form schema
@@ -65,8 +67,9 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                      vacationDates: doc.vacationDates || [],
                      preAssignedWorkDates: doc.preAssignedWorkDates || [],
                      excludedDates: doc.excludedDates || [],
+                     isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
                    }))
-                 : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] }],
+                 : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false }],
     },
   });
 
@@ -84,7 +87,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 
     if (targetDoctorCount > currentDoctorCount) {
       for (let i = 0; i < targetDoctorCount - currentDoctorCount; i++) {
-        append({ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] });
+        append({ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false });
       }
     } else if (targetDoctorCount < currentDoctorCount) {
       for (let i = 0; i < currentDoctorCount - targetDoctorCount; i++) {
@@ -111,8 +114,9 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                        vacationDates: (doc.vacationDates || []).map(d => d instanceof Date ? d : new Date(d)),
                        preAssignedWorkDates: (doc.preAssignedWorkDates || []).map(d => d instanceof Date ? d : new Date(d)),
                        excludedDates: (doc.excludedDates || []).map(d => d instanceof Date ? d : new Date(d)),
+                       isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
                      }))
-                   : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] }],
+                   : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false }],
       });
     }
   }, [initialValues, form]);
@@ -263,14 +267,35 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4 p-2 md:p-4">
-                  <div>
-                    <Label htmlFor={`doctors.${index}.name`} className="font-medium">{t('form.doctorNameLabel')}</Label>
-                    <Controller
-                      name={`doctors.${index}.name`}
-                      control={form.control}
-                      render={({ field }) => <Input {...field} id={`doctors.${index}.name`} placeholder={t('form.doctorNamePlaceholder')} className="mt-1 bg-background"/>}
-                    />
-                    {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors[index]?.name?.message}</p>}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                    <div>
+                      <Label htmlFor={`doctors.${index}.name`} className="font-medium">{t('form.doctorNameLabel')}</Label>
+                      <Controller
+                        name={`doctors.${index}.name`}
+                        control={form.control}
+                        render={({ field }) => <Input {...field} id={`doctors.${index}.name`} placeholder={t('form.doctorNamePlaceholder')} className="mt-1 bg-background"/>}
+                      />
+                      {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors[index]?.name?.message}</p>}
+                    </div>
+                    <div>
+                      <Controller
+                        name={`doctors.${index}.isExcludedFromAutomaticAssignment`}
+                        control={form.control}
+                        render={({ field }) => (
+                          <div className="flex items-center space-x-2 mt-2 md:mt-0 md:justify-start">
+                            <Checkbox
+                              id={`doctors.${index}.isExcludedFromAutomaticAssignment`}
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              className="bg-background"
+                            />
+                            <Label htmlFor={`doctors.${index}.isExcludedFromAutomaticAssignment`} className="font-medium text-sm whitespace-nowrap">
+                              {t('form.excludeFromAutoAssignment')}
+                            </Label>
+                          </div>
+                        )}
+                      />
+                    </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>

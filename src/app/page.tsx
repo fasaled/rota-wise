@@ -50,14 +50,13 @@ export default function RotaWisePage() {
     setIsMounted(true);
   }, []);
 
-  // Make defaultPageFormValues stable using useState
   const [stableDefaultPageFormValues] = useState<Partial<ScheduleFormValues>>(() => ({
     numberOfDoctors: 1,
-    startDate: undefined, // Ensures user must pick a date
-    endDate: undefined,   // Ensures user must pick a date
+    startDate: undefined, 
+    endDate: undefined,   
     minIntervalBetweenWorkDays: 1,
     doctors: [
-      { id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] },
+      { id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false },
     ]
   }));
 
@@ -70,6 +69,7 @@ export default function RotaWisePage() {
       vacationDates: doc.vacationDates,
       preAssignedWorkDates: doc.preAssignedWorkDates,
       excludedDates: doc.excludedDates || [],
+      isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
     }));
     setDoctorsProfiles(profiles);
 
@@ -233,6 +233,7 @@ export default function RotaWisePage() {
         vacationDates: profile.vacationDates.map(d => d.toISOString()),
         preAssignedWorkDates: profile.preAssignedWorkDates.map(d => d.toISOString()),
         excludedDates: (profile.excludedDates || []).map(d => d.toISOString()),
+        isExcludedFromAutomaticAssignment: profile.isExcludedFromAutomaticAssignment || false,
       })),
       formValues: {
         numberOfDoctors: doctorsProfiles.length,
@@ -245,6 +246,7 @@ export default function RotaWisePage() {
           vacationDates: p.vacationDates.map(d => d.toISOString()),
           preAssignedWorkDates: p.preAssignedWorkDates.map(d => d.toISOString()),
           excludedDates: (p.excludedDates || []).map(d => d.toISOString()),
+          isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
         }))
       }
     };
@@ -301,6 +303,7 @@ export default function RotaWisePage() {
             vacationDates: profile.vacationDates.map((d: string) => new Date(d)),
             preAssignedWorkDates: profile.preAssignedWorkDates.map((d: string) => new Date(d)),
             excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)),
+            isExcludedFromAutomaticAssignment: profile.isExcludedFromAutomaticAssignment || false,
         }));
         const deserializedFormValuesDoctors = loadedData.formValues.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
             id: doc.id,
@@ -308,6 +311,7 @@ export default function RotaWisePage() {
             vacationDates: doc.vacationDates.map((d: string) => new Date(d)),
             preAssignedWorkDates: doc.preAssignedWorkDates.map((d: string) => new Date(d)),
             excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
+            isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
         }));
 
 
@@ -531,6 +535,15 @@ export default function RotaWisePage() {
         pdf.setFontSize(14);
         pdf.text(t('pdf.doctorDetailsTitle', { doctorName: doctor.name }), margin, currentY);
         currentY += 8;
+        
+        if (doctor.isExcludedFromAutomaticAssignment) {
+            pdf.setFontSize(9);
+            pdf.setTextColor(100); // Gray color
+            pdf.text(t('pdf.doctorIsExcludedFromAuto'), margin, currentY);
+            currentY += 5;
+            pdf.setTextColor(0); // Reset color
+        }
+
 
         const getFormattedDates = (dates: Date[]) => dates.length > 0 ? dates.map(d => format(d, 'PPP', { locale: currentDateFnsLocale })).join('\n') : t('pdf.none');
 
