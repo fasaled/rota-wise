@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react'; 
+import React from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,14 +14,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { CalendarIcon, DoctorsIcon, PreferencesIcon, VacationIcon, PreAssignedIcon, CalendarXIcon, Clock3Icon } from '@/components/icons';
 import { format } from 'date-fns';
-import type { ScheduleFormValues } from '@/lib/types'; 
+import type { ScheduleFormValues } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Trash2 } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 
 // Schema for a single doctor
 const doctorSchema = z.object({
-  id: z.string(), 
+  id: z.string(),
   name: z.string().min(1, "Doctor's name is required."),
   vacationDates: z.array(z.date()).default([]),
   preAssignedWorkDates: z.array(z.date()).default([]),
@@ -33,7 +33,7 @@ export const scheduleFormSchema = z.object({
   numberOfDoctors: z.coerce.number().min(1, "At least one doctor is required.").max(20, "Maximum of 20 doctors allowed."),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." })
-    .refine((data) => data >= new Date(new Date().setHours(0,0,0,0)), { 
+    .refine((data) => data >= new Date(new Date().setHours(0,0,0,0)), {
       message: "End date must be today or a future date.",
     }),
   minIntervalBetweenWorkDays: z.coerce.number().int().min(0, "Minimum interval cannot be negative.").max(30, "Interval cannot exceed 30 days.").optional().default(1),
@@ -58,9 +58,9 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
       startDate: initialValues?.startDate || new Date(),
       endDate: initialValues?.endDate || new Date(new Date().setDate(new Date().getDate() + 30)),
       minIntervalBetweenWorkDays: initialValues?.minIntervalBetweenWorkDays || 1,
-      doctors: initialValues?.doctors && initialValues.doctors.length > 0 
+      doctors: initialValues?.doctors && initialValues.doctors.length > 0
                  ? initialValues.doctors.map(doc => ({
-                     id: doc.id || crypto.randomUUID(), 
+                     id: doc.id || crypto.randomUUID(),
                      name: doc.name || '',
                      vacationDates: doc.vacationDates || [],
                      preAssignedWorkDates: doc.preAssignedWorkDates || [],
@@ -75,11 +75,12 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
     name: "doctors",
   });
 
-  const numberOfDoctors = form.watch('numberOfDoctors');
+  const numberOfDoctorsWatched = form.watch('numberOfDoctors');
 
   React.useEffect(() => {
     const currentDoctorCount = fields.length;
-    const targetDoctorCount = Math.max(1, numberOfDoctors || 0); 
+    const targetDoctorCount = Math.max(1, isNaN(numberOfDoctorsWatched) ? 1 : numberOfDoctorsWatched);
+
 
     if (targetDoctorCount > currentDoctorCount) {
       for (let i = 0; i < targetDoctorCount - currentDoctorCount; i++) {
@@ -90,12 +91,12 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
         remove(currentDoctorCount - 1 - i);
       }
     }
-    if (form.getValues('numberOfDoctors') < 1) {
+    if (form.getValues('numberOfDoctors') < 1 || isNaN(form.getValues('numberOfDoctors'))) {
       form.setValue('numberOfDoctors', 1, { shouldValidate: true });
     }
 
-  }, [numberOfDoctors, fields.length, append, remove, form]);
-  
+  }, [numberOfDoctorsWatched, fields.length, append, remove, form]);
+
   React.useEffect(() => {
     if (initialValues) {
       form.reset({
@@ -114,7 +115,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                    : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] }],
       });
     }
-  }, [initialValues, form.reset, form]);
+  }, [initialValues, form]);
 
 
   return (
@@ -129,7 +130,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div>
-              <Label htmlFor="numberOfDoctors" className="font-semibold">{t('form.numDoctors')}</Label>
+              <Label htmlFor="numberOfDoctors" className="font-semibold min-h-7 block">{t('form.numDoctors')}</Label>
               <Controller
                 name="numberOfDoctors"
                 control={form.control}
@@ -141,7 +142,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                     {...field}
                     onChange={e => {
                       const val = parseInt(e.target.value, 10);
-                      field.onChange(isNaN(val) ? 1 : val); 
+                      field.onChange(isNaN(val) ? 1 : val);
                     }}
                     className="mt-1"
                   />
@@ -150,7 +151,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
               {form.formState.errors.numberOfDoctors && <p className="text-sm text-destructive mt-1">{form.formState.errors.numberOfDoctors.message}</p>}
             </div>
             <div>
-              <Label htmlFor="startDate" className="font-semibold">{t('form.startDate')}</Label>
+              <Label htmlFor="startDate" className="font-semibold min-h-7 block">{t('form.startDate')}</Label>
               <Controller
                 name="startDate"
                 control={form.control}
@@ -163,11 +164,11 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                      <Calendar 
-                        mode="single" 
-                        selected={field.value} 
-                        onSelect={field.onChange} 
-                        initialFocus 
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        initialFocus
                         locale={currentDateFnsLocale}
                       />
                     </PopoverContent>
@@ -177,7 +178,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
               {form.formState.errors.startDate && <p className="text-sm text-destructive mt-1">{form.formState.errors.startDate.message}</p>}
             </div>
             <div>
-              <Label htmlFor="endDate" className="font-semibold">{t('form.endDate')}</Label>
+              <Label htmlFor="endDate" className="font-semibold min-h-7 block">{t('form.endDate')}</Label>
               <Controller
                 name="endDate"
                 control={form.control}
@@ -190,11 +191,11 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                       <Calendar 
-                        mode="single" 
-                        selected={field.value} 
-                        onSelect={field.onChange} 
-                        initialFocus 
+                       <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        initialFocus
                         locale={currentDateFnsLocale}
                       />
                     </PopoverContent>
@@ -204,7 +205,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
               {form.formState.errors.endDate && <p className="text-sm text-destructive mt-1">{form.formState.errors.endDate.message}</p>}
             </div>
             <div>
-              <Label htmlFor="minIntervalBetweenWorkDays" className="font-semibold flex items-center gap-1">
+              <Label htmlFor="minIntervalBetweenWorkDays" className="font-semibold flex items-center gap-1 min-h-7">
                 <Clock3Icon className="w-4 h-4 text-primary"/>
                 {t('form.minInterval')}
               </Label>
@@ -219,7 +220,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                     {...field}
                      onChange={e => {
                       const val = parseInt(e.target.value, 10);
-                      field.onChange(isNaN(val) ? 1 : val); // Default to 1 if NaN
+                      field.onChange(isNaN(val) ? 1 : val);
                     }}
                     className="mt-1"
                   />
@@ -228,7 +229,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
               {form.formState.errors.minIntervalBetweenWorkDays && <p className="text-sm text-destructive mt-1">{form.formState.errors.minIntervalBetweenWorkDays.message}</p>}
             </div>
           </div>
-          
+
           <Separator />
 
           <div>
@@ -241,17 +242,19 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-lg">{t('form.doctorNum', { index: index + 1 })}</CardTitle>
                     {fields.length > 1 && (
-                       <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="icon" 
+                       <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
                         onClick={() => {
-                          const currentNum = form.getValues('numberOfDoctors');
-                          if (currentNum > 1) { // Ensure numberOfDoctors doesn't go below 1
-                            form.setValue('numberOfDoctors', currentNum - 1, { shouldValidate: true });
+                          const currentNumDoctors = form.getValues('numberOfDoctors');
+                          if (currentNumDoctors > 1) {
+                            form.setValue('numberOfDoctors', currentNumDoctors - 1, { shouldValidate: true });
+                          } else {
+                             form.setValue('numberOfDoctors', 1, { shouldValidate: true }); 
                           }
                           remove(index);
-                        }} 
+                        }}
                         className="text-destructive hover:text-destructive-foreground hover:bg-destructive/90"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -284,10 +287,10 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
-                              <Calendar 
-                                mode="multiple" 
-                                selected={field.value} 
-                                onSelect={field.onChange} 
+                              <Calendar
+                                mode="multiple"
+                                selected={field.value}
+                                onSelect={field.onChange}
                                 locale={currentDateFnsLocale}
                               />
                             </PopoverContent>
@@ -309,10 +312,10 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
-                               <Calendar 
-                                mode="multiple" 
-                                selected={field.value} 
-                                onSelect={field.onChange} 
+                               <Calendar
+                                mode="multiple"
+                                selected={field.value}
+                                onSelect={field.onChange}
                                 locale={currentDateFnsLocale}
                               />
                             </PopoverContent>
@@ -334,10 +337,10 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0">
-                               <Calendar 
-                                mode="multiple" 
-                                selected={field.value} 
-                                onSelect={field.onChange} 
+                               <Calendar
+                                mode="multiple"
+                                selected={field.value}
+                                onSelect={field.onChange}
                                 locale={currentDateFnsLocale}
                               />
                             </PopoverContent>
@@ -352,7 +355,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
             {(form.formState.errors.doctors && typeof form.formState.errors.doctors.message === 'string') && (
                 <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors.message}</p>
             )}
-             {form.formState.errors.doctors?.root &&  (
+             {form.formState.errors.doctors?.root && (
                 <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors.root.message}</p>
             )}
           </div>
@@ -377,3 +380,6 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 };
 
 export default DataInputForm;
+
+
+    
