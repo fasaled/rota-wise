@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import type { Schedule, ScheduleFormValues, DoctorProfile, ScheduleEntry, PersistedScheduleData, SerializedDoctorFormFieldInput } from '@/lib/types';
+import type { Schedule, ScheduleFormValues, DoctorProfile, ScheduleEntry, PersistedScheduleData, SerializedDoctorFormFieldInput, DoctorFormFieldInput } from '@/lib/types';
 import DataInputForm from '@/components/rotawise/data-input-form';
 import ScheduleCalendarView from '@/components/rotawise/schedule-calendar-view';
 import LanguageSelector from '@/components/rotawise/language-selector';
@@ -13,7 +13,7 @@ import { ThemeIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
-import { Save, Upload, FileDown } from 'lucide-react';
+import { Save, Upload, FileDown, Layers } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import { useLanguage } from '@/context/language-context';
 import { ThemeToggle } from '@/components/theme-toggle';
 import ScheduleSummaryTable from '@/components/rotawise/schedule-summary-table';
 
+type LoadMode = 'as-is' | 'as-pre-assigned';
 
 export default function RotaWisePage() {
   const { t, currentDateFnsLocale } = useLanguage();
@@ -263,7 +264,7 @@ export default function RotaWisePage() {
     });
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, mode: LoadMode) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -287,81 +288,96 @@ export default function RotaWisePage() {
           throw new Error("Invalid date format in schedule data.");
         }
 
-        const originalScheduleEntries = loadedData.schedule.entries.map(entry => ({
-          ...entry,
-          date: new Date(entry.date), 
+        const deserializedScheduleEntries = loadedData.schedule.entries.map(entry => ({
+            ...entry,
+            date: new Date(entry.date), 
+        }));
+        const deserializedDoctorsProfiles = loadedData.doctorsProfiles.map(profile => ({
+            ...profile,
+            vacationDates: profile.vacationDates.map((d: string) => new Date(d)),
+            preAssignedWorkDates: profile.preAssignedWorkDates.map((d: string) => new Date(d)),
+            excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)),
+        }));
+        const deserializedFormValuesDoctors = loadedData.formValues.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
+            id: doc.id,
+            name: doc.name,
+            vacationDates: doc.vacationDates.map((d: string) => new Date(d)),
+            preAssignedWorkDates: doc.preAssignedWorkDates.map((d: string) => new Date(d)),
+            excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
         }));
 
-        const originalWorkDatesByDoctor = new Map<string, Date[]>();
-        originalScheduleEntries.forEach(entry => {
-          if (entry.assignment === 'Work') {
-            if (!originalWorkDatesByDoctor.has(entry.doctorId)) {
-              originalWorkDatesByDoctor.set(entry.doctorId, []);
-            }
-            originalWorkDatesByDoctor.get(entry.doctorId)!.push(entry.date);
-          }
-        });
 
-        const processedScheduleEntries: ScheduleEntry[] = originalScheduleEntries.map(entry => {
-          if (entry.assignment === 'Work') {
-            return { ...entry, assignment: 'Pre-assigned' };
-          }
-          return entry;
-        });
+        let finalScheduleEntries: ScheduleEntry[];
+        let finalDoctorsProfiles: DoctorProfile[];
+        let finalFormValuesDoctors: DoctorFormFieldInput[];
 
-        const processedSchedule: Schedule = {
+        if (mode === 'as-pre-assigned') {
+            const originalWorkDatesByDoctor = new Map<string, Date[]>();
+            deserializedScheduleEntries.forEach(entry => {
+              if (entry.assignment === 'Work' && entry.doctorId !== 'system') { // Ensure not 'system' doctor
+                if (!originalWorkDatesByDoctor.has(entry.doctorId)) {
+                  originalWorkDatesByDoctor.set(entry.doctorId, []);
+                }
+                originalWorkDatesByDoctor.get(entry.doctorId)!.push(entry.date);
+              }
+            });
+
+            finalScheduleEntries = deserializedScheduleEntries.map(entry => {
+              if (entry.assignment === 'Work' && entry.doctorId !== 'system') {
+                return { ...entry, assignment: 'Pre-assigned' };
+              }
+              return entry;
+            });
+            
+            finalDoctorsProfiles = deserializedDoctorsProfiles.map(profile => {
+              const workDatesForThisDoctor = originalWorkDatesByDoctor.get(profile.id) || [];
+              const allPreAssignedDates = [...profile.preAssignedWorkDates, ...workDatesForThisDoctor];
+              const uniquePreAssignedDates = Array.from(new Set(allPreAssignedDates.map(d => d.getTime())))
+                                               .map(time => new Date(time));
+              return { ...profile, preAssignedWorkDates: uniquePreAssignedDates };
+            });
+
+            finalFormValuesDoctors = deserializedFormValuesDoctors.map(doc => {
+              const workDatesForThisDoctor = originalWorkDatesByDoctor.get(doc.id) || [];
+              const allPreAssignedDates = [...doc.preAssignedWorkDates, ...workDatesForThisDoctor];
+              const uniquePreAssignedDates = Array.from(new Set(allPreAssignedDates.map(d => d.getTime())))
+                                               .map(time => new Date(time));
+              return { ...doc, preAssignedWorkDates: uniquePreAssignedDates };
+            });
+
+        } else { // mode === 'as-is'
+            finalScheduleEntries = deserializedScheduleEntries;
+            finalDoctorsProfiles = deserializedDoctorsProfiles;
+            finalFormValuesDoctors = deserializedFormValuesDoctors;
+        }
+
+        const finalSchedule: Schedule = {
           ...loadedData.schedule,
           startDate: new Date(loadedData.schedule.startDate),
           endDate: new Date(loadedData.schedule.endDate),
           minIntervalBetweenWorkDays: loadedData.schedule.minIntervalBetweenWorkDays || 1,
-          entries: processedScheduleEntries,
+          entries: finalScheduleEntries,
         };
-
-        const processedDoctorsProfiles: DoctorProfile[] = loadedData.doctorsProfiles.map(profile => {
-          const existingPreAssigned = profile.preAssignedWorkDates.map((d: string) => new Date(d));
-          const workDatesForThisDoctor = originalWorkDatesByDoctor.get(profile.id) || [];
-          const allPreAssignedDates = [...existingPreAssigned, ...workDatesForThisDoctor];
-          const uniquePreAssignedDates = Array.from(new Set(allPreAssignedDates.map(d => d.getTime())))
-                                           .map(time => new Date(time));
-          return {
-            ...profile,
-            vacationDates: profile.vacationDates.map((d: string) => new Date(d)),
-            preAssignedWorkDates: uniquePreAssignedDates,
-            excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)),
-          };
-        });
         
-        const formVals = loadedData.formValues;
-        const processedFormValues: ScheduleFormValues = {
-           numberOfDoctors: formVals.numberOfDoctors,
-           startDate: new Date(formVals.startDate),
-           endDate: new Date(formVals.endDate),
-           minIntervalBetweenWorkDays: formVals.minIntervalBetweenWorkDays || 1,
-           doctors: formVals.doctors.map((doc: SerializedDoctorFormFieldInput) => {
-              const existingPreAssigned = doc.preAssignedWorkDates.map((d: string) => new Date(d));
-              const workDatesForThisDoctor = originalWorkDatesByDoctor.get(doc.id) || [];
-              const allPreAssignedDates = [...existingPreAssigned, ...workDatesForThisDoctor];
-              const uniquePreAssignedDates = Array.from(new Set(allPreAssignedDates.map(d => d.getTime())))
-                                               .map(time => new Date(time));
-              return {
-                  id: doc.id,
-                  name: doc.name,
-                  vacationDates: doc.vacationDates.map((d: string) => new Date(d)),
-                  preAssignedWorkDates: uniquePreAssignedDates,
-                  excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
-              };
-           })
+        const finalFormValues: ScheduleFormValues = {
+           numberOfDoctors: loadedData.formValues.numberOfDoctors,
+           startDate: new Date(loadedData.formValues.startDate),
+           endDate: new Date(loadedData.formValues.endDate),
+           minIntervalBetweenWorkDays: loadedData.formValues.minIntervalBetweenWorkDays || 1,
+           doctors: finalFormValuesDoctors
         };
 
-        setSchedule(processedSchedule);
-        setDoctorsProfiles(processedDoctorsProfiles);
-        setCurrentMinInterval(processedFormValues.minIntervalBetweenWorkDays || 1);
-        setLoadedFormValues(processedFormValues); 
+        setSchedule(finalSchedule);
+        setDoctorsProfiles(finalDoctorsProfiles);
+        setCurrentMinInterval(finalFormValues.minIntervalBetweenWorkDays || 1);
+        setLoadedFormValues(finalFormValues); 
         setDataInputFormKey(prevKey => prevKey + 1); 
 
         toast({
           title: t('page.toast.scheduleLoaded.title'),
-          description: t('page.toast.scheduleLoaded.description')
+          description: mode === 'as-pre-assigned' 
+            ? t('page.toast.scheduleLoadedAsPreassigned.description') 
+            : t('page.toast.scheduleLoaded.description')
         });
       } catch (err) {
         console.error("Error loading schedule:", err);
@@ -518,7 +534,7 @@ export default function RotaWisePage() {
         const vacationDates = doctor.vacationDates;
         const excludedDates = doctor.excludedDates;
         const generatedWorkDates = schedule.entries
-          .filter(e => e.doctorId === doctor.id && e.assignment === 'Work') // For PDF "Generated Work" means actual "Work" not "Pre-assigned" after load
+          .filter(e => e.doctorId === doctor.id && e.assignment === 'Work') 
           .map(e => e.date);
 
         autoTable(pdf, {
@@ -653,13 +669,17 @@ export default function RotaWisePage() {
           initialValues={loadedFormValues || defaultPageFormValues}
         />
 
-        <div className="flex flex-col sm:flex-row gap-4 mt-6 mb-8 justify-center items-center">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-4 mt-6 mb-8 justify-center items-center">
           <Button onClick={handleSaveSchedule} variant="outline" disabled={!schedule || isLoading || isExportingPdf} className="w-full sm:w-auto">
             <Save className="mr-2 h-4 w-4" /> {t('page.saveSchedule')}
           </Button>
-          <Label htmlFor="load-schedule-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf) && "opacity-50 cursor-not-allowed")}>
-            <Upload className="mr-2 h-4 w-4" /> {t('page.loadSchedule')}
-            <input id="load-schedule-input" type="file" accept=".json" className="hidden" onChange={handleFileUpload} disabled={isLoading || isExportingPdf}/>
+          <Label htmlFor="load-schedule-original-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf) && "opacity-50 cursor-not-allowed")}>
+            <Upload className="mr-2 h-4 w-4" /> {t('page.loadScheduleOriginal')}
+            <input id="load-schedule-original-input" type="file" accept=".json" className="hidden" onChange={(e) => handleFileUpload(e, 'as-is')} disabled={isLoading || isExportingPdf}/>
+          </Label>
+          <Label htmlFor="load-schedule-preassigned-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf) && "opacity-50 cursor-not-allowed")}>
+            <Layers className="mr-2 h-4 w-4" /> {t('page.loadScheduleAsPreassigned')}
+            <input id="load-schedule-preassigned-input" type="file" accept=".json" className="hidden" onChange={(e) => handleFileUpload(e, 'as-pre-assigned')} disabled={isLoading || isExportingPdf}/>
           </Label>
            <Button onClick={handleExportPdf} variant="outline" disabled={!schedule || isLoading || isExportingPdf} className="w-full sm:w-auto">
             <FileDown className="mr-2 h-4 w-4" />
