@@ -69,11 +69,15 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
       if (isPdfExportMode) {
         entriesForDay = entriesForDay.filter(entry => entry.assignment === 'Work' || entry.assignment === 'Pre-assigned');
       } else {
+        // Filter out "system: Off" entries for normal view
+        entriesForDay = entriesForDay.filter(entry => 
+            !(entry.doctorId === 'system' && entry.assignment === 'Off')
+        );
         entriesForDay = entriesForDay.filter(entry =>
           selectedDoctorId === 'all' || entry.doctorId === selectedDoctorId
         );
       }
-
+      
       return {
         date,
         isCurrentMonth: isSameMonth(date, monthToDisplay),
@@ -106,6 +110,11 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         </div>
         <div className="space-y-1 overflow-y-auto flex-grow">
           {day.assignments.map((entry, index) => {
+            // Additional check to ensure "system: Off" is not rendered here either, belt and braces.
+            if (entry.doctorId === 'system' && entry.assignment === 'Off' && !isPdfExportMode) {
+              return null;
+            }
+
             const doctor = doctorMap.get(entry.doctorId);
             let IconComponent;
             let bgColor = 'bg-opacity-20';
@@ -129,12 +138,14 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                 bgColor = 'bg-blue-200 dark:bg-blue-800';
                 textColor = 'text-blue-700 dark:text-blue-300';
                 break;
-              default: 
+              case 'Off': // This case will now only be hit for doctor-specific "Off" if that's ever a concept, or if PDF mode shows them
                 return (
                   <div key={index} className="p-1 rounded text-muted-foreground italic">
                     {doctor?.name || entry.doctorId}: {t('calendar.assignment.off')}
                   </div>
                 );
+              default: 
+                return null; // Should not happen with current assignment types
             }
 
             const assignmentTextClasses = isPdfExportMode ? "text-sm" : "text-xs";
@@ -248,3 +259,6 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 };
 
 export default ScheduleCalendarView;
+
+
+    
