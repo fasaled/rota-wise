@@ -32,15 +32,32 @@ const dateFnsLocaleMap: Record<Language, Locale> = {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>('en');
+  const [language, setLanguageState] = useState<Language>('en'); // Default to 'en' initially
   const [loadedTranslations, setLoadedTranslations] = useState<any>(translationsMap.en);
 
   useEffect(() => {
-    // Attempt to load saved language from localStorage
     const savedLanguage = localStorage.getItem('rotawise-language') as Language | null;
+
     if (savedLanguage && (savedLanguage === 'en' || savedLanguage === 'es')) {
+      // Use saved language if available and valid
       setLanguageState(savedLanguage);
       setLoadedTranslations(translationsMap[savedLanguage]);
+    } else {
+      // No saved language, determine from browser
+      // navigator.language is only available in the browser
+      let defaultLang: Language = 'en'; // Default to English
+      if (typeof navigator !== 'undefined' && navigator.language) {
+        const browserLang = navigator.language.toLowerCase();
+        if (browserLang.startsWith('es')) {
+          defaultLang = 'es';
+        }
+      }
+      // For any other browser language, it will remain 'en' as per defaultLang initialization
+
+      setLanguageState(defaultLang);
+      setLoadedTranslations(translationsMap[defaultLang]);
+      // We don't automatically save the browser-detected language to localStorage here.
+      // localStorage is only updated when the user explicitly selects a language.
     }
   }, []);
 
@@ -68,7 +85,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
     }
     return translation! ?? key; // Ensure we always return a string
-  }, [loadedTranslations, language]); // Added language to dependency array for safety, though loadedTranslations should cover it.
+  }, [loadedTranslations]);
 
   const currentDateFnsLocale = useMemo(() => dateFnsLocaleMap[language], [language]);
 
@@ -86,4 +103,3 @@ export const useLanguage = (): LanguageContextType => {
   }
   return context;
 };
-
