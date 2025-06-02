@@ -1,19 +1,21 @@
-# See https://www.robotstxt.org/robotstxt.html for documentation on how to use the robots.txt file
-#
-# Allow all friendly crawlers access to the site
+# robots.txt for RotaWise Application
+
+# Allow all friendly crawlers full access
 User-agent: *
 Allow: /
-Sitemap: https://your-app-url.com/sitemap.xml # Replace your-app-url.com with your actual domain
 
-# Disallow specific AI crawlers if desired.
-# Users can choose to remove or modify these lines.
+# Specific instructions for Googlebot
+User-agent: Googlebot
+Allow: /
+
+# Specific instructions for GPTBot (OpenAI's web crawler)
 User-agent: GPTBot
-Disallow: /
+Allow: / # Or Disallow: / if you prefer to block it
 
+# Specific instructions for Google-Extended (used for Vertex AI, Bard, etc.)
 User-agent: Google-Extended
-Disallow: /
+Allow: / # Or Disallow: / if you prefer to block it
 
-# Add other specific bot rules below if needed
-# Example:
-# User-agent: BadBot
-# Disallow: /
+
+# Sitemap location
+Sitemap: https://fasl.dev/sitemap.xml

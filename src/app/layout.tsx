@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { LanguageProvider } from '@/context/language-context';
 import { ThemeProvider } from "@/components/theme-provider";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://your-app-url.com'; // Replace with your actual app URL or set NEXT_PUBLIC_APP_URL
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fasl.dev';
 
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),

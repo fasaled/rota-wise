@@ -3,7 +3,7 @@ import type { MetadataRoute } from 'next';
 
 // It's important to set your actual base URL here.
 // You can use an environment variable for this.
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://your-app-url.com'; // Replace with your actual app URL or set NEXT_PUBLIC_APP_URL
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fasl.dev';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
