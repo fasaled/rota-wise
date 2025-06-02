@@ -291,6 +291,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 mode="multiple"
                                 selected={field.value}
                                 onSelect={field.onChange}
+                                initialFocus
                                 locale={currentDateFnsLocale}
                               />
                               <p className="text-xs text-muted-foreground p-2 text-center border-t">
@@ -319,6 +320,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 mode="multiple"
                                 selected={field.value}
                                 onSelect={field.onChange}
+                                initialFocus
                                 locale={currentDateFnsLocale}
                               />
                               <p className="text-xs text-muted-foreground p-2 text-center border-t">
@@ -347,6 +349,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                 mode="multiple"
                                 selected={field.value}
                                 onSelect={field.onChange}
+                                initialFocus
                                 locale={currentDateFnsLocale}
                               />
                               <p className="text-xs text-muted-foreground p-2 text-center border-t">
@@ -389,3 +392,5 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 };
 
 export default DataInputForm;
+
+    
