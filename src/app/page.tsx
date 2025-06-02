@@ -278,13 +278,9 @@ export default function RotaWisePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Clear current schedule and profiles before attempting to load new ones
     setSchedule(null);
     setDoctorsProfiles([]);
-    // We don't reset loadedFormValues here immediately,
-    // as it should only be updated upon successful parsing of new form values.
-    // If parsing fails, the form should retain its current state or default.
-
+    
     setIsLoading(true);
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -338,8 +334,8 @@ export default function RotaWisePage() {
         setSchedule(processedSchedule);
         setDoctorsProfiles(processedDoctorsProfiles);
         setCurrentMinInterval(processedFormValues.minIntervalBetweenWorkDays || 1);
-        setLoadedFormValues(processedFormValues); // This will trigger form re-initialization
-        setDataInputFormKey(prevKey => prevKey + 1); // Re-key the form
+        setLoadedFormValues(processedFormValues); 
+        setDataInputFormKey(prevKey => prevKey + 1); 
 
         toast({
           title: t('page.toast.scheduleLoaded.title'),
@@ -352,13 +348,10 @@ export default function RotaWisePage() {
           description: (err as Error).message,
           variant: "destructive"
         });
-        // If loading fails, the form will retain its previous values or default,
-        // and schedule/doctorsProfiles remain null/empty from the pre-load reset.
-        // setLoadedFormValues(null); // Optionally reset loadedFormValues if load fails
       } finally {
         setIsLoading(false);
         if (event.target) {
-          event.target.value = ""; // Reset file input
+          event.target.value = ""; 
         }
       }
     };
@@ -449,10 +442,10 @@ export default function RotaWisePage() {
         pdf.text(monthTitle, margin, currentY);
         currentY += titleHeight;
         
-        if (currentY + minImageHeight > pdfHeight - margin && allMonthsToExport.indexOf(month) > 0) { // Check if image itself needs new page after title
+        if (currentY + minImageHeight > pdfHeight - margin && allMonthsToExport.indexOf(month) > 0) { 
             pdf.addPage();
             currentY = margin;
-            pdf.setFontSize(16); // Re-add title on new page
+            pdf.setFontSize(16); 
             pdf.text(monthTitle, margin, currentY);
             currentY += titleHeight;
         }
@@ -467,12 +460,12 @@ export default function RotaWisePage() {
             const spaceForImageOnCurrentPage = pdfHeight - currentY - margin;
 
             if (imgHeight > spaceForImageOnCurrentPage ) {
-                 imgHeight = spaceForImageOnCurrentPage; // Fit to remaining space if too tall
+                 imgHeight = spaceForImageOnCurrentPage; 
             }
 
 
             pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
-            currentY += imgHeight + 10; // Add some padding after the image
+            currentY += imgHeight + 10; 
 
         } catch (captureError) {
             console.error("Error capturing calendar for month:", monthTitle, captureError);
@@ -488,7 +481,7 @@ export default function RotaWisePage() {
     setIsPdfExportMode(false);
 
     for (const doctor of doctorsProfiles) {
-        if (currentY + 70 > pdfHeight - margin) { // Estimate space for doctor details table
+        if (currentY + 70 > pdfHeight - margin) { 
           pdf.addPage();
           currentY = margin;
         }
@@ -524,7 +517,7 @@ export default function RotaWisePage() {
         currentY = (pdf as any).lastAutoTable.finalY + 10;
       }
 
-    if (currentY + 50 > pdfHeight - margin) { // Estimate space for summary table
+    if (currentY + 50 > pdfHeight - margin) { 
         pdf.addPage();
         currentY = margin;
     }
@@ -682,6 +675,7 @@ export default function RotaWisePage() {
                     height={200}
                     className="rounded-md opacity-70"
                     data-ai-hint="calendar schedule planning"
+                    priority
                 />
             </CardContent>
           </Card>
