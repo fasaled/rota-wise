@@ -24,7 +24,9 @@ export interface DoctorFormFieldInput {
 }
 
 // Full form input schema type
-export type ScheduleFormValues = z.infer<typeof scheduleFormSchema>;
+export type ScheduleFormValues = z.infer<typeof scheduleFormSchema> & {
+  minIntervalBetweenWorkDays?: number;
+};
 
 export interface ScheduleEntry {
   date: Date;
@@ -37,6 +39,7 @@ export interface Schedule {
   entries: ScheduleEntry[];
   startDate: Date;
   endDate: Date;
+  minIntervalBetweenWorkDays?: number; // Added to carry context
 }
 
 export interface DayDetails {
@@ -52,10 +55,11 @@ export interface SerializedScheduleEntry extends Omit<ScheduleEntry, 'date'> {
   date: string; // ISO date string
 }
 
-export interface SerializedSchedule extends Omit<Schedule, 'startDate' | 'endDate' | 'entries'> {
+export interface SerializedSchedule extends Omit<Schedule, 'startDate' | 'endDate' | 'entries' | 'minIntervalBetweenWorkDays'> {
   startDate: string; // ISO date string
   endDate: string; // ISO date string
   entries: SerializedScheduleEntry[];
+  minIntervalBetweenWorkDays?: number;
 }
 
 export interface SerializedDoctorProfile extends Omit<DoctorProfile, 'vacationDates' | 'preAssignedWorkDates' | 'excludedDates'> {
@@ -70,10 +74,11 @@ export interface SerializedDoctorFormFieldInput extends Omit<DoctorFormFieldInpu
   excludedDates: string[]; // Array of ISO date strings
 }
 
-export interface SerializedScheduleFormValues extends Omit<ScheduleFormValues, 'startDate' | 'endDate' | 'doctors'> {
+export interface SerializedScheduleFormValues extends Omit<ScheduleFormValues, 'startDate' | 'endDate' | 'doctors' | 'minIntervalBetweenWorkDays'> {
   startDate: string; // ISO date string
   endDate: string; // ISO date string
   doctors: SerializedDoctorFormFieldInput[];
+  minIntervalBetweenWorkDays?: number;
 }
 
 export interface PersistedScheduleData {

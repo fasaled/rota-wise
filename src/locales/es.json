@@ -30,6 +30,8 @@
   "page.toast.scheduleWarning.title": "Advertencia de Horario",
   "page.toast.scheduleWarning.description": "{doctorName} está programado para trabajar en un día de vacaciones.",
   "page.toast.excludedDayWarning.description": "{doctorName} está programado para trabajar en un día excluido.",
+  "page.toast.minIntervalWarning.title": "Advertencia de Intervalo",
+  "page.toast.minIntervalWarning.description": "{doctorName} necesita al menos {interval} día(s) libre(s) antes de volver a trabajar.",
 
   "form.title": "Parámetros del Horario",
   "form.description": "Defina los médicos y el rango de fechas para el horario.",
@@ -37,6 +39,7 @@
   "form.startDate": "Fecha de Inicio del Horario",
   "form.endDate": "Fecha de Fin del Horario",
   "form.pickDate": "Elija una fecha",
+  "form.minInterval": "Intervalo Mín. (Días Laborables)",
   "form.doctorDetails": "Detalles del Médico",
   "form.doctorNum": "Médico {index}",
   "form.doctorNameLabel": "Nombre",
@@ -84,6 +87,7 @@
   
   "pdf.reportTitle": "Informe de Horario RotaWise",
   "pdf.schedulePeriod": "Período del Horario: {startDate} - {endDate}",
+  "pdf.minIntervalInfo": "Intervalo mínimo entre días de trabajo: {interval} día(s)",
   "pdf.doctorDetailsTitle": "Detalles del Horario de {doctorName}",
   "pdf.assignmentTypeHeader": "Tipo de Asignación",
   "pdf.datesHeader": "Fechas",
@@ -108,5 +112,3 @@
   "language.en": "Inglés",
   "language.es": "Español"
 }
-
-    

@@ -20,8 +20,8 @@ import { buttonVariants } from '@/components/ui/button';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
-import { format, startOfMonth, addMonths, isSameDay } from 'date-fns';
-import { enUS } from 'date-fns/locale'; // Import enUS for consistent day of week keying
+import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays } from 'date-fns';
+import { enUS } from 'date-fns/locale'; 
 import { useLanguage } from '@/context/language-context';
 
 
@@ -34,6 +34,7 @@ export default function RotaWisePage() {
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
 
+  const [currentMinInterval, setCurrentMinInterval] = useState<number>(1);
   const [loadedFormValues, setLoadedFormValues] = useState<Partial<ScheduleFormValues> | null>(null);
   const [dataInputFormKey, setDataInputFormKey] = useState(0);
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -46,11 +47,11 @@ export default function RotaWisePage() {
     setIsMounted(true);
   }, []);
 
-  // Default values for the form, used when no data is loaded
   const defaultPageFormValues: Partial<ScheduleFormValues> = {
     numberOfDoctors: 1,
     startDate: new Date(),
-    endDate: new Date(new Date().setDate(new Date().getDate() + 29)), // Approx 1 month
+    endDate: new Date(new Date().setDate(new Date().getDate() + 29)), 
+    minIntervalBetweenWorkDays: 1,
     doctors: [
       { id: crypto.randomUUID(), name: 'Dr. Alice', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] },
     ]
@@ -58,6 +59,7 @@ export default function RotaWisePage() {
 
   const handleSubmitForm = async (data: ScheduleFormValues) => {
     setIsLoading(true);
+    setCurrentMinInterval(data.minIntervalBetweenWorkDays || 1);
     const profiles: DoctorProfile[] = data.doctors.map(doc => ({
       id: doc.id,
       name: doc.name,
@@ -82,6 +84,7 @@ export default function RotaWisePage() {
         ...result.schedule,
         startDate: new Date(result.schedule.startDate),
         endDate: new Date(result.schedule.endDate),
+        minIntervalBetweenWorkDays: result.schedule.minIntervalBetweenWorkDays,
         entries: result.schedule.entries.map(entry => ({
           ...entry,
           date: new Date(entry.date),
@@ -95,18 +98,89 @@ export default function RotaWisePage() {
     }
   };
 
-  const handleUpdateScheduleEntry = (updatedEntry: ScheduleEntry) => {
+ const handleUpdateScheduleEntry = (updatedEntry: ScheduleEntry) => {
     setSchedule(prevSchedule => {
       if (!prevSchedule) return null;
+
+      const doctorProfile = doctorsProfiles.find(dp => dp.id === updatedEntry.doctorId);
+      const effectiveMinInterval = prevSchedule.minIntervalBetweenWorkDays ?? currentMinInterval;
+
+      // Check min interval if assigning Work or Pre-assigned
+      if (doctorProfile && (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned')) {
+        const workOrPreassignedEntries = prevSchedule.entries.filter(
+          e => e.doctorId === updatedEntry.doctorId && (e.assignment === 'Work' || e.assignment === 'Pre-assigned') && !isSameDay(e.date, updatedEntry.date)
+        );
+        
+        const closestWorkDayBefore = workOrPreassignedEntries
+          .filter(e => e.date < updatedEntry.date)
+          .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+
+        const closestWorkDayAfter = workOrPreassignedEntries
+          .filter(e => e.date > updatedEntry.date)
+          .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
+
+        if (closestWorkDayBefore) {
+          const diff = differenceInCalendarDays(updatedEntry.date, closestWorkDayBefore.date);
+          if (diff <= effectiveMinInterval) {
+            toast({
+              title: t('page.toast.minIntervalWarning.title'),
+              description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
+              variant: "destructive",
+            });
+            return prevSchedule; // Do not update
+          }
+        }
+        if (closestWorkDayAfter) {
+          const diff = differenceInCalendarDays(closestWorkDayAfter.date, updatedEntry.date);
+           if (diff <= effectiveMinInterval) {
+            toast({
+              title: t('page.toast.minIntervalWarning.title'),
+              description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
+              variant: "destructive",
+            });
+            return prevSchedule; // Do not update
+          }
+        }
+      }
+
+
+      // Proceed with update if interval check passes or is not applicable
       const newEntries = prevSchedule.entries.filter(e =>
         !(e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === (updatedEntry.assignment === 'Off' ? e.doctorId : updatedEntry.doctorId))
       );
 
-      if (updatedEntry.assignment !== 'Off' || !prevSchedule.entries.find(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId)) {
+      if (updatedEntry.assignment !== 'Off') {
+          // Remove any existing assignment for the *same doctor* on the *same day* before adding the new one
+          const idx = newEntries.findIndex(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId);
+          if (idx > -1) newEntries.splice(idx, 1);
+          
+          // If assigning work/pre-assigned, remove any 'Off' assignment for that day for any doctor.
+          // Also, remove any other doctor's work/pre-assigned shift on that day.
+          if (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') {
+            const dayAssignmentsToRemove = newEntries.filter(e => e.date.getTime() === updatedEntry.date.getTime() && (e.assignment === 'Off' || ((e.assignment === 'Work' || e.assignment === 'Pre-assigned') && e.doctorId !== updatedEntry.doctorId)));
+            dayAssignmentsToRemove.forEach(toRemove => {
+                const removeIdx = newEntries.indexOf(toRemove);
+                if (removeIdx > -1) newEntries.splice(removeIdx, 1);
+            });
+          }
           newEntries.push(updatedEntry);
+      } else { // Assigning 'Off'
+           // Remove any existing assignment for the *same doctor* on the *same day*
+          const idx = newEntries.findIndex(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId);
+          if (idx > -1) newEntries.splice(idx, 1);
+          // If no other doctor is working or pre-assigned on this day, add a system 'Off' entry.
+          const otherDoctorWorking = newEntries.some(e => e.date.getTime() === updatedEntry.date.getTime() && (e.assignment === 'Work' || e.assignment === 'Pre-assigned'));
+          if (!otherDoctorWorking) {
+            newEntries.push({
+                date: updatedEntry.date,
+                doctorId: 'system', // System indicates general off day if no one is working
+                assignment: 'Off',
+                dayOfWeek: updatedEntry.dayOfWeek,
+            });
+          }
       }
 
-      const doctorProfile = doctorsProfiles.find(dp => dp.id === updatedEntry.doctorId);
+
       if (doctorProfile && updatedEntry.assignment === 'Work') {
         const isVacation = doctorProfile.vacationDates.some(vd =>
           isSameDay(vd, updatedEntry.date)
@@ -117,6 +191,7 @@ export default function RotaWisePage() {
             description: t('page.toast.scheduleWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
+           return prevSchedule; // Do not update
         }
         const isExcluded = doctorProfile.excludedDates.some(ed =>
           isSameDay(ed, updatedEntry.date)
@@ -127,6 +202,7 @@ export default function RotaWisePage() {
             description: t('page.toast.excludedDayWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
+           return prevSchedule; // Do not update
         }
       }
       return { ...prevSchedule, entries: newEntries };
@@ -148,6 +224,7 @@ export default function RotaWisePage() {
         ...schedule,
         startDate: schedule.startDate.toISOString(),
         endDate: schedule.endDate.toISOString(),
+        minIntervalBetweenWorkDays: schedule.minIntervalBetweenWorkDays || currentMinInterval,
         entries: schedule.entries.map(entry => ({
           ...entry,
           date: entry.date.toISOString(),
@@ -163,6 +240,7 @@ export default function RotaWisePage() {
         numberOfDoctors: doctorsProfiles.length,
         startDate: schedule.startDate.toISOString(),
         endDate: schedule.endDate.toISOString(),
+        minIntervalBetweenWorkDays: schedule.minIntervalBetweenWorkDays || currentMinInterval,
         doctors: doctorsProfiles.map(p => ({
           id: p.id,
           name: p.name,
@@ -214,6 +292,7 @@ export default function RotaWisePage() {
           ...loadedData.schedule,
           startDate: new Date(loadedData.schedule.startDate),
           endDate: new Date(loadedData.schedule.endDate),
+          minIntervalBetweenWorkDays: loadedData.schedule.minIntervalBetweenWorkDays || 1,
           entries: loadedData.schedule.entries.map(entry => ({
             ...entry,
             date: new Date(entry.date),
@@ -226,12 +305,14 @@ export default function RotaWisePage() {
           preAssignedWorkDates: profile.preAssignedWorkDates.map((d: string) => new Date(d)),
           excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)),
         }));
-
+        
+        const formVals = loadedData.formValues;
         const processedFormValues: ScheduleFormValues = {
-           numberOfDoctors: loadedData.formValues.numberOfDoctors,
-           startDate: new Date(loadedData.formValues.startDate),
-           endDate: new Date(loadedData.formValues.endDate),
-           doctors: loadedData.formValues.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
+           numberOfDoctors: formVals.numberOfDoctors,
+           startDate: new Date(formVals.startDate),
+           endDate: new Date(formVals.endDate),
+           minIntervalBetweenWorkDays: formVals.minIntervalBetweenWorkDays || 1,
+           doctors: formVals.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
               id: doc.id,
               name: doc.name,
               vacationDates: doc.vacationDates.map((d: string) => new Date(d)),
@@ -242,6 +323,7 @@ export default function RotaWisePage() {
 
         setSchedule(processedSchedule);
         setDoctorsProfiles(processedDoctorsProfiles);
+        setCurrentMinInterval(processedFormValues.minIntervalBetweenWorkDays || 1);
         setLoadedFormValues(processedFormValues);
         setDataInputFormKey(prevKey => prevKey + 1);
 
@@ -299,7 +381,12 @@ export default function RotaWisePage() {
         startDate: format(schedule.startDate, 'PPP', { locale: currentDateFnsLocale }),
         endDate: format(schedule.endDate, 'PPP', { locale: currentDateFnsLocale })
     }), margin, currentY);
+    currentY += 7;
+    
+    const intervalToDisplay = schedule.minIntervalBetweenWorkDays ?? currentMinInterval;
+    pdf.text(t('pdf.minIntervalInfo', { interval: intervalToDisplay }), margin, currentY);
     currentY += 10;
+
 
     const getMonthsInRange = (start: Date, end: Date): Date[] => {
         const months: Date[] = [];
@@ -316,7 +403,6 @@ export default function RotaWisePage() {
 
     for (const month of allMonthsToExport) {
         setPdfExportMonth(month);
-        // Short delay to allow React to re-render the calendar for the specific month
         await new Promise(resolve => setTimeout(resolve, 250));
 
         const calendarElement = calendarRef.current;
@@ -333,9 +419,9 @@ export default function RotaWisePage() {
         }
 
         const monthTitle = format(month, 'MMMM yyyy', { locale: currentDateFnsLocale });
-        const titleHeight = 10; // Estimated height for month title
-        const minImageHeight = 100; // Minimum estimated height for a calendar image
-        const requiredSpaceForBlock = titleHeight + minImageHeight + 10; // Title + Image + Padding
+        const titleHeight = 10; 
+        const minImageHeight = 100; 
+        const requiredSpaceForBlock = titleHeight + minImageHeight + 10; 
 
         if (allMonthsToExport.indexOf(month) > 0 && (currentY + requiredSpaceForBlock > pdfHeight - margin)) {
             pdf.addPage();
@@ -357,16 +443,13 @@ export default function RotaWisePage() {
             if (imgHeight > spaceForImageOnCurrentPage && spaceForImageOnCurrentPage < minImageHeight ) {
                 pdf.addPage();
                 currentY = margin;
-
                 pdf.setFontSize(16);
                 pdf.text(monthTitle, margin, currentY);
                 currentY += titleHeight;
                 imgHeight = Math.min(imgHeight, pdfHeight - currentY - margin);
-
             } else if (imgHeight > spaceForImageOnCurrentPage) {
                  imgHeight = spaceForImageOnCurrentPage;
             }
-
 
             pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
             currentY += imgHeight + 10;
@@ -418,7 +501,6 @@ export default function RotaWisePage() {
           columnStyles: { 1: { cellWidth: 'auto'} },
           margin: { left: margin, right: margin },
         });
-        // @ts-ignore
         currentY = (pdf as any).lastAutoTable.finalY + 10;
       }
 
@@ -556,6 +638,8 @@ export default function RotaWisePage() {
                 onUpdateScheduleEntry={handleUpdateScheduleEntry}
                 forceDisplayMonth={pdfExportMonth}
                 isPdfExportMode={isPdfExportMode}
+                minIntervalBetweenWorkDays={currentMinInterval}
+                allScheduleEntries={schedule.entries}
             />
           </div>
         ) : (

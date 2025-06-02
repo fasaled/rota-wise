@@ -30,6 +30,8 @@
   "page.toast.scheduleWarning.title": "Schedule Warning",
   "page.toast.scheduleWarning.description": "{doctorName} is scheduled to work on a vacation day.",
   "page.toast.excludedDayWarning.description": "{doctorName} is scheduled to work on an excluded day.",
+  "page.toast.minIntervalWarning.title": "Interval Warning",
+  "page.toast.minIntervalWarning.description": "{doctorName} needs at least {interval} day(s) off before working again.",
 
   "form.title": "Schedule Parameters",
   "form.description": "Define the doctors and date range for the schedule.",
@@ -37,6 +39,7 @@
   "form.startDate": "Schedule Start Date",
   "form.endDate": "Schedule End Date",
   "form.pickDate": "Pick a date",
+  "form.minInterval": "Min. Interval (Work Days)",
   "form.doctorDetails": "Doctor Details",
   "form.doctorNum": "Doctor {index}",
   "form.doctorNameLabel": "Name",
@@ -84,6 +87,7 @@
 
   "pdf.reportTitle": "RotaWise Schedule Report",
   "pdf.schedulePeriod": "Schedule Period: {startDate} - {endDate}",
+  "pdf.minIntervalInfo": "Minimum interval between work days: {interval} day(s)",
   "pdf.doctorDetailsTitle": "{doctorName}'s Schedule Details",
   "pdf.assignmentTypeHeader": "Assignment Type",
   "pdf.datesHeader": "Dates",
@@ -109,5 +113,3 @@
   "language.en": "English",
   "language.es": "Español"
 }
-
-    

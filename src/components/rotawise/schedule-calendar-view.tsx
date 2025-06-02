@@ -20,6 +20,8 @@ interface ScheduleCalendarViewProps {
   onUpdateScheduleEntry: (updatedEntry: ScheduleEntry) => void;
   forceDisplayMonth?: Date | null;
   isPdfExportMode?: boolean;
+  minIntervalBetweenWorkDays: number;
+  allScheduleEntries: ScheduleEntry[]; // Pass all entries for dialog context
 }
 
 const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
@@ -27,7 +29,9 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     doctors,
     onUpdateScheduleEntry,
     forceDisplayMonth,
-    isPdfExportMode
+    isPdfExportMode,
+    minIntervalBetweenWorkDays,
+    allScheduleEntries,
 }) => {
   const { t, currentDateFnsLocale } = useLanguage();
   const [currentMonth, setCurrentMonth] = useState(schedule.startDate || new Date());
@@ -63,10 +67,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
       );
 
       if (isPdfExportMode) {
-        // For PDF, show only Work and Pre-assigned, and always for all doctors
         entriesForDay = entriesForDay.filter(entry => entry.assignment === 'Work' || entry.assignment === 'Pre-assigned');
       } else {
-        // For web view, filter by selected doctor if not 'all'
         entriesForDay = entriesForDay.filter(entry =>
           selectedDoctorId === 'all' || entry.doctorId === selectedDoctorId
         );
@@ -112,7 +114,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 
 
             switch (entry.assignment) {
-              case 'Vacation': // This case will only be hit in non-PDF mode due to filtering in daysInMonth
+              case 'Vacation': 
                 IconComponent = VacationIcon;
                 bgColor = 'bg-accent';
                 textColor = 'text-accent-foreground';
@@ -127,7 +129,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                 bgColor = 'bg-blue-200 dark:bg-blue-800';
                 textColor = 'text-blue-700 dark:text-blue-300';
                 break;
-              default: // Off or other (only in non-PDF mode)
+              default: 
                 return (
                   <div key={index} className="p-1 rounded text-muted-foreground italic">
                     {doctor?.name || entry.doctorId}: {t('calendar.assignment.off')}
@@ -237,6 +239,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
           date={selectedDateForAdjustment}
           doctors={doctors}
           onSave={onUpdateScheduleEntry}
+          minIntervalBetweenWorkDays={minIntervalBetweenWorkDays}
+          allScheduleEntries={allScheduleEntries}
         />
       )}
     </Card>
@@ -244,4 +248,3 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 };
 
 export default ScheduleCalendarView;
-

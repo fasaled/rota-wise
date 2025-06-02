@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ScheduleEntry, DoctorProfile } from '@/lib/types';
-import { format } from 'date-fns';
+import { format, isSameDay, differenceInCalendarDays } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from '@/context/language-context';
 
@@ -27,6 +27,8 @@ interface ManualAdjustmentDialogProps {
   date: Date; 
   doctors: DoctorProfile[];
   onSave: (updatedEntry: ScheduleEntry) => void;
+  minIntervalBetweenWorkDays: number;
+  allScheduleEntries: ScheduleEntry[]; // All entries to check interval against
 }
 
 const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
@@ -36,6 +38,8 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
   date,
   doctors,
   onSave,
+  minIntervalBetweenWorkDays,
+  allScheduleEntries,
 }) => {
   const { t, currentDateFnsLocale } = useLanguage();
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(entry?.doctorId || '');
@@ -43,12 +47,14 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
   const { toast } = useToast();
 
   useEffect(() => {
-    if (entry) {
-      setSelectedDoctorId(entry.doctorId);
-      setAssignmentType(entry.assignment);
-    } else {
-      setSelectedDoctorId(doctors.length > 0 ? doctors[0].id : '');
-      setAssignmentType('Work');
+    if (isOpen) { // Reset state when dialog opens
+        if (entry) {
+            setSelectedDoctorId(entry.doctorId);
+            setAssignmentType(entry.assignment);
+        } else {
+            setSelectedDoctorId(doctors.length > 0 ? doctors[0].id : '');
+            setAssignmentType('Work');
+        }
     }
   }, [entry, doctors, isOpen]); 
 
@@ -62,7 +68,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
         return;
     }
     
-    const updatedEntry: ScheduleEntry = {
+    const updatedEntryData: ScheduleEntry = {
       date: date,
       doctorId: selectedDoctorId || (assignmentType === 'Off' ? 'system' : ''), 
       assignment: assignmentType,
@@ -70,14 +76,13 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
     };
 
     const doctor = doctors.find(d => d.id === selectedDoctorId);
-    if (doctor) {
+
+    if (doctor && (assignmentType === 'Work' || assignmentType === 'Pre-assigned')) {
         const isVacationDayForDoctor = doctor.vacationDates.some(vacDate => 
-            vacDate.getFullYear() === date.getFullYear() &&
-            vacDate.getMonth() === date.getMonth() &&
-            vacDate.getDate() === date.getDate()
+            isSameDay(vacDate, date)
         );
 
-        if (isVacationDayForDoctor && (assignmentType === 'Work' || assignmentType === 'Pre-assigned')) {
+        if (isVacationDayForDoctor) {
             toast({
                 title: t('dialog.toast.adjustmentWarning.title'),
                 description: t('dialog.toast.adjustmentWarning.description', { doctorName: doctor.name }),
@@ -87,22 +92,56 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
         }
 
         const isExcludedDayForDoctor = doctor.excludedDates.some(exDate =>
-            exDate.getFullYear() === date.getFullYear() &&
-            exDate.getMonth() === date.getMonth() &&
-            exDate.getDate() === date.getDate()
+            isSameDay(exDate, date)
         );
 
-        if (isExcludedDayForDoctor && (assignmentType === 'Work' || assignmentType === 'Pre-assigned')) {
+        if (isExcludedDayForDoctor) {
             toast({
-                title: t('dialog.toast.adjustmentWarning.title'), // Use same title or create a new one
+                title: t('dialog.toast.adjustmentWarning.title'), 
                 description: t('dialog.toast.excludedDayWarning.description', { doctorName: doctor.name }),
                 variant: "destructive",
             });
             return;
         }
+
+        // Check min interval
+        const doctorsWorkOrPreassignedEntries = allScheduleEntries.filter(
+            e => e.doctorId === selectedDoctorId && (e.assignment === 'Work' || e.assignment === 'Pre-assigned') && !isSameDay(e.date, date)
+        );
+
+        const closestWorkDayBefore = doctorsWorkOrPreassignedEntries
+            .filter(e => e.date < date)
+            .sort((a,b) => b.date.getTime() - a.date.getTime())[0];
+        
+        const closestWorkDayAfter = doctorsWorkOrPreassignedEntries
+            .filter(e => e.date > date)
+            .sort((a,b) => a.date.getTime() - b.date.getTime())[0];
+
+        if(closestWorkDayBefore) {
+            const diff = differenceInCalendarDays(date, closestWorkDayBefore.date);
+            if (diff <= minIntervalBetweenWorkDays) {
+                 toast({
+                    title: t('page.toast.minIntervalWarning.title'),
+                    description: t('page.toast.minIntervalWarning.description', { doctorName: doctor.name, interval: minIntervalBetweenWorkDays }),
+                    variant: "destructive",
+                });
+                return;
+            }
+        }
+        if(closestWorkDayAfter) {
+            const diff = differenceInCalendarDays(closestWorkDayAfter.date, date);
+            if (diff <= minIntervalBetweenWorkDays) {
+                 toast({
+                    title: t('page.toast.minIntervalWarning.title'),
+                    description: t('page.toast.minIntervalWarning.description', { doctorName: doctor.name, interval: minIntervalBetweenWorkDays }),
+                    variant: "destructive",
+                });
+                return;
+            }
+        }
     }
     
-    onSave(updatedEntry);
+    onSave(updatedEntryData);
     onClose();
     const formattedDate = format(date, 'PPP', { locale: currentDateFnsLocale });
     toast({

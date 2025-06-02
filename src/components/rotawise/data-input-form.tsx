@@ -12,7 +12,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { CalendarIcon, DoctorsIcon, PreferencesIcon, VacationIcon, PreAssignedIcon, CalendarXIcon } from '@/components/icons';
+import { CalendarIcon, DoctorsIcon, PreferencesIcon, VacationIcon, PreAssignedIcon, CalendarXIcon, Clock3Icon } from '@/components/icons';
 import { format } from 'date-fns';
 import type { ScheduleFormValues } from '@/lib/types'; 
 import { cn } from '@/lib/utils';
@@ -22,7 +22,7 @@ import { useLanguage } from '@/context/language-context';
 // Schema for a single doctor
 const doctorSchema = z.object({
   id: z.string(), 
-  name: z.string().min(1, "Doctor's name is required."), // Zod messages not translated in this iteration
+  name: z.string().min(1, "Doctor's name is required."),
   vacationDates: z.array(z.date()).default([]),
   preAssignedWorkDates: z.array(z.date()).default([]),
   excludedDates: z.array(z.date()).default([]),
@@ -36,6 +36,7 @@ export const scheduleFormSchema = z.object({
     .refine((data) => data >= new Date(new Date().setHours(0,0,0,0)), { 
       message: "End date must be today or a future date.",
     }),
+  minIntervalBetweenWorkDays: z.coerce.number().int().min(0, "Minimum interval cannot be negative.").max(30, "Interval cannot exceed 30 days.").optional().default(1),
   doctors: z.array(doctorSchema).min(1, "At least one doctor's details must be provided."),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
@@ -56,6 +57,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
       numberOfDoctors: initialValues?.numberOfDoctors || 1,
       startDate: initialValues?.startDate || new Date(),
       endDate: initialValues?.endDate || new Date(new Date().setDate(new Date().getDate() + 30)),
+      minIntervalBetweenWorkDays: initialValues?.minIntervalBetweenWorkDays || 1,
       doctors: initialValues?.doctors && initialValues.doctors.length > 0 
                  ? initialValues.doctors.map(doc => ({
                      id: doc.id || crypto.randomUUID(), 
@@ -77,21 +79,17 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 
   React.useEffect(() => {
     const currentDoctorCount = fields.length;
-    // Ensure targetDoctorCount is at least 1, even if numberOfDoctors is somehow less (e.g. during initial load or invalid manual input)
     const targetDoctorCount = Math.max(1, numberOfDoctors || 0); 
-
 
     if (targetDoctorCount > currentDoctorCount) {
       for (let i = 0; i < targetDoctorCount - currentDoctorCount; i++) {
         append({ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [] });
       }
     } else if (targetDoctorCount < currentDoctorCount) {
-      // Remove doctors from the end of the array if targetDoctorCount is less
       for (let i = 0; i < currentDoctorCount - targetDoctorCount; i++) {
         remove(currentDoctorCount - 1 - i);
       }
     }
-    // Ensure the form's numberOfDoctors value is at least 1
     if (form.getValues('numberOfDoctors') < 1) {
       form.setValue('numberOfDoctors', 1, { shouldValidate: true });
     }
@@ -104,6 +102,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
         numberOfDoctors: initialValues.numberOfDoctors || 1,
         startDate: initialValues.startDate || new Date(),
         endDate: initialValues.endDate || new Date(new Date().setDate(new Date().getDate() + 30)),
+        minIntervalBetweenWorkDays: initialValues.minIntervalBetweenWorkDays || 1,
         doctors: initialValues.doctors && initialValues.doctors.length > 0
                    ? initialValues.doctors.map(doc => ({
                        id: doc.id || crypto.randomUUID(),
@@ -128,7 +127,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
       </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div>
               <Label htmlFor="numberOfDoctors" className="font-semibold">{t('form.numDoctors')}</Label>
               <Controller
@@ -142,7 +141,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                     {...field}
                     onChange={e => {
                       const val = parseInt(e.target.value, 10);
-                      field.onChange(isNaN(val) ? 1 : val); // Ensure value is a number, default to 1 if NaN
+                      field.onChange(isNaN(val) ? 1 : val); 
                     }}
                     className="mt-1"
                   />
@@ -204,6 +203,30 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
               />
               {form.formState.errors.endDate && <p className="text-sm text-destructive mt-1">{form.formState.errors.endDate.message}</p>}
             </div>
+            <div>
+              <Label htmlFor="minIntervalBetweenWorkDays" className="font-semibold flex items-center gap-1">
+                <Clock3Icon className="w-4 h-4 text-primary"/>
+                {t('form.minInterval')}
+              </Label>
+              <Controller
+                name="minIntervalBetweenWorkDays"
+                control={form.control}
+                render={({ field }) => (
+                  <Input
+                    id="minIntervalBetweenWorkDays"
+                    type="number"
+                    min="0" max="30"
+                    {...field}
+                     onChange={e => {
+                      const val = parseInt(e.target.value, 10);
+                      field.onChange(isNaN(val) ? 1 : val); // Default to 1 if NaN
+                    }}
+                    className="mt-1"
+                  />
+                )}
+              />
+              {form.formState.errors.minIntervalBetweenWorkDays && <p className="text-sm text-destructive mt-1">{form.formState.errors.minIntervalBetweenWorkDays.message}</p>}
+            </div>
           </div>
           
           <Separator />
@@ -223,10 +246,11 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                         variant="ghost" 
                         size="icon" 
                         onClick={() => {
-                          remove(index);
-                          // Also update the numberOfDoctors in the form state
                           const currentNum = form.getValues('numberOfDoctors');
-                          form.setValue('numberOfDoctors', Math.max(1, currentNum - 1), { shouldValidate: true });
+                          if (currentNum > 1) { // Ensure numberOfDoctors doesn't go below 1
+                            form.setValue('numberOfDoctors', currentNum - 1, { shouldValidate: true });
+                          }
+                          remove(index);
                         }} 
                         className="text-destructive hover:text-destructive-foreground hover:bg-destructive/90"
                       >
@@ -353,5 +377,3 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 };
 
 export default DataInputForm;
-
-    
