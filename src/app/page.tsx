@@ -127,7 +127,7 @@ export default function RotaWisePage() {
               description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
               variant: "destructive",
             });
-            return prevSchedule;
+            // Removed: return prevSchedule; // Allow update despite warning
           }
         }
         if (closestWorkDayAfter) {
@@ -138,13 +138,13 @@ export default function RotaWisePage() {
               description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
               variant: "destructive",
             });
-            return prevSchedule;
+            // Removed: return prevSchedule; // Allow update despite warning
           }
         }
       }
 
 
-      const newEntries = prevSchedule.entries.filter(e =>
+      let newEntries = prevSchedule.entries.filter(e =>
         !(e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === (updatedEntry.assignment === 'Off' ? e.doctorId : updatedEntry.doctorId))
       );
 
@@ -153,24 +153,36 @@ export default function RotaWisePage() {
           if (idx > -1) newEntries.splice(idx, 1);
           
           if (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') {
-            const dayAssignmentsToRemove = newEntries.filter(e => e.date.getTime() === updatedEntry.date.getTime() && (e.assignment === 'Off' || ((e.assignment === 'Work' || e.assignment === 'Pre-assigned') && e.doctorId !== updatedEntry.doctorId)));
-            dayAssignmentsToRemove.forEach(toRemove => {
-                const removeIdx = newEntries.indexOf(toRemove);
-                if (removeIdx > -1) newEntries.splice(removeIdx, 1);
+            // Remove any existing 'Off' or other doctor's 'Work'/'Pre-assigned' for this day
+            newEntries = newEntries.filter(e => {
+                const isSameDayEntry = e.date.getTime() === updatedEntry.date.getTime();
+                if (!isSameDayEntry) return true; // Keep entries for other days
+                // For the same day, keep if it's not an 'Off' assignment,
+                // or if it's a 'Work'/'Pre-assigned' for a *different* doctor (will be handled by new entry)
+                // Or if it's any other assignment type (like Vacation) for any doctor
+                const isConflictingWork = (e.assignment === 'Work' || e.assignment === 'Pre-assigned') && e.doctorId !== updatedEntry.doctorId;
+                return !(e.assignment === 'Off' || isConflictingWork);
             });
           }
           newEntries.push(updatedEntry);
-      } else {
+      } else { // updatedEntry.assignment === 'Off'
+          // Remove existing assignment for this doctor on this day
           const idx = newEntries.findIndex(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId);
           if (idx > -1) newEntries.splice(idx, 1);
+
+          // If no other doctor is working, add a system 'Off' entry
           const otherDoctorWorking = newEntries.some(e => e.date.getTime() === updatedEntry.date.getTime() && (e.assignment === 'Work' || e.assignment === 'Pre-assigned'));
           if (!otherDoctorWorking) {
-            newEntries.push({
-                date: updatedEntry.date,
-                doctorId: 'system',
-                assignment: 'Off',
-                dayOfWeek: updatedEntry.dayOfWeek,
-            });
+            // Ensure no existing 'Off' entry for 'system' before adding
+            const systemOffExists = newEntries.some(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === 'system' && e.assignment === 'Off');
+            if (!systemOffExists) {
+                newEntries.push({
+                    date: updatedEntry.date,
+                    doctorId: 'system',
+                    assignment: 'Off',
+                    dayOfWeek: updatedEntry.dayOfWeek,
+                });
+            }
           }
       }
 
@@ -185,7 +197,7 @@ export default function RotaWisePage() {
             description: t('page.toast.scheduleWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
-           return prevSchedule;
+           // Removed: return prevSchedule; // Allow update despite warning
         }
         const isExcluded = doctorProfile.excludedDates.some(ed =>
           isSameDay(ed, updatedEntry.date)
@@ -196,7 +208,7 @@ export default function RotaWisePage() {
             description: t('page.toast.excludedDayWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
-           return prevSchedule;
+           // Removed: return prevSchedule; // Allow update despite warning
         }
       }
       return { ...prevSchedule, entries: newEntries };
@@ -678,7 +690,3 @@ export default function RotaWisePage() {
     </div>
   );
 }
-
-    
-
-    
