@@ -673,9 +673,9 @@ export default function RotaWisePage() {
           <Button onClick={handleSaveSchedule} variant="outline" disabled={!schedule || isLoading || isExportingPdf} className="w-full sm:w-auto">
             <Save className="mr-2 h-4 w-4" /> {t('page.saveSchedule')}
           </Button>
-          <Label htmlFor="load-schedule-original-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf) && "opacity-50 cursor-not-allowed")}>
-            <Upload className="mr-2 h-4 w-4" /> {t('page.loadScheduleOriginal')}
-            <input id="load-schedule-original-input" type="file" accept=".json" className="hidden" onChange={(e) => handleFileUpload(e, 'as-is')} disabled={isLoading || isExportingPdf}/>
+          <Label htmlFor="load-schedule-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf) && "opacity-50 cursor-not-allowed")}>
+            <Upload className="mr-2 h-4 w-4" /> {t('page.loadSchedule')}
+            <input id="load-schedule-input" type="file" accept=".json" className="hidden" onChange={(e) => handleFileUpload(e, 'as-is')} disabled={isLoading || isExportingPdf}/>
           </Label>
           <Label htmlFor="load-schedule-preassigned-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf) && "opacity-50 cursor-not-allowed")}>
             <Layers className="mr-2 h-4 w-4" /> {t('page.loadScheduleAsPreassigned')}

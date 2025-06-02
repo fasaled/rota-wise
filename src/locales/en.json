@@ -3,7 +3,7 @@
   "header.title": "RotaWise",
   "header.description": "Fair and Balanced Doctor Scheduling",
   "page.saveSchedule": "Save Schedule",
-  "page.loadScheduleOriginal": "Load Schedule (Original)",
+  "page.loadSchedule": "Load Schedule",
   "page.loadScheduleAsPreassigned": "Load as Pre-assigned",
   "page.exportPdf": "Export PDF Report",
   "page.exportingPdf": "Exporting...",

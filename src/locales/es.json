@@ -3,7 +3,7 @@
   "header.title": "RotaWise",
   "header.description": "Programación de Médicos Justa y Equilibrada",
   "page.saveSchedule": "Guardar Horario",
-  "page.loadScheduleOriginal": "Cargar Horario (Original)",
+  "page.loadSchedule": "Cargar Horario",
   "page.loadScheduleAsPreassigned": "Cargar como Preasignado",
   "page.exportPdf": "Exportar Informe PDF",
   "page.exportingPdf": "Exportando...",
