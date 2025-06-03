@@ -25,7 +25,7 @@
   "page.toast.errorCapturingCalendarElement.title": "Error capturing calendar element",
   "page.toast.errorCapturingCalendarElement.description": "Please try again.",
   "page.toast.errorCapturingCalendarForMonth.title": "Error capturing calendar",
-  "page.toast.errorCapturingCalendarForMonth.description": "Failed for {month}. Report may be incomplete.",
+  "page.toast.errorCapturingCalendarForMonth.description": "Failed for {month}. report may be incomplete.",
   "page.toast.pdfReportExported.title": "PDF report exported",
   "page.toast.pdfReportExported.description": "Rotawise-report.pdf has been downloaded.",
   "page.toast.errorSavingPdf.title": "Error saving PDF",
@@ -65,6 +65,8 @@
   "calendar.scheduleFor": "Schedule for {date}",
   "calendar.assignment.off": "Off",
   "calendar.header.monthYear": "{monthYear}",
+  "calendar.previousMonth": "Previous month",
+  "calendar.nextMonth": "Next month",
 
   "dialog.adjustTitle": "Adjust schedule for {date}",
   "dialog.modifyDescription": "Modify the assignment for this day.",
@@ -78,8 +80,8 @@
   "dialog.toast.validationError.title": "Validation error",
   "dialog.toast.validationError.description": "Please select a doctor for this assignment type.",
   "dialog.toast.adjustmentWarning.title": "Adjustment warning",
-  "dialog.toast.adjustmentWarning.description": "{doctorName} is on vacation on this day. Cannot assign work or pre-assigned.",
-  "dialog.toast.excludedDayWarning.description": "{doctorName} has this day excluded. Cannot assign work or pre-assigned.",
+  "dialog.toast.adjustmentWarning.description": "{doctorName} is on vacation on this day. cannot assign work or pre-assigned.",
+  "dialog.toast.excludedDayWarning.description": "{doctorName} has this day excluded. cannot assign work or pre-assigned.",
   "dialog.toast.scheduleUpdated.title": "Schedule updated",
   "dialog.toast.scheduleUpdated.description.modified": "Assignment for {date} has been modified.",
   "dialog.toast.scheduleUpdated.description.added": "Assignment for {date} has been added.",
@@ -94,8 +96,10 @@
   "pdf.minIntervalInfo": "Minimum interval between work days: {interval} day(s)",
   "pdf.doctorDetailsTitle": "{doctorName}'s schedule details",
   "pdf.doctorIsExcludedFromAuto": "(Doctor is excluded from automatic schedule assignments)",
-  "pdf.assignmentTypeHeader": "Assignment type",
-  "pdf.datesHeader": "Dates",
+  "pdf.workDaysHeader": "Work days",
+  "pdf.datesHeader": "Date(s)",
+  "pdf.dayHeader": "Day",
+  "pdf.doctorOnDutyHeader": "Doctor on duty",
   "pdf.none": "None",
   "pdf.preAssignedWork": "Pre-assigned work",
   "pdf.generatedWork": "Generated work",
@@ -132,10 +136,8 @@
   "monthlySummaryTable.doctorHeader": "Doctor",
   "monthlySummaryTable.totalHeader": "Total",
 
-  "footer.copyright": "© {year} Rotawise. All rights reserved.",
+  "footer.copyright": "© {year} Rotawise. all rights reserved.",
   "language.selector.label": "Language",
   "language.en": "English",
   "language.es": "Español"
 }
-
-    

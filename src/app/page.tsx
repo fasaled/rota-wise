@@ -18,9 +18,8 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
-import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays, eachMonthOfInterval, isSameMonth as isSameMonthDateFns } from 'date-fns';
+import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays, eachMonthOfInterval, isSameMonth as isSameMonthDateFns, eachDayOfInterval as eachDayOfIntervalFns, endOfMonth, isWithinInterval } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import { useLanguage } from '@/context/language-context';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -41,11 +40,6 @@ export default function RotaWisePage() {
   const [currentMinInterval, setCurrentMinInterval] = useState<number>(1);
   const [loadedFormValues, setLoadedFormValues] = useState<Partial<ScheduleFormValues> | null>(null);
   const [dataInputFormKey, setDataInputFormKey] = useState(0);
-  const calendarRef = useRef<HTMLDivElement>(null);
-
-  const [pdfExportMonth, setPdfExportMonth] = useState<Date | null>(null);
-  const [isPdfExportMode, setIsPdfExportMode] = useState(false);
-
 
   useEffect(() => {
     setIsMounted(true);
@@ -415,7 +409,6 @@ export default function RotaWisePage() {
       return;
     }
     setIsExportingPdf(true);
-    setIsPdfExportMode(true);
 
     const pdf = new jsPDF({
       orientation: 'p',
@@ -444,43 +437,31 @@ export default function RotaWisePage() {
     pdf.text(t('pdf.minIntervalInfo', { interval: intervalToDisplay }), margin, currentY);
     currentY += 10;
 
+    const getDoctorNameById = (id: string): string => doctorsProfiles.find(doc => doc.id === id)?.name || id;
 
-    const getMonthsInRange = (start: Date, end: Date): Date[] => {
-        const months: Date[] = [];
-        let currentIterationDate = startOfMonth(new Date(start));
-        const finalMonthStart = startOfMonth(new Date(end));
-        while (currentIterationDate <= finalMonthStart) {
-            months.push(new Date(currentIterationDate));
-            currentIterationDate = addMonths(currentIterationDate, 1);
-        }
-        return months;
+    const getDoctorForDay = (day: Date): string => {
+      const workingEntries = schedule.entries.filter(entry =>
+        isSameDay(entry.date, day) &&
+        (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned') &&
+        entry.doctorId !== 'system'
+      );
+      if (workingEntries.length > 0) {
+        return getDoctorNameById(workingEntries[0].doctorId);
+      }
+      return ""; // Blank if no one is working
     };
 
-    const allMonthsToExport = getMonthsInRange(schedule.startDate, schedule.endDate);
+    const allMonthsToExport = eachMonthOfInterval({
+        start: schedule.startDate,
+        end: schedule.endDate,
+    }).map(m => startOfMonth(m));
 
     for (const month of allMonthsToExport) {
-        setPdfExportMonth(month);
-        await new Promise(resolve => setTimeout(resolve, 250));
-
-        const calendarElement = calendarRef.current;
-        if (!calendarElement) {
-            toast({
-              title: t('page.toast.errorCapturingCalendarElement.title'),
-              description: t('page.toast.errorCapturingCalendarElement.description'),
-              variant: "destructive"
-            });
-            setIsPdfExportMode(false);
-            setPdfExportMonth(null);
-            setIsExportingPdf(false);
-            return;
-        }
-
         const monthTitle = format(month, 'MMMM yyyy', { locale: currentDateFnsLocale });
         const titleHeight = 10;
-        const minImageHeight = 100;
-        const estimatedSpaceForBlock = titleHeight + minImageHeight + 10;
+        const estimatedTableHeight = 60; // Rough estimate, depends on days in month
 
-        if (allMonthsToExport.indexOf(month) > 0 && (currentY + estimatedSpaceForBlock > pdfHeight - margin)) {
+        if (currentY + titleHeight + estimatedTableHeight > pdfHeight - margin && allMonthsToExport.indexOf(month) > 0) {
             pdf.addPage();
             currentY = margin;
         }
@@ -489,46 +470,46 @@ export default function RotaWisePage() {
         pdf.text(monthTitle, margin, currentY);
         currentY += titleHeight;
         
-        if (currentY + minImageHeight > pdfHeight - margin && allMonthsToExport.indexOf(month) > 0) {
-            pdf.addPage();
-            currentY = margin;
-            pdf.setFontSize(16);
-            pdf.text(monthTitle, margin, currentY);
-            currentY += titleHeight;
+        const daysInCurrentDisplayMonth = eachDayOfIntervalFns({
+            start: month,
+            end: endOfMonth(month),
+        });
+
+        const monthTableBodyData: string[][] = [];
+        for (const day of daysInCurrentDisplayMonth) {
+            if (!isWithinInterval(day, { start: schedule.startDate, end: schedule.endDate })) {
+                continue;
+            }
+            const doctorNameOnDay = getDoctorForDay(day);
+            monthTableBodyData.push([
+                format(day, 'd', { locale: currentDateFnsLocale }),
+                format(day, 'EEE', { locale: currentDateFnsLocale }),
+                doctorNameOnDay
+            ]);
         }
 
-
-        try {
-            const canvas = await html2canvas(calendarElement, { scale: 3, useCORS: true, logging: false });
-            const imgData = canvas.toDataURL('image/png');
-            const imgProps = pdf.getImageProperties(imgData);
-            let imgHeight = (imgProps.height * contentWidth) / imgProps.width;
-            
-            const spaceForImageOnCurrentPage = pdfHeight - currentY - margin;
-
-            if (imgHeight > spaceForImageOnCurrentPage ) {
-                 imgHeight = spaceForImageOnCurrentPage;
-            }
-
-
-            pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
-            currentY += imgHeight + 10;
-
-        } catch (captureError) {
-            console.error("Error capturing calendar for month:", monthTitle, captureError);
-            toast({
-              title: t('page.toast.errorCapturingCalendarForMonth.title'),
-              description: t('page.toast.errorCapturingCalendarForMonth.description', { month: monthTitle }),
-              variant: "destructive"
+        if (monthTableBodyData.length > 0) {
+            autoTable(pdf, {
+                startY: currentY,
+                head: [[t('pdf.dateHeader'), t('pdf.dayHeader'), t('pdf.doctorOnDutyHeader')]],
+                body: monthTableBodyData,
+                theme: 'grid',
+                styles: { fontSize: 9, cellPadding: 1.5, overflow: 'linebreak' },
+                headStyles: { fillColor: [66, 99, 204], textColor: 255, fontStyle: 'bold' }, // Adjusted primary color
+                margin: { left: margin, right: margin },
+                didDrawPage: (data) => {
+                    currentY = data.cursor?.y || currentY;
+                }
             });
+            currentY = (pdf as any).lastAutoTable.finalY + 10;
+        } else {
+            currentY += 5; // Add some space if month was empty
         }
     }
 
-    setPdfExportMonth(null);
-    setIsPdfExportMode(false);
 
     for (const doctor of doctorsProfiles) {
-        if (currentY + 70 > pdfHeight - margin) { // Adjusted estimated height for fewer rows
+        if (currentY + 70 > pdfHeight - margin) { 
           pdf.addPage();
           currentY = margin;
         }
@@ -539,10 +520,10 @@ export default function RotaWisePage() {
         
         if (doctor.isExcludedFromAutomaticAssignment) {
             pdf.setFontSize(9);
-            pdf.setTextColor(100); // Gray color
+            pdf.setTextColor(100); 
             pdf.text(t('pdf.doctorIsExcludedFromAuto'), margin, currentY);
             currentY += 5;
-            pdf.setTextColor(0); // Reset color
+            pdf.setTextColor(0); 
         }
 
         const getFormattedDates = (dates: Date[]) => dates.length > 0 ? dates.map(d => format(d, 'PPP', { locale: currentDateFnsLocale })).join('\n') : t('pdf.none');
@@ -560,7 +541,7 @@ export default function RotaWisePage() {
 
         autoTable(pdf, {
           startY: currentY,
-          head: [[t('pdf.assignmentTypeHeader'), t('pdf.datesHeader')]],
+          head: [[t('pdf.workDaysHeader'), t('pdf.datesHeader')]],
           body: [
             [t('pdf.workDays'), getFormattedDates(allWorkDates)],
           ],
@@ -569,6 +550,9 @@ export default function RotaWisePage() {
           headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
           columnStyles: { 1: { cellWidth: 'auto'} },
           margin: { left: margin, right: margin },
+           didDrawPage: (data) => { // Update currentY after table draw
+                currentY = data.cursor?.y || currentY;
+            }
         });
         currentY = (pdf as any).lastAutoTable.finalY + 10;
       }
@@ -633,11 +617,11 @@ export default function RotaWisePage() {
         styles: { fontSize: 9, cellPadding: 1.5 },
         headStyles: { fillColor: [75, 150, 220], textColor: 255, fontStyle: 'bold' },
         margin: { left: margin, right: margin },
+        didDrawPage: (data) => { currentY = data.cursor?.y || currentY; }
     });
     currentY = (pdf as any).lastAutoTable.finalY + 10;
 
-    // --- Add Monthly Workload Summary to PDF ---
-    if (currentY + 60 > pdfHeight - margin) { // Estimate space needed
+    if (currentY + 60 > pdfHeight - margin) { 
         pdf.addPage();
         currentY = margin;
     }
@@ -699,10 +683,9 @@ export default function RotaWisePage() {
         styles: { fontSize: 9, cellPadding: 1.5 },
         headStyles: { fillColor: [75, 150, 220], textColor: 255, fontStyle: 'bold' },
         margin: { left: margin, right: margin },
+        didDrawPage: (data) => { currentY = data.cursor?.y || currentY; }
     });
-    // currentY = (pdf as any).lastAutoTable.finalY + 10; // Update currentY if more content follows
-
-    // --- End of Monthly Workload Summary for PDF ---
+    currentY = (pdf as any).lastAutoTable.finalY + 10; 
 
     try {
       pdf.save('rotawise-report.pdf');
@@ -777,13 +760,11 @@ export default function RotaWisePage() {
 
         {schedule ? (
           <>
-            <div ref={calendarRef}>
+            <div>
               <ScheduleCalendarView
                   schedule={schedule}
                   doctors={doctorsProfiles}
                   onUpdateScheduleEntry={handleUpdateScheduleEntry}
-                  forceDisplayMonth={pdfExportMonth}
-                  isPdfExportMode={isPdfExportMode}
                   minIntervalBetweenWorkDays={currentMinInterval}
                   allScheduleEntries={schedule.entries}
               />
@@ -818,5 +799,3 @@ export default function RotaWisePage() {
     </div>
   );
 }
-
-    

@@ -25,7 +25,7 @@
   "page.toast.errorCapturingCalendarElement.title": "Error al capturar el elemento del calendario",
   "page.toast.errorCapturingCalendarElement.description": "Por favor, inténtelo de nuevo.",
   "page.toast.errorCapturingCalendarForMonth.title": "Error al capturar calendario",
-  "page.toast.errorCapturingCalendarForMonth.description": "Falló para {month}. El informe puede estar incompleto.",
+  "page.toast.errorCapturingCalendarForMonth.description": "Falló para {month}. el informe puede estar incompleto.",
   "page.toast.pdfReportExported.title": "Informe PDF exportado",
   "page.toast.pdfReportExported.description": "Rotawise-report.pdf ha sido descargado.",
   "page.toast.errorSavingPdf.title": "Error al guardar PDF",
@@ -65,6 +65,8 @@
   "calendar.scheduleFor": "Horario para {date}",
   "calendar.assignment.off": "Libre",
   "calendar.header.monthYear": "{monthYear}",
+  "calendar.previousMonth": "Mes anterior",
+  "calendar.nextMonth": "Mes siguiente",
 
   "dialog.adjustTitle": "Ajustar horario para {date}",
   "dialog.modifyDescription": "Modifique la asignación para este día.",
@@ -78,8 +80,8 @@
   "dialog.toast.validationError.title": "Error de validación",
   "dialog.toast.validationError.description": "Por favor, seleccione un médico para este tipo de asignación.",
   "dialog.toast.adjustmentWarning.title": "Advertencia de ajuste",
-  "dialog.toast.adjustmentWarning.description": "{doctorName} está de vacaciones este día. No se puede asignar trabajo o preasignado.",
-  "dialog.toast.excludedDayWarning.description": "{doctorName} tiene este día excluido. No se puede asignar trabajo o preasignado.",
+  "dialog.toast.adjustmentWarning.description": "{doctorName} está de vacaciones este día. no se puede asignar trabajo o preasignado.",
+  "dialog.toast.excludedDayWarning.description": "{doctorName} tiene este día excluido. no se puede asignar trabajo o preasignado.",
   "dialog.toast.scheduleUpdated.title": "Horario actualizado",
   "dialog.toast.scheduleUpdated.description.modified": "La asignación para {date} ha sido modificada.",
   "dialog.toast.scheduleUpdated.description.added": "La asignación para {date} ha sido añadida.",
@@ -94,8 +96,10 @@
   "pdf.minIntervalInfo": "Intervalo mínimo entre días de trabajo: {interval} día(s)",
   "pdf.doctorDetailsTitle": "Detalles del horario de {doctorName}",
   "pdf.doctorIsExcludedFromAuto": "(Médico excluido de asignaciones automáticas de horario)",
-  "pdf.assignmentTypeHeader": "Tipo de asignación",
-  "pdf.datesHeader": "Fechas",
+  "pdf.workDaysHeader": "Días de trabajo",
+  "pdf.datesHeader": "Fecha(s)",
+  "pdf.dayHeader": "Día",
+  "pdf.doctorOnDutyHeader": "Médico de guardia",
   "pdf.none": "Ninguna",
   "pdf.preAssignedWork": "Trabajo preasignado",
   "pdf.generatedWork": "Trabajo generado",
@@ -131,10 +135,8 @@
   "monthlySummaryTable.doctorHeader": "Médico",
   "monthlySummaryTable.totalHeader": "Total",
 
-  "footer.copyright": "© {year} Rotawise. Todos los derechos reservados.",
+  "footer.copyright": "© {year} Rotawise. todos los derechos reservados.",
   "language.selector.label": "Idioma",
   "language.en": "English",
   "language.es": "Español"
 }
-
-    
