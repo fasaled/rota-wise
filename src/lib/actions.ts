@@ -296,8 +296,15 @@ export async function generateScheduleAction(
 
                 if (lastWorkA_Time === undefined && lastWorkB_Time !== undefined) return -1; 
                 if (lastWorkA_Time !== undefined && lastWorkB_Time === undefined) return 1;  
-                if (lastWorkA_Time === undefined && lastWorkB_Time === undefined) return 0; 
-                return (lastWorkA_Time || 0) - (lastWorkB_Time || 0); 
+                
+                const idleTimeComparison = (lastWorkA_Time || 0) - (lastWorkB_Time || 0);
+                if (idleTimeComparison !== 0) {
+                    return idleTimeComparison;
+                }
+
+                // --- Final Tie-breaking: Randomness ---
+                // If all other criteria including idle time are equal, introduce randomness.
+                return Math.random() - 0.5;
             });
 
             const doctorToAssign = eligibleDoctors[0];
