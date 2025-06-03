@@ -13,7 +13,7 @@ import { ThemeIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
-import { Save, Upload, FileDown, Layers } from 'lucide-react';
+import { Save, Upload, FileDown, Layers, AlertTriangle } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
@@ -98,12 +98,12 @@ export default function RotawisePage() {
       });
 
       if (result.warnings && result.warnings.length > 0) {
-        setScheduleWarnings(result.warnings);
+        setScheduleWarnings(result.warnings); // Store warnings for display on page and PDF
         result.warnings.forEach(warningMsg => {
-          toast({
+          toast({ // Still show toasts for immediate feedback
             title: t('page.toast.scheduleWarning.title'),
             description: warningMsg,
-            duration: 10000, // Longer duration for warnings
+            duration: 10000, 
           });
         });
       }
@@ -484,7 +484,6 @@ export default function RotawisePage() {
         entry.doctorId !== 'system'
       );
       if (workingEntries.length > 0) {
-        // If multiple doctors pre-assigned, list them all or first one. Currently first one.
         return workingEntries.map(we => getDoctorNameById(we.doctorId)).join(', ');
       }
       return "";
@@ -563,11 +562,11 @@ export default function RotawisePage() {
                 theme: 'grid',
                 styles: {
                     fontSize: 8,
-                    cellPadding: { top: 1, right: 1, bottom: 1, left: 1 }, // Reduced padding
-                    overflow: 'linebreak', // Allow text to wrap
-                    valign: 'top', // Align content to top of cell
-                    halign: 'left', // Align day number to left
-                    minCellHeight: 12, // Reduced cell height
+                    cellPadding: { top: 1, right: 1, bottom: 1, left: 1 }, 
+                    overflow: 'linebreak', 
+                    valign: 'top', 
+                    halign: 'left', 
+                    minCellHeight: 12, 
                 },
                 headStyles: {
                     fillColor: [75, 150, 220], 
@@ -576,7 +575,7 @@ export default function RotawisePage() {
                     halign: 'center',
                     valign: 'middle',
                 },
-                columnStyles: { // Ensure columns are roughly equal width
+                columnStyles: { 
                   0: { cellWidth: (contentWidth / 7) -2 },
                   1: { cellWidth: (contentWidth / 7) -2 },
                   2: { cellWidth: (contentWidth / 7) -2 },
@@ -847,6 +846,24 @@ export default function RotawisePage() {
           </Button>
         </div>
 
+        {scheduleWarnings.length > 0 && (
+          <Card className="mt-8 shadow-md border-destructive">
+            <CardHeader>
+              <CardTitle className="text-destructive flex items-center gap-2 text-lg md:text-xl">
+                <AlertTriangle className="h-5 w-5 md:h-6 md:w-6" /> 
+                {t('page.section.scheduleWarnings.title')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="list-disc space-y-2 pl-5 text-sm text-destructive">
+                {scheduleWarnings.map((warning, index) => (
+                  <li key={index}>{warning}</li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+
         {schedule ? (
           <>
             <div>
@@ -889,3 +906,5 @@ export default function RotawisePage() {
   );
 }
 
+
+    

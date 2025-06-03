@@ -34,6 +34,7 @@
   "page.toast.excludedDayWarning.description": "{doctorName} is scheduled to work on an excluded day.",
   "page.toast.minIntervalWarning.title": "Interval warning",
   "page.toast.minIntervalWarning.description": "{doctorName} needs at least {interval} day(s) off before working again.",
+  "page.section.scheduleWarnings.title": "Important schedule warnings",
 
   "form.title": "Schedule parameters",
   "form.description": "Define the doctors and date range for the schedule.",
@@ -102,10 +103,6 @@
   "pdf.dayHeader": "Day",
   "pdf.doctorOnDutyHeader": "Doctor on duty",
   "pdf.none": "None",
-  "pdf.preAssignedWork": "Pre-assigned work",
-  "pdf.generatedWork": "Generated work",
-  "pdf.vacation": "Vacation",
-  "pdf.excludedDates": "Excluded dates",
   "pdf.workDays": "Work days",
   "pdf.workdaysSummary.title": "Workdays per doctor by day of the week",
   "pdf.workdaysSummary.doctorHeader": "Doctor",
@@ -142,7 +139,9 @@
   "language.en": "English",
   "language.es": "Español",
 
-  "warnings.multiplePreAssigned": "Multiple doctors ({doctors}) are pre-assigned to {date}. this may indicate an input error as only one doctor can typically work a single shift.",
-  "warnings.uncoveredDay": "No doctor could be assigned to {date} due to scheduling constraints (e.g., minimum interval, weekend limits, etc.). the day has been marked as 'Off'."
+  "warnings.multiplePreAssigned": "Multiple doctors ({doctors}) are pre-assigned to {date}. This may indicate an input error as only one doctor can typically work a single shift.",
+  "warnings.uncoveredDay": "No doctor could be assigned to {date} due to scheduling constraints (e.g., minimum interval, weekend limits, etc.). The day has been marked as 'Off'."
 }
 
+
+    

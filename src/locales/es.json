@@ -34,6 +34,7 @@
   "page.toast.excludedDayWarning.description": "{doctorName} está programado para trabajar en un día excluido.",
   "page.toast.minIntervalWarning.title": "Advertencia de intervalo",
   "page.toast.minIntervalWarning.description": "{doctorName} necesita al menos {interval} día(s) libre(s) antes de volver a trabajar.",
+  "page.section.scheduleWarnings.title": "Advertencias importantes del horario",
 
   "form.title": "Parámetros del horario",
   "form.description": "Defina los médicos y el rango de fechas para el horario.",
@@ -102,10 +103,6 @@
   "pdf.dayHeader": "Día",
   "pdf.doctorOnDutyHeader": "Médico de guardia",
   "pdf.none": "Ninguna",
-  "pdf.preAssignedWork": "Trabajo preasignado",
-  "pdf.generatedWork": "Trabajo generado",
-  "pdf.vacation": "Vacaciones",
-  "pdf.excludedDates": "Fechas excluidas",
   "pdf.workDays": "Días de trabajo",
   "pdf.workdaysSummary.title": "Días de trabajo por médico por día de la semana",
   "pdf.workdaysSummary.doctorHeader": "Médico",
@@ -145,3 +142,5 @@
   "warnings.uncoveredDay": "No se pudo asignar ningún médico al {date} debido a restricciones de programación (p. ej., intervalo mínimo, límites de fin de semana, etc.). el día se ha marcado como 'libre'."
 }
 
+
+    
