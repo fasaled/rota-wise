@@ -1,4 +1,3 @@
-
 "use server";
 
 import type { ScheduleFormValues, Schedule, ScheduleEntry, DoctorFormFieldInput } from "./types";
@@ -80,8 +79,10 @@ export async function generateScheduleAction(
 
     preAssignmentCalendarDateConflicts.forEach((value) => {
         if (value.doctors.length > 1) {
+            // Adjust the date by 12 hours to ensure correct calendar day display in warnings
+            const dateForWarning = new Date(value.conflictDate.valueOf() + 12 * 60 * 60 * 1000);
             const warningMessage = tAction('warnings.multiplePreAssignedInput', {
-                date: format(value.conflictDate, 'PPP', { locale: currentLocaleForFormatting }), // Format one of the input dates
+                date: format(dateForWarning, 'PPP', { locale: currentLocaleForFormatting }),
                 doctors: value.doctors.join(', ')
             });
             if (!warnings.includes(warningMessage)) {
@@ -304,7 +305,9 @@ export async function generateScheduleAction(
                     assignment: 'Off',
                     dayOfWeek: dayOfWeekFullName,
                 });
-                 const warningMessage = tAction('warnings.uncoveredDay', { date: format(currentDate, 'PPP', { locale: currentLocaleForFormatting }) });
+                 // Adjust the date by 12 hours to ensure correct calendar day display in warnings
+                 const dateForWarning = new Date(currentDate.valueOf() + 12 * 60 * 60 * 1000);
+                 const warningMessage = tAction('warnings.uncoveredDay', { date: format(dateForWarning, 'PPP', { locale: currentLocaleForFormatting }) });
                  if (!warnings.includes(warningMessage)) {
                     warnings.push(warningMessage);
                  }
