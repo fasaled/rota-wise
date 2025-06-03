@@ -1,4 +1,3 @@
-
 "use client";
 
 import type React from 'react';
@@ -50,8 +49,15 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
     if (isOpen) { // Reset state when dialog opens
         if (entry) {
             setSelectedDoctorId(entry.doctorId);
-            setAssignmentType(entry.assignment);
+            // If existing entry is Work or Off (the only settable types), use that.
+            // If it was Pre-assigned, default to Work in the dialog.
+            if (entry.assignment === 'Work' || entry.assignment === 'Off') {
+                setAssignmentType(entry.assignment);
+            } else { // Handles Pre-assigned, or any other type not in the dropdown
+                setAssignmentType('Work');
+            }
         } else {
+            // Default for new entry
             setSelectedDoctorId(doctors.length > 0 ? doctors[0].id : '');
             setAssignmentType('Work');
         }
@@ -59,7 +65,8 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
   }, [entry, doctors, isOpen]); 
 
   const handleSave = () => {
-    if (!selectedDoctorId && (assignmentType === 'Work' || assignmentType === 'Pre-assigned' || assignmentType === 'Vacation')) {
+    // Updated validation: doctor required only if assignment is 'Work'
+    if (assignmentType === 'Work' && !selectedDoctorId) {
         toast({
             title: t('dialog.toast.validationError.title'),
             description: t('dialog.toast.validationError.description'),
@@ -84,10 +91,11 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
 
         if (isVacationDayForDoctor) {
             toast({
-                title: t('dialog.toast.adjustmentWarning.title'),
-                description: t('dialog.toast.adjustmentWarning.description', { doctorName: doctor.name }),
+                title: t('dialog.toast.cannotAssignOnVacation.title'),
+                description: t('dialog.toast.cannotAssignOnVacation.description', { doctorName: doctor.name }),
                 variant: "destructive",
             });
+            return;
         }
 
         const isExcludedDayForDoctor = (doctor.excludedDates || []).some(exDate =>
@@ -148,7 +156,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
     });
   };
 
-  const assignmentTypes: ScheduleEntry['assignment'][] = ['Work', 'Vacation', 'Pre-assigned', 'Off'];
+  const assignmentTypes: ScheduleEntry['assignment'][] = ['Work', 'Off']; // Limited assignment types
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

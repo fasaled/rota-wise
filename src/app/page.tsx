@@ -5,7 +5,6 @@ import type { Schedule, ScheduleFormValues, DoctorProfile, ScheduleEntry, Persis
 import DataInputForm from '@/components/rotawise/data-input-form';
 import ScheduleCalendarView from '@/components/rotawise/schedule-calendar-view';
 import LanguageSelector from '@/components/rotawise/language-selector';
-import { generateScheduleAction } from '@/lib/actions';
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from "@/hooks/use-toast";
 import { ThemeIcon } from '@/components/icons';
@@ -24,6 +23,7 @@ import { useLanguage } from '@/context/language-context';
 import { ThemeToggle } from '@/components/theme-toggle';
 import ScheduleSummaryTable from '@/components/rotawise/schedule-summary-table';
 import MonthlyWorkloadSummaryTable from '@/components/rotawise/MonthlyWorkloadSummaryTable';
+import { generateSchedule, type ScheduleWarning } from '@/lib/schedule-generator';
 
 type LoadMode = 'as-is' | 'as-pre-assigned';
 
@@ -203,7 +203,8 @@ export default function RotawisePage() {
     }));
     setDoctorsProfiles(profiles);
 
-    const result = await generateScheduleAction(data, language);
+    // Call the client-side function
+    const result = generateSchedule(data);
     setIsLoading(false);
 
     if (result.error) {
@@ -216,12 +217,17 @@ export default function RotawisePage() {
     } else if (result.schedule) {
       const processedSchedule: Schedule = {
         ...result.schedule,
-        startDate: new Date(result.schedule.startDate),
-        endDate: new Date(result.schedule.endDate),
+        // Dates are already Date objects from generateSchedule
+        startDate: result.schedule.startDate,
+        endDate: result.schedule.endDate,
         minIntervalBetweenWorkDays: result.schedule.minIntervalBetweenWorkDays,
         entries: result.schedule.entries.map(entry => ({
           ...entry,
-          date: new Date(entry.date),
+          // Ensure date is a Date object, though generateSchedule should already do this
+          date: new Date(entry.date), 
+          // Potentially re-format entry.dayOfWeek here if it was stored with enUS from generator
+          // and needs to match currentLocaleFnsLocale for display consistency if not handled by calendar.
+          // For now, assuming calendar or direct display handles formatting.
         })),
       };
       setSchedule(processedSchedule);
@@ -231,9 +237,19 @@ export default function RotawisePage() {
       });
 
       if (result.warnings && result.warnings.length > 0) {
-        setScheduleWarnings(result.warnings); // Store warnings for display on page and PDF
-        result.warnings.forEach(warningMsg => {
-          toast({ // Still show toasts for immediate feedback
+        const translatedWarnings = result.warnings.map((warning: ScheduleWarning) => {
+          const params = { ...warning.params };
+          if (params.date && params.date instanceof Date) {
+            params.date = format(params.date, 'PPP', { locale: currentDateFnsLocale });
+          }
+          // Potentially format other params if needed
+          return t(warning.key, params);
+        });
+
+        setScheduleWarnings(translatedWarnings); 
+        
+        translatedWarnings.forEach(warningMsg => {
+          toast({ 
             title: t('page.toast.scheduleWarning.title'),
             description: warningMsg,
             duration: 10000, 

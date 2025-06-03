@@ -91,6 +91,8 @@
   "dialog.toast.adjustmentWarning.title": "Adjustment warning",
   "dialog.toast.adjustmentWarning.description": "{doctorName} is on vacation on this day. cannot assign work or pre-assigned.",
   "dialog.toast.excludedDayWarning.description": "{doctorName} has this day excluded. cannot assign work or pre-assigned.",
+  "dialog.toast.cannotAssignOnVacation.title": "Assignment Blocked",
+  "dialog.toast.cannotAssignOnVacation.description": "Cannot assign {doctorName} to work or pre-assigned on their vacation day.",
   "dialog.toast.scheduleUpdated.title": "Schedule updated",
   "dialog.toast.scheduleUpdated.description.modified": "Assignment for {date} has been modified.",
   "dialog.toast.scheduleUpdated.description.added": "Assignment for {date} has been added.",
