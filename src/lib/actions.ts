@@ -57,27 +57,40 @@ export async function generateScheduleAction(
       const dayOfWeekFullName = format(currentDate, 'EEEE', { locale: enUS }); 
       const dayOfWeekKey = format(currentDate, 'EEE', { locale: enUS }); 
       let dayHasWorkAssignment = false;
+      let firstPreAssignedDoctorForDayLog: DoctorFormFieldInput | null = null;
 
+      // Pass 1: Update lastWorkDay and stats for ALL doctors pre-assigned on this day.
+      // This ensures accurate data for subsequent interval checks, even if only one pre-assignment is logged.
       for (const doctor of doctorsWithIds) {
         if (isDateInArray(currentDate, doctor.preAssignedWorkDates)) {
-          mockEntries.push({
-            date: new Date(currentDate),
-            doctorId: doctor.id,
-            assignment: 'Pre-assigned',
-            dayOfWeek: dayOfWeekFullName,
-          });
           doctorLastWorkDay[doctor.id] = new Date(currentDate);
           if (doctorStats[doctor.id]) { 
+            // These stats reflect actual work, so update for all pre-assigned.
             doctorStats[doctor.id].totalWorkdays++;
             if (doctorStats[doctor.id].workloadByDayOfWeek[dayOfWeekKey] !== undefined) {
                 doctorStats[doctor.id].workloadByDayOfWeek[dayOfWeekKey]++;
             }
           }
-          dayHasWorkAssignment = true; 
-          break; 
+          if (!firstPreAssignedDoctorForDayLog) {
+            firstPreAssignedDoctorForDayLog = doctor; // Identify doctor for logging in mockEntries
+          }
         }
       }
       
+      // If any doctor was pre-assigned, log one entry (e.g., the first one found)
+      // and mark the day as having a work assignment.
+      if (firstPreAssignedDoctorForDayLog) {
+        mockEntries.push({
+          date: new Date(currentDate),
+          doctorId: firstPreAssignedDoctorForDayLog.id,
+          assignment: 'Pre-assigned',
+          dayOfWeek: dayOfWeekFullName,
+        });
+        dayHasWorkAssignment = true; 
+        // Note: Stats for firstPreAssignedDoctorForDayLog were already updated in the loop above.
+      }
+      
+      // Process vacation entries regardless of work assignments
       for (const doctor of doctorsWithIds) {
          if (isDateInArray(currentDate, doctor.vacationDates)) {
           mockEntries.push({
@@ -89,6 +102,7 @@ export async function generateScheduleAction(
         }
       }
 
+      // Automatic assignment only if no pre-assignment filled the work slot for the day
       if (!dayHasWorkAssignment && doctorsWithIds.length > 0) {
         const eligibleDoctors = doctorsWithIds.filter(doc => {
             const isDoctorOnVacation = isDateInArray(currentDate, doc.vacationDates);
@@ -138,10 +152,11 @@ export async function generateScheduleAction(
                     doctorStats[doctorToAssign.id].workloadByDayOfWeek[dayOfWeekKey]++;
                 }
             }
-            dayHasWorkAssignment = true;
+            dayHasWorkAssignment = true; // Mark day as having a work assignment
         }
       }
       
+      // If still no work assignment (neither pre-assigned nor auto-assigned)
       if (!dayHasWorkAssignment) {
          mockEntries.push({
             date: new Date(currentDate),
@@ -168,3 +183,4 @@ export async function generateScheduleAction(
     return { error: errorMessage };
   }
 }
+
