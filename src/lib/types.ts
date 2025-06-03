@@ -1,4 +1,3 @@
-
 import type { z } from 'zod';
 import type { scheduleFormSchema } from '@/components/rotawise/data-input-form'; // Updated path
 
@@ -89,4 +88,6 @@ export interface PersistedScheduleData {
   schedule: SerializedSchedule;
   doctorsProfiles: SerializedDoctorProfile[];
   formValues: SerializedScheduleFormValues;
+  scheduleWarnings?: string[]; // Optional: Added for persisting warnings
+  currentMinInterval?: number; // Optional: Added for persisting min interval context
 }

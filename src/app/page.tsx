@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -28,6 +27,8 @@ import MonthlyWorkloadSummaryTable from '@/components/rotawise/MonthlyWorkloadSu
 
 type LoadMode = 'as-is' | 'as-pre-assigned';
 
+const LOCAL_STORAGE_KEY = 'rotawiseAppState';
+
 export default function RotawisePage() {
   const { t, language, currentDateFnsLocale } = useLanguage();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
@@ -45,6 +46,138 @@ export default function RotawisePage() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Load state from localStorage on initial mount
+  useEffect(() => {
+    if (!isMounted) return;
+
+    try {
+      const persistedStateString = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (persistedStateString) {
+        const loadedData = JSON.parse(persistedStateString) as PersistedScheduleData;
+        
+        if (loadedData.schedule && loadedData.doctorsProfiles && loadedData.formValues) {
+          // Deserialize schedule
+          const deserializedScheduleEntries = loadedData.schedule.entries.map(entry => ({
+            ...entry,
+            date: new Date(entry.date),
+          }));
+          const finalSchedule: Schedule = {
+            ...loadedData.schedule,
+            startDate: new Date(loadedData.schedule.startDate),
+            endDate: new Date(loadedData.schedule.endDate),
+            minIntervalBetweenWorkDays: loadedData.schedule.minIntervalBetweenWorkDays || 1,
+            entries: deserializedScheduleEntries,
+          };
+          setSchedule(finalSchedule);
+
+          // Deserialize doctor profiles
+          const deserializedDoctorsProfiles = loadedData.doctorsProfiles.map(profile => ({
+            ...profile,
+            vacationDates: profile.vacationDates.map((d: string) => new Date(d)),
+            preAssignedWorkDates: profile.preAssignedWorkDates.map((d: string) => new Date(d)),
+            excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)),
+          }));
+          setDoctorsProfiles(deserializedDoctorsProfiles);
+          
+          // Deserialize form values
+          const deserializedFormValuesDoctors = loadedData.formValues.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
+            id: doc.id,
+            name: doc.name,
+            vacationDates: doc.vacationDates.map((d: string) => new Date(d)),
+            preAssignedWorkDates: doc.preAssignedWorkDates.map((d: string) => new Date(d)),
+            excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
+            isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+          }));
+          const finalFormValues: ScheduleFormValues = {
+            numberOfDoctors: loadedData.formValues.numberOfDoctors,
+            startDate: new Date(loadedData.formValues.startDate),
+            endDate: new Date(loadedData.formValues.endDate),
+            minIntervalBetweenWorkDays: loadedData.formValues.minIntervalBetweenWorkDays || 1,
+            doctors: deserializedFormValuesDoctors
+          };
+          setLoadedFormValues(finalFormValues);
+          setDataInputFormKey(prevKey => prevKey + 1); // Re-initialize form
+
+          setScheduleWarnings(loadedData.scheduleWarnings || []);
+          setCurrentMinInterval(loadedData.currentMinInterval || 1);
+
+          toast({
+            title: t('page.toast.stateRestored.title'),
+            description: t('page.toast.stateRestored.description'),
+          });
+        } else {
+          localStorage.removeItem(LOCAL_STORAGE_KEY); // Clear invalid/incomplete data
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load state from localStorage:", error);
+      toast({
+        title: t('page.toast.errorRestoringState.title'),
+        description: t('page.toast.errorRestoringState.description'),
+        variant: "destructive",
+      });
+      localStorage.removeItem(LOCAL_STORAGE_KEY); // Clear corrupted data
+    }
+  }, [isMounted, t, toast]); // Added t and toast as dependencies
+
+  // Save state to localStorage whenever relevant parts change
+  useEffect(() => {
+    if (!isMounted) return;
+
+    if (schedule && doctorsProfiles.length > 0) {
+      try {
+        const dataToPersist: PersistedScheduleData = {
+          schedule: {
+            ...schedule,
+            startDate: schedule.startDate.toISOString(),
+            endDate: schedule.endDate.toISOString(),
+            minIntervalBetweenWorkDays: schedule.minIntervalBetweenWorkDays || currentMinInterval,
+            entries: schedule.entries.map(entry => ({
+              ...entry,
+              date: entry.date.toISOString(),
+            })),
+          },
+          doctorsProfiles: doctorsProfiles.map(profile => ({
+            ...profile,
+            vacationDates: profile.vacationDates.map(d => d.toISOString()),
+            preAssignedWorkDates: profile.preAssignedWorkDates.map(d => d.toISOString()),
+            excludedDates: (profile.excludedDates || []).map(d => d.toISOString()),
+            isExcludedFromAutomaticAssignment: profile.isExcludedFromAutomaticAssignment || false,
+          })),
+          // Use current form values if available, otherwise derive from schedule/profiles
+          // This assumes that after schedule generation, doctorsProfiles reflects the input form doctors
+          formValues: {
+            numberOfDoctors: doctorsProfiles.length,
+            startDate: schedule.startDate.toISOString(),
+            endDate: schedule.endDate.toISOString(),
+            minIntervalBetweenWorkDays: schedule.minIntervalBetweenWorkDays || currentMinInterval,
+            doctors: doctorsProfiles.map(p => ({
+              id: p.id,
+              name: p.name,
+              vacationDates: p.vacationDates.map(d => d.toISOString()),
+              preAssignedWorkDates: p.preAssignedWorkDates.map(d => d.toISOString()),
+              excludedDates: (p.excludedDates || []).map(d => d.toISOString()),
+              isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
+            })),
+          },
+          scheduleWarnings: scheduleWarnings,
+          currentMinInterval: currentMinInterval,
+        };
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToPersist));
+      } catch (error) {
+        console.error("Failed to save state to localStorage:", error);
+        toast({
+          title: t('page.toast.errorPersistingState.title'),
+          description: t('page.toast.errorPersistingState.description'),
+          variant: "destructive",
+        });
+      }
+    } else {
+      // If there's no schedule or doctors, clear localStorage to avoid loading stale data
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    }
+  }, [schedule, doctorsProfiles, scheduleWarnings, currentMinInterval, isMounted, t, toast]); // Added t and toast
 
   const [stableDefaultPageFormValues] = useState<Partial<ScheduleFormValues>>(() => ({
     numberOfDoctors: 1,
@@ -279,6 +412,13 @@ export default function RotawisePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Clear localStorage before loading from file to prevent conflicts
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch (error) {
+      console.warn("Could not clear localStorage before file upload:", error);
+    }
+
     setSchedule(null);
     setScheduleWarnings([]);
     setDoctorsProfiles([]);
@@ -425,55 +565,128 @@ export default function RotawisePage() {
     setIsExportingPdf(true);
 
     const pdf = new jsPDF({
-      orientation: 'p', 
+      orientation: 'p',
       unit: 'mm',
       format: 'a4',
     });
 
+    // --- Report Styling Constants ---
+    const PRIMARY_COLOR: [number, number, number] = [41, 128, 185]; // A slightly deeper blue
+    const ACCENT_COLOR: [number, number, number] = [22, 160, 133]; // Teal for accents if needed
+    const TEXT_COLOR_DARK: [number, number, number] = [0, 0, 0]; // Black
+    const TEXT_COLOR_LIGHT: [number, number, number] = [255, 255, 255]; // White
+    const TEXT_COLOR_MUTED: [number, number, number] = [100, 100, 100]; // Gray
+    const BORDER_COLOR: [number, number, number] = [200, 200, 200]; // Light gray for borders
+
+    const FONT_TITLE = 22;
+    const FONT_SUBTITLE = 12;
+    const FONT_SECTION_HEADER = 16;
+    const FONT_TABLE_HEADER = 10;
+    const FONT_BODY = 9;
+    const FONT_FOOTER = 8;
+
+    const BASE_FONT = 'helvetica'; // Standard PDF font
+
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
-    const margin = 10;
+    const margin = 15; // Increased margin for better layout
     const contentWidth = pdfWidth - 2 * margin;
     let currentY = margin;
+    let pageNumber = 1;
+    const totalPages = { value: 1 }; // Object to pass by reference for total pages
 
-    pdf.setFontSize(20);
-    pdf.text(t('pdf.reportTitle'), pdfWidth / 2, currentY + 5, { align: 'center' });
-    currentY += 15;
+    // Helper function to add footer
+    const addPageFooter = () => {
+      const footerHeight = 15;
+      if (currentY > pdfHeight - footerHeight - margin) { // Ensure footer doesn't overlap content too much
+         // This case might be tricky if called mid-autotable. Usually called by didDrawPage.
+      }
+      pdf.setFont(BASE_FONT, 'normal');
+      pdf.setFontSize(FONT_FOOTER);
+      pdf.setTextColor(TEXT_COLOR_MUTED[0], TEXT_COLOR_MUTED[1], TEXT_COLOR_MUTED[2]);
+      
+      const pageStr = `Page ${pageNumber}`;
+      const genStr = t('pdf.generatedOn', { date: format(new Date(), 'PPP p', { locale: currentDateFnsLocale }) });
+      
+      pdf.text(genStr, margin, pdfHeight - margin + 5);
+      pdf.text(pageStr, pdfWidth - margin - pdf.getStringUnitWidth(pageStr) * pdf.getFontSize() / pdf.internal.scaleFactor, pdfHeight - margin + 5);
+    };
+    
+    // Helper function to add a new page with footer
+    const addNewPageWithFooter = () => {
+      addPageFooter(); // Add footer to current page before adding new one
+      pdf.addPage();
+      pageNumber++;
+      currentY = margin;
+      // It's complex to calculate totalPages upfront with autoTable, so we'll use a placeholder for now.
+      // A more robust solution might involve rendering twice or using a library that supports "Page X of Y" better.
+    };
 
-    pdf.setFontSize(12);
-    pdf.text(t('pdf.schedulePeriod', {
+    // --- Report Header ---
+    pdf.setFont(BASE_FONT, 'bold');
+    pdf.setFontSize(FONT_TITLE);
+    pdf.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+    pdf.text(t('pdf.reportTitle'), pdfWidth / 2, currentY, { align: 'center' });
+    currentY += FONT_TITLE * 0.5; // Adjust spacing based on font size
+
+    pdf.setFont(BASE_FONT, 'normal');
+    pdf.setFontSize(FONT_SUBTITLE);
+    pdf.setTextColor(TEXT_COLOR_DARK[0], TEXT_COLOR_DARK[1], TEXT_COLOR_DARK[2]);
+    const schedulePeriodText = t('pdf.schedulePeriod', {
         startDate: format(schedule.startDate, 'PPP', { locale: currentDateFnsLocale }),
         endDate: format(schedule.endDate, 'PPP', { locale: currentDateFnsLocale })
-    }), margin, currentY);
-    currentY += 7;
-    
+    });
+    pdf.text(schedulePeriodText, pdfWidth / 2, currentY, { align: 'center' });
+    currentY += FONT_SUBTITLE * 0.5;
+
     const intervalToDisplay = schedule.minIntervalBetweenWorkDays ?? currentMinInterval;
-    pdf.text(t('pdf.minIntervalInfo', { interval: intervalToDisplay }), margin, currentY);
+    const minIntervalText = t('pdf.minIntervalInfo', { interval: intervalToDisplay });
+    pdf.text(minIntervalText, pdfWidth / 2, currentY, { align: 'center' });
+    currentY += FONT_SUBTITLE * 0.7;
+
+    pdf.setDrawColor(BORDER_COLOR[0], BORDER_COLOR[1], BORDER_COLOR[2]);
+    pdf.line(margin, currentY, pdfWidth - margin, currentY); // Horizontal line
     currentY += 10;
 
+
+    // --- Schedule Warnings Section ---
     if (scheduleWarnings.length > 0) {
-        if (currentY + 20 > pdfHeight - margin) { 
-            pdf.addPage();
-            currentY = margin;
+        const sectionTitle = t('pdf.warningsTitle');
+        const titleWidth = pdf.getStringUnitWidth(sectionTitle) * FONT_SECTION_HEADER / pdf.internal.scaleFactor;
+        const estimatedWarningHeight = 7 + (scheduleWarnings.length * FONT_BODY * 1.5); // Rough estimate
+
+        if (currentY + estimatedWarningHeight > pdfHeight - margin - 15) { // Check space for section + footer
+            addNewPageWithFooter();
         }
-        pdf.setFontSize(14);
-        pdf.setTextColor(255, 0, 0); // Red color for warnings title
-        pdf.text(t('pdf.warningsTitle'), margin, currentY);
-        currentY += 7;
-        pdf.setTextColor(0, 0, 0); // Reset to black
-        pdf.setFontSize(9);
+
+        pdf.setFont(BASE_FONT, 'bold');
+        pdf.setFontSize(FONT_SECTION_HEADER);
+        pdf.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+        pdf.text(sectionTitle, margin, currentY);
+        currentY += FONT_SECTION_HEADER * 0.7;
+
+        pdf.setFont(BASE_FONT, 'normal');
+        pdf.setFontSize(FONT_BODY);
+        pdf.setTextColor(TEXT_COLOR_DARK[0], TEXT_COLOR_DARK[1], TEXT_COLOR_DARK[2]);
         scheduleWarnings.forEach(warn => {
             const splitText = pdf.splitTextToSize(warn, contentWidth);
-             if (currentY + (splitText.length * 4) + 2 > pdfHeight - margin) {
-                pdf.addPage();
-                currentY = margin;
+            if (currentY + (splitText.length * FONT_BODY * 0.5) > pdfHeight - margin - 15) {
+                addNewPageWithFooter();
+                // Redraw section title if it was the first thing on new page
+                pdf.setFont(BASE_FONT, 'bold');
+                pdf.setFontSize(FONT_SECTION_HEADER);
+                pdf.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+                pdf.text(sectionTitle, margin, currentY);
+                currentY += FONT_SECTION_HEADER * 0.7;
+                pdf.setFont(BASE_FONT, 'normal');
+                pdf.setFontSize(FONT_BODY);
+                pdf.setTextColor(TEXT_COLOR_DARK[0], TEXT_COLOR_DARK[1], TEXT_COLOR_DARK[2]);
             }
-            pdf.text(splitText, margin, currentY);
-            currentY += (splitText.length * 3.5) + 2; // Adjust Y based on number of lines
+            pdf.text(splitText, margin + 2, currentY); // Indent warnings slightly
+            currentY += (splitText.length * FONT_BODY * 0.5) + 2;
         });
-        currentY += 5;
+        currentY += 10; // Space after warnings section
     }
-
 
     const getDoctorNameById = (id: string): string => doctorsProfiles.find(doc => doc.id === id)?.name || id;
 
@@ -494,10 +707,11 @@ export default function RotawisePage() {
         end: schedule.endDate,
     }).map(m => startOfMonth(m));
 
+    // --- Monthly Calendar Grid Section ---
     for (const monthStartDate of allMonthsToExport) {
         const monthTitle = format(monthStartDate, 'MMMM yyyy', { locale: currentDateFnsLocale });
-        const titleHeight = 10;
-        
+        const titleHeight = FONT_SECTION_HEADER * 0.7 + 5; // Title + spacing
+
         const firstDayOfCurrentMonth = monthStartDate;
         const lastDayOfCurrentMonth = endOfMonth(firstDayOfCurrentMonth);
         const calGridStartDate = startOfWeek(firstDayOfCurrentMonth, { locale: currentDateFnsLocale });
@@ -506,45 +720,44 @@ export default function RotawisePage() {
         const weekDayHeaders: string[] = [];
         for (let i = 0; i < 7; i++) {
             const dayInWeek = addDays(calGridStartDate, i);
-            const dayKey = format(dayInWeek, 'EEE', { locale: enUS }).toLowerCase();
-            weekDayHeaders.push(t(`pdf.workdaysSummary.${dayKey}Header` as any));
+            const dayKey = format(dayInWeek, 'EEE', { locale: enUS }).toLowerCase(); // Keep enUS for keys
+            weekDayHeaders.push(t(`pdf.workdaysSummary.${dayKey}Header` as any)); // Use translated headers
         }
 
         const monthMatrixBody: string[][] = [];
         let currentWeekRow: string[] = [];
         let dayIterator = new Date(calGridStartDate);
-        let estimatedGridHeight = (Math.ceil(differenceInCalendarDays(calGridEndDate, calGridStartDate) / 7) + 1) * 15; // Rows * cell height
+        
+        // Estimate height: (number of weeks * cell height) + header height
+        const numWeeks = Math.ceil(differenceInCalendarDays(calGridEndDate, calGridStartDate) / 7) + 1;
+        const estimatedGridHeight = (numWeeks * 18) + 10; // Approx cell height 18mm, header 10mm
 
-        if (currentY + titleHeight + estimatedGridHeight > pdfHeight - margin && allMonthsToExport.indexOf(monthStartDate) > 0) {
-            pdf.addPage();
-            currentY = margin;
+        if (currentY + titleHeight + estimatedGridHeight > pdfHeight - margin -15) {
+            addNewPageWithFooter();
         }
         
-        pdf.setFontSize(16);
+        pdf.setFont(BASE_FONT, 'bold');
+        pdf.setFontSize(FONT_SECTION_HEADER);
+        pdf.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
         pdf.text(monthTitle, margin, currentY);
         currentY += titleHeight;
         
-
         while (dayIterator <= calGridEndDate) {
             let cellContent = "";
-            if (isSameMonthDateFns(dayIterator, firstDayOfCurrentMonth)) { 
-                if (isWithinInterval(dayIterator, { start: schedule.startDate, end: schedule.endDate })) { 
-                    const dayNumber = format(dayIterator, 'd', { locale: currentDateFnsLocale });
-                    const doctorNameOnDay = getDoctorForDay(dayIterator);
-                    cellContent = dayNumber;
-                    if (doctorNameOnDay) {
-                        cellContent += `\n${doctorNameOnDay}`;
-                    }
-                } else { 
-                     cellContent = format(dayIterator, 'd', { locale: currentDateFnsLocale });
+            if (isSameMonthDateFns(dayIterator, firstDayOfCurrentMonth) && 
+                isWithinInterval(dayIterator, { start: schedule.startDate, end: schedule.endDate })) {
+                const dayNumber = format(dayIterator, 'd');
+                const doctorNameOnDay = getDoctorForDay(dayIterator);
+                cellContent = dayNumber;
+                if (doctorNameOnDay) {
+                    // Split doctor names if too long for a cell, though autoTable handles overflow
+                    const doctorNamesSplit = pdf.splitTextToSize(doctorNameOnDay, (contentWidth / 7) - 4);
+                    cellContent += `\n${doctorNamesSplit.join('\n')}`;
                 }
-            } else { 
-                if (isWithinInterval(dayIterator, { start: schedule.startDate, end: schedule.endDate })) {
-                    cellContent = format(dayIterator, 'd', { locale: currentDateFnsLocale }); 
-                } else {
-                    cellContent = ""; 
-                }
+            } else if (isSameMonthDateFns(dayIterator, firstDayOfCurrentMonth)) {
+                 cellContent = format(dayIterator, 'd'); // Day number for days in month but outside schedule range
             }
+            // Else: cellContent remains "" for days outside current month or outside schedule range if preferred
             currentWeekRow.push(cellContent);
 
             if (currentWeekRow.length === 7 || isSameDay(dayIterator, calGridEndDate)) {
@@ -561,32 +774,33 @@ export default function RotawisePage() {
                 body: monthMatrixBody,
                 theme: 'grid',
                 styles: {
-                    fontSize: 8,
-                    cellPadding: { top: 1, right: 1, bottom: 1, left: 1 }, 
-                    overflow: 'linebreak', 
-                    valign: 'top', 
-                    halign: 'left', 
-                    minCellHeight: 12, 
+                    font: BASE_FONT,
+                    fontSize: FONT_BODY -1, // Slightly smaller for calendar cells
+                    cellPadding: { top: 2, right: 1, bottom: 2, left: 1 },
+                    valign: 'top',
+                    halign: 'left',
+                    minCellHeight: 15, // Ensure cells have enough height for day number + name
+                    overflow: 'linebreak',
                 },
                 headStyles: {
-                    fillColor: [75, 150, 220], 
-                    textColor: 255,
+                    fillColor: PRIMARY_COLOR,
+                    textColor: TEXT_COLOR_LIGHT,
                     fontStyle: 'bold',
                     halign: 'center',
                     valign: 'middle',
+                    fontSize: FONT_TABLE_HEADER,
                 },
-                columnStyles: { 
-                  0: { cellWidth: (contentWidth / 7) -2 },
-                  1: { cellWidth: (contentWidth / 7) -2 },
-                  2: { cellWidth: (contentWidth / 7) -2 },
-                  3: { cellWidth: (contentWidth / 7) -2 },
-                  4: { cellWidth: (contentWidth / 7) -2 },
-                  5: { cellWidth: (contentWidth / 7) -2 },
-                  6: { cellWidth: (contentWidth / 7) -2 },
+                columnStyles: { // Ensure equal width for 7 day columns
+                  0: { cellWidth: contentWidth / 7 }, 1: { cellWidth: contentWidth / 7 },
+                  2: { cellWidth: contentWidth / 7 }, 3: { cellWidth: contentWidth / 7 },
+                  4: { cellWidth: contentWidth / 7 }, 5: { cellWidth: contentWidth / 7 },
+                  6: { cellWidth: contentWidth / 7 },
                 },
                 margin: { left: margin, right: margin },
                 didDrawPage: (data) => {
-                    currentY = data.cursor?.y || currentY;
+                    addPageFooter(); // Add footer after each page draw by autoTable
+                    currentY = data.cursor?.y || currentY; // Update Y for next element
+                    if (data.pageNumber > pageNumber) pageNumber = data.pageNumber;
                 }
             });
             currentY = (pdf as any).lastAutoTable.finalY + 10;
@@ -594,27 +808,34 @@ export default function RotawisePage() {
             currentY += 5; 
         }
     }
-
-
+    
+    // --- Doctor Details Section ---
     for (const doctor of doctorsProfiles) {
-        if (currentY + 40 > pdfHeight - margin) { 
-          pdf.addPage();
-          currentY = margin;
+        const sectionTitle = t('pdf.doctorDetailsTitle', { doctorName: doctor.name });
+        const estimatedSectionHeight = 40 + (doctor.isExcludedFromAutomaticAssignment ? 5 : 0); // Title + table
+
+        if (currentY + estimatedSectionHeight > pdfHeight - margin - 15) { 
+          addNewPageWithFooter();
         }
 
-        pdf.setFontSize(14);
-        pdf.text(t('pdf.doctorDetailsTitle', { doctorName: doctor.name }), margin, currentY);
-        currentY += 8;
+        pdf.setFont(BASE_FONT, 'bold');
+        pdf.setFontSize(FONT_SECTION_HEADER);
+        pdf.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+        pdf.text(sectionTitle, margin, currentY);
+        currentY += FONT_SECTION_HEADER * 0.7 + 2; // Title + spacing
         
         if (doctor.isExcludedFromAutomaticAssignment) {
-            pdf.setFontSize(9);
-            pdf.setTextColor(100); 
+            pdf.setFont(BASE_FONT, 'normal');
+            pdf.setFontSize(FONT_BODY - 1);
+            pdf.setTextColor(TEXT_COLOR_MUTED[0], TEXT_COLOR_MUTED[1], TEXT_COLOR_MUTED[2]);
             pdf.text(t('pdf.doctorIsExcludedFromAuto'), margin, currentY);
-            currentY += 5;
-            pdf.setTextColor(0); 
+            currentY += FONT_BODY * 0.5;
+            pdf.setTextColor(TEXT_COLOR_DARK[0], TEXT_COLOR_DARK[1], TEXT_COLOR_DARK[2]);
         }
 
-        const getFormattedDates = (dates: Date[]) => dates.length > 0 ? dates.map(d => format(d, 'PPP', { locale: currentDateFnsLocale })).join('\n') : t('pdf.none');
+        const getFormattedDates = (dates: Date[]) => dates.length > 0 
+            ? dates.map(d => format(d, 'PPP', { locale: currentDateFnsLocale })).join('\n') 
+            : t('pdf.none');
 
         const allWorkDatesSet = new Set<number>();
         doctor.preAssignedWorkDates.forEach(date => allWorkDatesSet.add(date.getTime()));
@@ -633,25 +854,30 @@ export default function RotawisePage() {
           body: [
             [t('pdf.workDays'), getFormattedDates(allWorkDates)],
           ],
-          theme: 'grid',
-          styles: { fontSize: 9, cellPadding: 1.5, overflow: 'linebreak' },
-          headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
-          columnStyles: { 1: { cellWidth: 'auto'} },
+          theme: 'striped',
+          styles: { font: BASE_FONT, fontSize: FONT_BODY, cellPadding: 2, overflow: 'linebreak' },
+          headStyles: { fillColor: PRIMARY_COLOR, textColor: TEXT_COLOR_LIGHT, fontStyle: 'bold', fontSize: FONT_TABLE_HEADER },
+          columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: contentWidth - 60 } }, // Adjust col widths
           margin: { left: margin, right: margin },
-           didDrawPage: (data) => { 
+          didDrawPage: (data) => { 
+                addPageFooter();
                 currentY = data.cursor?.y || currentY;
+                if (data.pageNumber > pageNumber) pageNumber = data.pageNumber;
             }
         });
         currentY = (pdf as any).lastAutoTable.finalY + 10;
       }
 
-    if (currentY + 50 > pdfHeight - margin) {
-        pdf.addPage();
-        currentY = margin;
+    // --- Workdays Summary Table ---
+    const summaryTitle = t('pdf.workdaysSummary.title');
+    if (currentY + 50 > pdfHeight - margin -15 ) { // Estimate height for title + table
+        addNewPageWithFooter();
     }
-    pdf.setFontSize(16);
-    pdf.text(t('pdf.workdaysSummary.title'), margin, currentY);
-    currentY += 10;
+    pdf.setFont(BASE_FONT, 'bold');
+    pdf.setFontSize(FONT_SECTION_HEADER);
+    pdf.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+    pdf.text(summaryTitle, margin, currentY);
+    currentY += FONT_SECTION_HEADER * 0.7 + 5;
 
     const workdaySummaryData: any[] = [];
     const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -677,13 +903,7 @@ export default function RotawisePage() {
 
     const summaryTableBody = workdaySummaryData.map(summary => [
         summary.doctorName,
-        summary.Mon,
-        summary.Tue,
-        summary.Wed,
-        summary.Thu,
-        summary.Fri,
-        summary.Sat,
-        summary.Sun,
+        summary.Mon, summary.Tue, summary.Wed, summary.Thu, summary.Fri, summary.Sat, summary.Sun,
         summary.Total,
     ]);
 
@@ -691,38 +911,39 @@ export default function RotawisePage() {
         startY: currentY,
         head: [[
             t('pdf.workdaysSummary.doctorHeader'),
-            t('pdf.workdaysSummary.monHeader'),
-            t('pdf.workdaysSummary.tueHeader'),
-            t('pdf.workdaysSummary.wedHeader'),
-            t('pdf.workdaysSummary.thuHeader'),
-            t('pdf.workdaysSummary.friHeader'),
-            t('pdf.workdaysSummary.satHeader'),
-            t('pdf.workdaysSummary.sunHeader'),
+            ...dayKeys.map(key => t(`pdf.workdaysSummary.${key.toLowerCase()}Header` as any)),
             t('pdf.workdaysSummary.totalHeader'),
         ]],
         body: summaryTableBody,
         theme: 'striped',
-        styles: { fontSize: 9, cellPadding: 1.5 },
-        headStyles: { fillColor: [75, 150, 220], textColor: 255, fontStyle: 'bold' },
+        styles: { font: BASE_FONT, fontSize: FONT_BODY, cellPadding: 2 },
+        headStyles: { fillColor: PRIMARY_COLOR, textColor: TEXT_COLOR_LIGHT, fontStyle: 'bold', fontSize: FONT_TABLE_HEADER },
         margin: { left: margin, right: margin },
-        didDrawPage: (data) => { currentY = data.cursor?.y || currentY; }
+        didDrawPage: (data) => { 
+            addPageFooter();
+            currentY = data.cursor?.y || currentY; 
+            if (data.pageNumber > pageNumber) pageNumber = data.pageNumber;
+        }
     });
     currentY = (pdf as any).lastAutoTable.finalY + 10;
 
-    if (currentY + 60 > pdfHeight - margin) { 
-        pdf.addPage();
-        currentY = margin;
+    // --- Monthly Workload Summary Table ---
+    const monthlySummaryTitle = t('pdf.monthlyWorkloadSummary.title');
+    if (currentY + 60 > pdfHeight - margin -15) { // Estimate height for title + table
+        addNewPageWithFooter();
     }
-    pdf.setFontSize(16);
-    pdf.text(t('pdf.monthlyWorkloadSummary.title'), margin, currentY);
-    currentY += 10;
+    pdf.setFont(BASE_FONT, 'bold');
+    pdf.setFontSize(FONT_SECTION_HEADER);
+    pdf.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+    pdf.text(monthlySummaryTitle, margin, currentY);
+    currentY += FONT_SECTION_HEADER * 0.7 + 5;
 
     const scheduleMonthsForPdf = eachMonthOfInterval({
       start: schedule.startDate,
       end: schedule.endDate,
     }).map(monthDate => startOfMonth(monthDate));
 
-    const monthHeadersForPdf = scheduleMonthsForPdf.map(m => format(m, 'MMM yyyy', { locale: currentDateFnsLocale }));
+    const monthHeadersForPdf = scheduleMonthsForPdf.map(m => format(m, 'MMM yy', { locale: currentDateFnsLocale })); // Shorter month format
     const pdfMonthlyTableHead = [[
         t('pdf.monthlyWorkloadSummary.doctorHeader'),
         ...monthHeadersForPdf,
@@ -768,12 +989,19 @@ export default function RotawisePage() {
         head: pdfMonthlyTableHead,
         body: pdfMonthlyTableBody,
         theme: 'striped',
-        styles: { fontSize: 9, cellPadding: 1.5 },
-        headStyles: { fillColor: [75, 150, 220], textColor: 255, fontStyle: 'bold' },
+        styles: { font: BASE_FONT, fontSize: FONT_BODY, cellPadding: 2 },
+        headStyles: { fillColor: PRIMARY_COLOR, textColor: TEXT_COLOR_LIGHT, fontStyle: 'bold', fontSize: FONT_TABLE_HEADER },
         margin: { left: margin, right: margin },
-        didDrawPage: (data) => { currentY = data.cursor?.y || currentY; }
+        didDrawPage: (data) => { 
+            addPageFooter();
+            currentY = data.cursor?.y || currentY; 
+            if (data.pageNumber > pageNumber) pageNumber = data.pageNumber;
+        }
     });
     currentY = (pdf as any).lastAutoTable.finalY + 10; 
+
+    // Final footer for the last page
+    addPageFooter();
 
     try {
       pdf.save('rotawise-report.pdf');

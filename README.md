@@ -1,4 +1,3 @@
-
 # Rotawise - Doctor scheduling application
 
 This is a Next.js application for fair and balanced doctor scheduling, built in Firebase Studio.
@@ -7,15 +6,38 @@ To get started with development, take a look at `src/app/page.tsx`.
 
 ## Development
 
-1.  **Install dependencies:**
+To set up and run Rotawise for development, follow these steps:
+
+**Prerequisites:**
+*   Node.js (v18.x or later recommended)
+*   npm (comes with Node.js) or Yarn
+
+**Steps:**
+
+1.  **Clone the repository (if you haven't already):**
+    ```bash
+    git clone <your-repository-url>
+    cd rotawise-app 
+    ```
+    *(Replace `<your-repository-url>` with the actual URL and adjust `rotawise-app` if your project directory has a different name)*
+
+2.  **Install dependencies:**
+    This command will install all the necessary packages defined in `package.json`.
     ```bash
     npm install
     ```
-2.  **Run the development server:**
+    *(If you prefer Yarn: `yarn install`)*
+
+3.  **Run the development server:**
+    This command starts the Next.js development server, usually with hot reloading enabled.
     ```bash
     npm run dev
     ```
-    The application will be available at `http://localhost:9002`.
+    *(If you prefer Yarn: `yarn dev`)*
+
+4.  **Access the application:**
+    Once the server is running, open your web browser and navigate to:
+    `http://localhost:3000`
 
 ## Building for Production
 

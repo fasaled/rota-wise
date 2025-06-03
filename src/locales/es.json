@@ -1,4 +1,3 @@
-
 {
   "header.title": "Rotawise",
   "header.description": "Programación de médicos justa y equilibrada",
@@ -34,6 +33,12 @@
   "page.toast.excludedDayWarning.description": "{doctorName} está programado para trabajar en un día excluido.",
   "page.toast.minIntervalWarning.title": "Advertencia de intervalo",
   "page.toast.minIntervalWarning.description": "{doctorName} necesita al menos {interval} día(s) libre(s) antes de volver a trabajar.",
+  "page.toast.stateRestored.title": "¡Bienvenido de Nuevo!",
+  "page.toast.stateRestored.description": "Tu sesión anterior ha sido restaurada.",
+  "page.toast.errorRestoringState.title": "Error al Restaurar",
+  "page.toast.errorRestoringState.description": "No se pudo restaurar tu sesión anterior. Empezando de cero.",
+  "page.toast.errorPersistingState.title": "Error al Guardar",
+  "page.toast.errorPersistingState.description": "No se pudo guardar automáticamente los datos de tu sesión en el navegador.",
   "page.section.scheduleWarnings.title": "Advertencias importantes del horario",
 
   "form.title": "Parámetros del horario",
@@ -117,6 +122,7 @@
   "pdf.monthlyWorkloadSummary.title": "Resumen de carga de trabajo mensual",
   "pdf.monthlyWorkloadSummary.doctorHeader": "Médico",
   "pdf.monthlyWorkloadSummary.totalHeader": "Total",
+  "pdf.generatedOn": "Generado el: {date}",
 
   "summaryTable.title": "Resumen de días de trabajo (por día de la semana)",
   "summaryTable.doctorHeader": "Médico",
