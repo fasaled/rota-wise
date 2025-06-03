@@ -138,9 +138,6 @@
   "language.en": "English",
   "language.es": "Español",
 
-  "warnings.multiplePreAssigned": "Múltiples médicos ({doctors}) están preasignados al {date}. esto puede indicar un error de entrada, ya que normalmente solo un médico puede cubrir un turno.",
+  "warnings.multiplePreAssignedInput": "Múltiples doctores ({doctors}) están preasignados a la misma fecha del calendario: {date}. Por favor revise.",
   "warnings.uncoveredDay": "No se pudo asignar ningún médico al {date} debido a restricciones de programación (p. ej., intervalo mínimo, límites de fin de semana, etc.). el día se ha marcado como 'libre'."
 }
-
-
-    
