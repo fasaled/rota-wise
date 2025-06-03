@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays, eachMonthOfInterval, isSameMonth as isSameMonthDateFns, eachDayOfInterval as eachDayOfIntervalFns, endOfMonth, isWithinInterval } from 'date-fns';
+import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays, eachMonthOfInterval, isSameMonth as isSameMonthDateFns, eachDayOfInterval as eachDayOfIntervalFns, endOfMonth, isWithinInterval, startOfWeek, endOfWeek, addDays } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import { useLanguage } from '@/context/language-context';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -28,7 +28,7 @@ import MonthlyWorkloadSummaryTable from '@/components/rotawise/MonthlyWorkloadSu
 
 type LoadMode = 'as-is' | 'as-pre-assigned';
 
-export default function RotaWisePage() {
+export default function RotawisePage() {
   const { t, currentDateFnsLocale } = useLanguage();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -411,7 +411,7 @@ export default function RotaWisePage() {
     setIsExportingPdf(true);
 
     const pdf = new jsPDF({
-      orientation: 'p',
+      orientation: 'p', // Portrait for better calendar layout per month
       unit: 'mm',
       format: 'a4',
     });
@@ -419,7 +419,7 @@ export default function RotaWisePage() {
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
     const margin = 10;
-    const contentWidth = pdfWidth - 2 * margin;
+    // const contentWidth = pdfWidth - 2 * margin; // Not used directly for autoTable columns if they adapt
     let currentY = margin;
 
     pdf.setFontSize(20);
@@ -448,7 +448,7 @@ export default function RotaWisePage() {
       if (workingEntries.length > 0) {
         return getDoctorNameById(workingEntries[0].doctorId);
       }
-      return ""; // Blank if no one is working
+      return "";
     };
 
     const allMonthsToExport = eachMonthOfInterval({
@@ -456,12 +456,12 @@ export default function RotaWisePage() {
         end: schedule.endDate,
     }).map(m => startOfMonth(m));
 
-    for (const month of allMonthsToExport) {
-        const monthTitle = format(month, 'MMMM yyyy', { locale: currentDateFnsLocale });
+    for (const monthStartDate of allMonthsToExport) {
+        const monthTitle = format(monthStartDate, 'MMMM yyyy', { locale: currentDateFnsLocale });
         const titleHeight = 10;
-        const estimatedTableHeight = 60; // Rough estimate, depends on days in month
+        const estimatedCalendarMatrixHeight = 70; // Rough estimate for a 5-6 week calendar matrix
 
-        if (currentY + titleHeight + estimatedTableHeight > pdfHeight - margin && allMonthsToExport.indexOf(month) > 0) {
+        if (currentY + titleHeight + estimatedCalendarMatrixHeight > pdfHeight - margin && allMonthsToExport.indexOf(monthStartDate) > 0) {
             pdf.addPage();
             currentY = margin;
         }
@@ -470,32 +470,76 @@ export default function RotaWisePage() {
         pdf.text(monthTitle, margin, currentY);
         currentY += titleHeight;
         
-        const daysInCurrentDisplayMonth = eachDayOfIntervalFns({
-            start: month,
-            end: endOfMonth(month),
-        });
+        const firstDayOfCurrentMonth = monthStartDate;
+        const lastDayOfCurrentMonth = endOfMonth(firstDayOfCurrentMonth);
+        const calGridStartDate = startOfWeek(firstDayOfCurrentMonth, { locale: currentDateFnsLocale });
+        const calGridEndDate = endOfWeek(lastDayOfCurrentMonth, { locale: currentDateFnsLocale });
 
-        const monthTableBodyData: string[][] = [];
-        for (const day of daysInCurrentDisplayMonth) {
-            if (!isWithinInterval(day, { start: schedule.startDate, end: schedule.endDate })) {
-                continue;
-            }
-            const doctorNameOnDay = getDoctorForDay(day);
-            monthTableBodyData.push([
-                format(day, 'd', { locale: currentDateFnsLocale }),
-                format(day, 'EEE', { locale: currentDateFnsLocale }),
-                doctorNameOnDay
-            ]);
+        const weekDayHeaders: string[] = [];
+        for (let i = 0; i < 7; i++) {
+            const dayInWeek = addDays(calGridStartDate, i);
+            const dayKey = format(dayInWeek, 'EEE', { locale: enUS }).toLowerCase();
+            weekDayHeaders.push(t(`pdf.workdaysSummary.${dayKey}Header` as any));
         }
 
-        if (monthTableBodyData.length > 0) {
+        const monthMatrixBody: string[][] = [];
+        let currentWeekRow: string[] = [];
+        let dayIterator = new Date(calGridStartDate);
+
+        while (dayIterator <= calGridEndDate) {
+            let cellContent = "";
+            if (isSameMonthDateFns(dayIterator, firstDayOfCurrentMonth)) { // Day is in the current month being processed
+                if (isWithinInterval(dayIterator, { start: schedule.startDate, end: schedule.endDate })) { // And within overall schedule range
+                    const dayNumber = format(dayIterator, 'd', { locale: currentDateFnsLocale });
+                    const doctorNameOnDay = getDoctorForDay(dayIterator);
+                    cellContent = dayNumber;
+                    if (doctorNameOnDay) {
+                        cellContent += `\n${doctorNameOnDay}`;
+                    }
+                } else { // In current month, but outside overall schedule range (e.g. schedule starts/ends mid-month)
+                     cellContent = format(dayIterator, 'd', { locale: currentDateFnsLocale });
+                }
+            } else { // Day is from previous/next month (padding for the grid)
+                if (isWithinInterval(dayIterator, { start: schedule.startDate, end: schedule.endDate })) {
+                    // This padding day is part of the overall schedule
+                    cellContent = format(dayIterator, 'd', { locale: currentDateFnsLocale }); // Show day number
+                } else {
+                    // This padding day is also outside the overall schedule
+                    cellContent = ""; // Empty
+                }
+            }
+            currentWeekRow.push(cellContent);
+
+            if (currentWeekRow.length === 7 || isSameDay(dayIterator, calGridEndDate)) {
+                monthMatrixBody.push([...currentWeekRow]);
+                currentWeekRow = [];
+            }
+            dayIterator = addDays(dayIterator, 1);
+        }
+
+        if (monthMatrixBody.length > 0) {
             autoTable(pdf, {
                 startY: currentY,
-                head: [[t('pdf.dateHeader'), t('pdf.dayHeader'), t('pdf.doctorOnDutyHeader')]],
-                body: monthTableBodyData,
+                head: [weekDayHeaders],
+                body: monthMatrixBody,
                 theme: 'grid',
-                styles: { fontSize: 9, cellPadding: 1.5, overflow: 'linebreak' },
-                headStyles: { fillColor: [66, 99, 204], textColor: 255, fontStyle: 'bold' }, // Adjusted primary color
+                styles: {
+                    fontSize: 8,
+                    cellPadding: { top: 2, right: 1, bottom: 2, left: 1 },
+                    overflow: 'linebreak',
+                    valign: 'top',
+                    halign: 'left',
+                },
+                headStyles: {
+                    fillColor: [75, 150, 220], // Using a theme primary-like color
+                    textColor: 255,
+                    fontStyle: 'bold',
+                    halign: 'center',
+                    valign: 'middle',
+                },
+                bodyStyles: {
+                    minCellHeight: 15, // Ensure rows have some height for calendar look
+                },
                 margin: { left: margin, right: margin },
                 didDrawPage: (data) => {
                     currentY = data.cursor?.y || currentY;
@@ -503,7 +547,7 @@ export default function RotaWisePage() {
             });
             currentY = (pdf as any).lastAutoTable.finalY + 10;
         } else {
-            currentY += 5; // Add some space if month was empty
+            currentY += 5; 
         }
     }
 
@@ -550,7 +594,7 @@ export default function RotaWisePage() {
           headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
           columnStyles: { 1: { cellWidth: 'auto'} },
           margin: { left: margin, right: margin },
-           didDrawPage: (data) => { // Update currentY after table draw
+           didDrawPage: (data) => { 
                 currentY = data.cursor?.y || currentY;
             }
         });
