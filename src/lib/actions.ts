@@ -29,14 +29,21 @@ export async function generateScheduleAction(
     }));
 
     const mockEntries: ScheduleEntry[] = [];
-    let currentDateLoopVar = new Date(startDate); // Use a different variable for the loop
+    let currentDateLoopVar = new Date(startDate); 
     const finalEndDate = new Date(endDate);
     
     const doctorStats: { [doctorId: string]: DoctorWorkloadStats } = {};
     const doctorLastWorkDay: { [doctorId: string]: Date | null } = {};
     const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const weekendDayKeys = ['Fri', 'Sat', 'Sun']; // Define weekend days
 
-    // Pre-calculate available days per doctor per month
+    const doctorHasWorkedThisWeekend: { [doctorId: string]: boolean } = {};
+    doctorsWithIds.forEach(doc => {
+      doctorHasWorkedThisWeekend[doc.id] = false;
+    });
+    let previousDayWasSunday = false;
+
+
     const availableDaysPerDoctorPerMonth: Map<string, Map<string, number>> = new Map();
     const scheduleInterval = { start: new Date(startDate), end: new Date(finalEndDate) };
     const monthsInSchedule = eachMonthOfInterval(scheduleInterval);
@@ -73,7 +80,7 @@ export async function generateScheduleAction(
       doctorStats[doc.id] = {
         totalWorkdays: 0,
         workloadByDayOfWeek: initialWorkloadByDay,
-        monthlyWorkdays: {}, // Initialize monthly workdays
+        monthlyWorkdays: {}, 
       };
 
       const preAssignmentsBeforeStart = doc.preAssignedWorkDates
@@ -86,37 +93,44 @@ export async function generateScheduleAction(
 
 
     while (currentDateLoopVar <= finalEndDate) {
-      const currentDate = new Date(currentDateLoopVar); // Ensure currentDate is a fresh Date object for this iteration
+      const currentDate = new Date(currentDateLoopVar); 
       const dayOfWeekFullName = format(currentDate, 'EEEE', { locale: enUS }); 
       const dayOfWeekKey = format(currentDate, 'EEE', { locale: enUS }); 
       const currentMonthKey = format(currentDate, 'yyyy-MM');
-      let dayHasWorkAssignment = false;
-      let firstPreAssignedDoctorForDayLog: DoctorFormFieldInput | null = null;
+      const isCurrentDayWeekend = weekendDayKeys.includes(dayOfWeekKey);
+
+      if (dayOfWeekKey === 'Mon' && previousDayWasSunday) {
+        doctorsWithIds.forEach(doc => {
+          doctorHasWorkedThisWeekend[doc.id] = false;
+        });
+      }
+
+      let dayHasWorkAssignment = false; 
+      let actualPreAssignedDoctorLoggedThisDay: DoctorFormFieldInput | null = null;
 
       for (const doctor of doctorsWithIds) {
         if (isDateInArray(currentDate, doctor.preAssignedWorkDates)) {
           doctorLastWorkDay[doctor.id] = new Date(currentDate);
           if (doctorStats[doctor.id]) { 
             doctorStats[doctor.id].totalWorkdays++;
-            if (doctorStats[doctor.id].workloadByDayOfWeek[dayOfWeekKey] !== undefined) {
-                doctorStats[doctor.id].workloadByDayOfWeek[dayOfWeekKey]++;
-            }
+            doctorStats[doctor.id].workloadByDayOfWeek[dayOfWeekKey]++;
             doctorStats[doctor.id].monthlyWorkdays[currentMonthKey] = (doctorStats[doctor.id].monthlyWorkdays[currentMonthKey] || 0) + 1;
           }
-          if (!firstPreAssignedDoctorForDayLog) {
-            firstPreAssignedDoctorForDayLog = doctor; 
+          if (isCurrentDayWeekend) {
+            doctorHasWorkedThisWeekend[doctor.id] = true;
+          }
+          
+          if (!actualPreAssignedDoctorLoggedThisDay) {
+            actualPreAssignedDoctorLoggedThisDay = doctor;
+            mockEntries.push({
+              date: new Date(currentDate),
+              doctorId: doctor.id,
+              assignment: 'Pre-assigned',
+              dayOfWeek: dayOfWeekFullName,
+            });
+            dayHasWorkAssignment = true; 
           }
         }
-      }
-      
-      if (firstPreAssignedDoctorForDayLog) {
-        mockEntries.push({
-          date: new Date(currentDate),
-          doctorId: firstPreAssignedDoctorForDayLog.id,
-          assignment: 'Pre-assigned',
-          dayOfWeek: dayOfWeekFullName,
-        });
-        dayHasWorkAssignment = true; 
       }
       
       for (const doctor of doctorsWithIds) {
@@ -148,18 +162,19 @@ export async function generateScheduleAction(
             eligibleDoctors.sort((a, b) => {
                 const statsA = doctorStats[a.id];
                 const statsB = doctorStats[b.id];
+
+                if (isCurrentDayWeekend) {
+                    const aHasWorkedWknd = doctorHasWorkedThisWeekend[a.id] ? 1 : 0;
+                    const bHasWorkedWknd = doctorHasWorkedThisWeekend[b.id] ? 1 : 0;
+                    if (aHasWorkedWknd !== bHasWorkedWknd) {
+                        return aHasWorkedWknd - bHasWorkedWknd; // Prioritize 0 (hasn't worked weekend)
+                    }
+                }
                 
-                // 1. Monthly workload percentage
                 const workdaysInCurrentMonthA = statsA?.monthlyWorkdays[currentMonthKey] || 0;
                 const workdaysInCurrentMonthB = statsB?.monthlyWorkdays[currentMonthKey] || 0;
-
                 const availableDaysThisMonthA = availableDaysPerDoctorPerMonth.get(a.id)?.get(currentMonthKey);
                 const availableDaysThisMonthB = availableDaysPerDoctorPerMonth.get(b.id)?.get(currentMonthKey);
-
-                // If a doctor has 0 available days (e.g. full month vacation), they shouldn't be eligible.
-                // Percentage is calculated as worked/available. Lower is better.
-                // Handle availableDays <= 0 carefully to avoid division by zero and to correctly prioritize.
-                // If availableDays is 0 or less, they effectively have worked "infinity %", deprioritizing them.
                 const percentageWorkedA = (availableDaysThisMonthA && availableDaysThisMonthA > 0) ? workdaysInCurrentMonthA / availableDaysThisMonthA : Infinity;
                 const percentageWorkedB = (availableDaysThisMonthB && availableDaysThisMonthB > 0) ? workdaysInCurrentMonthB / availableDaysThisMonthB : Infinity;
 
@@ -167,22 +182,17 @@ export async function generateScheduleAction(
                     return percentageWorkedA - percentageWorkedB;
                 }
                 
-                // 2. Day of the week preference
                 const dayOfWeekComparison = (statsA?.workloadByDayOfWeek[dayOfWeekKey] ?? 0) - (statsB?.workloadByDayOfWeek[dayOfWeekKey] ?? 0);
                 if (dayOfWeekComparison !== 0) return dayOfWeekComparison;
 
-                // 3. Total workdays preference
                 const totalWorkdaysComparison = (statsA?.totalWorkdays ?? 0) - (statsB?.totalWorkdays ?? 0);
                 if (totalWorkdaysComparison !== 0) return totalWorkdaysComparison;
 
-                // 4. Last worked day preference 
                 const lastWorkA_Time = doctorLastWorkDay[a.id]?.getTime();
                 const lastWorkB_Time = doctorLastWorkDay[b.id]?.getTime();
-
                 if (lastWorkA_Time === undefined && lastWorkB_Time !== undefined) return -1; 
                 if (lastWorkA_Time !== undefined && lastWorkB_Time === undefined) return 1;  
                 if (lastWorkA_Time === undefined && lastWorkB_Time === undefined) return 0; 
-                
                 return (lastWorkA_Time || 0) - (lastWorkB_Time || 0); 
             });
 
@@ -196,10 +206,11 @@ export async function generateScheduleAction(
             doctorLastWorkDay[doctorToAssign.id] = new Date(currentDate);
             if (doctorStats[doctorToAssign.id]) { 
                 doctorStats[doctorToAssign.id].totalWorkdays++;
-                if (doctorStats[doctorToAssign.id].workloadByDayOfWeek[dayOfWeekKey] !== undefined) {
-                    doctorStats[doctorToAssign.id].workloadByDayOfWeek[dayOfWeekKey]++;
-                }
+                doctorStats[doctorToAssign.id].workloadByDayOfWeek[dayOfWeekKey]++;
                 doctorStats[doctorToAssign.id].monthlyWorkdays[currentMonthKey] = (doctorStats[doctorToAssign.id].monthlyWorkdays[currentMonthKey] || 0) + 1;
+            }
+            if (isCurrentDayWeekend) {
+                doctorHasWorkedThisWeekend[doctorToAssign.id] = true;
             }
             dayHasWorkAssignment = true;
         }
@@ -213,7 +224,8 @@ export async function generateScheduleAction(
             dayOfWeek: dayOfWeekFullName,
         });
       }
-
+      
+      previousDayWasSunday = (dayOfWeekKey === 'Sun');
       currentDateLoopVar.setDate(currentDateLoopVar.getDate() + 1);
     }
 
@@ -231,4 +243,3 @@ export async function generateScheduleAction(
     return { error: errorMessage };
   }
 }
-
