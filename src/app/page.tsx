@@ -20,7 +20,7 @@ import { buttonVariants } from '@/components/ui/button';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays, eachMonthOfInterval, isSameMonth as isSameMonthDateFns, eachDayOfInterval as eachDayOfIntervalFns, endOfMonth, isWithinInterval, startOfWeek, endOfWeek, addDays } from 'date-fns';
-import { enUS } from 'date-fns/locale';
+import { enUS, es } from 'date-fns/locale';
 import { useLanguage } from '@/context/language-context';
 import { ThemeToggle } from '@/components/theme-toggle';
 import ScheduleSummaryTable from '@/components/rotawise/schedule-summary-table';
@@ -29,13 +29,14 @@ import MonthlyWorkloadSummaryTable from '@/components/rotawise/MonthlyWorkloadSu
 type LoadMode = 'as-is' | 'as-pre-assigned';
 
 export default function RotawisePage() {
-  const { t, currentDateFnsLocale } = useLanguage();
+  const { t, language, currentDateFnsLocale } = useLanguage();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [doctorsProfiles, setDoctorsProfiles] = useState<DoctorProfile[]>([]);
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
+  const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
 
   const [currentMinInterval, setCurrentMinInterval] = useState<number>(1);
   const [loadedFormValues, setLoadedFormValues] = useState<Partial<ScheduleFormValues> | null>(null);
@@ -57,6 +58,7 @@ export default function RotawisePage() {
 
   const handleSubmitForm = async (data: ScheduleFormValues) => {
     setIsLoading(true);
+    setScheduleWarnings([]); // Clear previous warnings
     setCurrentMinInterval(data.minIntervalBetweenWorkDays || 1);
     const profiles: DoctorProfile[] = data.doctors.map(doc => ({
       id: doc.id,
@@ -68,7 +70,7 @@ export default function RotawisePage() {
     }));
     setDoctorsProfiles(profiles);
 
-    const result = await generateScheduleAction(data);
+    const result = await generateScheduleAction(data, language);
     setIsLoading(false);
 
     if (result.error) {
@@ -94,6 +96,17 @@ export default function RotawisePage() {
         title: t('page.toast.scheduleGenerated.title'),
         description: t('page.toast.scheduleGenerated.description'),
       });
+
+      if (result.warnings && result.warnings.length > 0) {
+        setScheduleWarnings(result.warnings);
+        result.warnings.forEach(warningMsg => {
+          toast({
+            title: t('page.toast.scheduleWarning.title'),
+            description: warningMsg,
+            duration: 10000, // Longer duration for warnings
+          });
+        });
+      }
     }
   };
 
@@ -267,6 +280,7 @@ export default function RotawisePage() {
     if (!file) return;
 
     setSchedule(null);
+    setScheduleWarnings([]);
     setDoctorsProfiles([]);
     
     setIsLoading(true);
@@ -411,7 +425,7 @@ export default function RotawisePage() {
     setIsExportingPdf(true);
 
     const pdf = new jsPDF({
-      orientation: 'p', // Portrait for better calendar layout per month
+      orientation: 'p', 
       unit: 'mm',
       format: 'a4',
     });
@@ -419,7 +433,7 @@ export default function RotawisePage() {
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
     const margin = 10;
-    // const contentWidth = pdfWidth - 2 * margin; // Not used directly for autoTable columns if they adapt
+    const contentWidth = pdfWidth - 2 * margin;
     let currentY = margin;
 
     pdf.setFontSize(20);
@@ -437,6 +451,30 @@ export default function RotawisePage() {
     pdf.text(t('pdf.minIntervalInfo', { interval: intervalToDisplay }), margin, currentY);
     currentY += 10;
 
+    if (scheduleWarnings.length > 0) {
+        if (currentY + 20 > pdfHeight - margin) { 
+            pdf.addPage();
+            currentY = margin;
+        }
+        pdf.setFontSize(14);
+        pdf.setTextColor(255, 0, 0); // Red color for warnings title
+        pdf.text(t('pdf.warningsTitle'), margin, currentY);
+        currentY += 7;
+        pdf.setTextColor(0, 0, 0); // Reset to black
+        pdf.setFontSize(9);
+        scheduleWarnings.forEach(warn => {
+            const splitText = pdf.splitTextToSize(warn, contentWidth);
+             if (currentY + (splitText.length * 4) + 2 > pdfHeight - margin) {
+                pdf.addPage();
+                currentY = margin;
+            }
+            pdf.text(splitText, margin, currentY);
+            currentY += (splitText.length * 3.5) + 2; // Adjust Y based on number of lines
+        });
+        currentY += 5;
+    }
+
+
     const getDoctorNameById = (id: string): string => doctorsProfiles.find(doc => doc.id === id)?.name || id;
 
     const getDoctorForDay = (day: Date): string => {
@@ -446,7 +484,8 @@ export default function RotawisePage() {
         entry.doctorId !== 'system'
       );
       if (workingEntries.length > 0) {
-        return getDoctorNameById(workingEntries[0].doctorId);
+        // If multiple doctors pre-assigned, list them all or first one. Currently first one.
+        return workingEntries.map(we => getDoctorNameById(we.doctorId)).join(', ');
       }
       return "";
     };
@@ -459,16 +498,6 @@ export default function RotawisePage() {
     for (const monthStartDate of allMonthsToExport) {
         const monthTitle = format(monthStartDate, 'MMMM yyyy', { locale: currentDateFnsLocale });
         const titleHeight = 10;
-        const estimatedCalendarMatrixHeight = 70; // Rough estimate for a 5-6 week calendar matrix
-
-        if (currentY + titleHeight + estimatedCalendarMatrixHeight > pdfHeight - margin && allMonthsToExport.indexOf(monthStartDate) > 0) {
-            pdf.addPage();
-            currentY = margin;
-        }
-        
-        pdf.setFontSize(16);
-        pdf.text(monthTitle, margin, currentY);
-        currentY += titleHeight;
         
         const firstDayOfCurrentMonth = monthStartDate;
         const lastDayOfCurrentMonth = endOfMonth(firstDayOfCurrentMonth);
@@ -485,27 +514,36 @@ export default function RotawisePage() {
         const monthMatrixBody: string[][] = [];
         let currentWeekRow: string[] = [];
         let dayIterator = new Date(calGridStartDate);
+        let estimatedGridHeight = (Math.ceil(differenceInCalendarDays(calGridEndDate, calGridStartDate) / 7) + 1) * 15; // Rows * cell height
+
+        if (currentY + titleHeight + estimatedGridHeight > pdfHeight - margin && allMonthsToExport.indexOf(monthStartDate) > 0) {
+            pdf.addPage();
+            currentY = margin;
+        }
+        
+        pdf.setFontSize(16);
+        pdf.text(monthTitle, margin, currentY);
+        currentY += titleHeight;
+        
 
         while (dayIterator <= calGridEndDate) {
             let cellContent = "";
-            if (isSameMonthDateFns(dayIterator, firstDayOfCurrentMonth)) { // Day is in the current month being processed
-                if (isWithinInterval(dayIterator, { start: schedule.startDate, end: schedule.endDate })) { // And within overall schedule range
+            if (isSameMonthDateFns(dayIterator, firstDayOfCurrentMonth)) { 
+                if (isWithinInterval(dayIterator, { start: schedule.startDate, end: schedule.endDate })) { 
                     const dayNumber = format(dayIterator, 'd', { locale: currentDateFnsLocale });
                     const doctorNameOnDay = getDoctorForDay(dayIterator);
                     cellContent = dayNumber;
                     if (doctorNameOnDay) {
                         cellContent += `\n${doctorNameOnDay}`;
                     }
-                } else { // In current month, but outside overall schedule range (e.g. schedule starts/ends mid-month)
+                } else { 
                      cellContent = format(dayIterator, 'd', { locale: currentDateFnsLocale });
                 }
-            } else { // Day is from previous/next month (padding for the grid)
+            } else { 
                 if (isWithinInterval(dayIterator, { start: schedule.startDate, end: schedule.endDate })) {
-                    // This padding day is part of the overall schedule
-                    cellContent = format(dayIterator, 'd', { locale: currentDateFnsLocale }); // Show day number
+                    cellContent = format(dayIterator, 'd', { locale: currentDateFnsLocale }); 
                 } else {
-                    // This padding day is also outside the overall schedule
-                    cellContent = ""; // Empty
+                    cellContent = ""; 
                 }
             }
             currentWeekRow.push(cellContent);
@@ -525,20 +563,27 @@ export default function RotawisePage() {
                 theme: 'grid',
                 styles: {
                     fontSize: 8,
-                    cellPadding: { top: 2, right: 1, bottom: 2, left: 1 },
-                    overflow: 'linebreak',
-                    valign: 'top',
-                    halign: 'left',
+                    cellPadding: { top: 1, right: 1, bottom: 1, left: 1 }, // Reduced padding
+                    overflow: 'linebreak', // Allow text to wrap
+                    valign: 'top', // Align content to top of cell
+                    halign: 'left', // Align day number to left
+                    minCellHeight: 12, // Reduced cell height
                 },
                 headStyles: {
-                    fillColor: [75, 150, 220], // Using a theme primary-like color
+                    fillColor: [75, 150, 220], 
                     textColor: 255,
                     fontStyle: 'bold',
                     halign: 'center',
                     valign: 'middle',
                 },
-                bodyStyles: {
-                    minCellHeight: 15, // Ensure rows have some height for calendar look
+                columnStyles: { // Ensure columns are roughly equal width
+                  0: { cellWidth: (contentWidth / 7) -2 },
+                  1: { cellWidth: (contentWidth / 7) -2 },
+                  2: { cellWidth: (contentWidth / 7) -2 },
+                  3: { cellWidth: (contentWidth / 7) -2 },
+                  4: { cellWidth: (contentWidth / 7) -2 },
+                  5: { cellWidth: (contentWidth / 7) -2 },
+                  6: { cellWidth: (contentWidth / 7) -2 },
                 },
                 margin: { left: margin, right: margin },
                 didDrawPage: (data) => {
@@ -553,7 +598,7 @@ export default function RotawisePage() {
 
 
     for (const doctor of doctorsProfiles) {
-        if (currentY + 70 > pdfHeight - margin) { 
+        if (currentY + 40 > pdfHeight - margin) { 
           pdf.addPage();
           currentY = margin;
         }
@@ -843,3 +888,4 @@ export default function RotawisePage() {
     </div>
   );
 }
+

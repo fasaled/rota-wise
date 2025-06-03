@@ -54,7 +54,7 @@
   "form.datesSelected": "{count} fecha(s) seleccionada(s)",
   "form.generateButton": "Generar horario",
   "form.generatingButton": "Generando...",
-  "form.shiftClickTip": "Consejo: Mantén pulsada la tecla Mayús y haz clic para seleccionar un rango de fechas.",
+  "form.shiftClickTip": "Consejo: mantén pulsada la tecla mayús y haz clic para seleccionar un rango de fechas.",
 
   "calendar.title": "Horario generado",
   "calendar.filterDoctorPlaceholder": "Filtrar por médico",
@@ -94,6 +94,7 @@
   "pdf.reportTitle": "Informe de horario Rotawise",
   "pdf.schedulePeriod": "Período del horario: {startDate} - {endDate}",
   "pdf.minIntervalInfo": "Intervalo mínimo entre días de trabajo: {interval} día(s)",
+  "pdf.warningsTitle": "Advertencias del horario",
   "pdf.doctorDetailsTitle": "Detalles del horario de {doctorName}",
   "pdf.doctorIsExcludedFromAuto": "(Médico excluido de asignaciones automáticas de horario)",
   "pdf.workDaysHeader": "Días de trabajo",
@@ -138,5 +139,9 @@
   "footer.copyright": "© {year} Rotawise. todos los derechos reservados.",
   "language.selector.label": "Idioma",
   "language.en": "English",
-  "language.es": "Español"
+  "language.es": "Español",
+
+  "warnings.multiplePreAssigned": "Múltiples médicos ({doctors}) están preasignados al {date}. esto puede indicar un error de entrada, ya que normalmente solo un médico puede cubrir un turno.",
+  "warnings.uncoveredDay": "No se pudo asignar ningún médico al {date} debido a restricciones de programación (p. ej., intervalo mínimo, límites de fin de semana, etc.). el día se ha marcado como 'libre'."
 }
+

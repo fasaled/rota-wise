@@ -54,7 +54,7 @@
   "form.datesSelected": "{count} date(s) selected",
   "form.generateButton": "Generate schedule",
   "form.generatingButton": "Generating...",
-  "form.shiftClickTip": "Tip: Hold Shift and click to select a range of dates.",
+  "form.shiftClickTip": "Tip: hold shift and click to select a range of dates.",
 
   "calendar.title": "Generated schedule",
   "calendar.filterDoctorPlaceholder": "Filter by doctor",
@@ -94,6 +94,7 @@
   "pdf.reportTitle": "Rotawise schedule report",
   "pdf.schedulePeriod": "Schedule period: {startDate} - {endDate}",
   "pdf.minIntervalInfo": "Minimum interval between work days: {interval} day(s)",
+  "pdf.warningsTitle": "Schedule warnings",
   "pdf.doctorDetailsTitle": "{doctorName}'s schedule details",
   "pdf.doctorIsExcludedFromAuto": "(Doctor is excluded from automatic schedule assignments)",
   "pdf.workDaysHeader": "Work days",
@@ -139,5 +140,9 @@
   "footer.copyright": "© {year} Rotawise. all rights reserved.",
   "language.selector.label": "Language",
   "language.en": "English",
-  "language.es": "Español"
+  "language.es": "Español",
+
+  "warnings.multiplePreAssigned": "Multiple doctors ({doctors}) are pre-assigned to {date}. this may indicate an input error as only one doctor can typically work a single shift.",
+  "warnings.uncoveredDay": "No doctor could be assigned to {date} due to scheduling constraints (e.g., minimum interval, weekend limits, etc.). the day has been marked as 'Off'."
 }
+
