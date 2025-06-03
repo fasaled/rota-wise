@@ -20,11 +20,12 @@ import { buttonVariants } from '@/components/ui/button';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
-import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays } from 'date-fns';
+import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays, eachMonthOfInterval } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import { useLanguage } from '@/context/language-context';
 import { ThemeToggle } from '@/components/theme-toggle';
 import ScheduleSummaryTable from '@/components/rotawise/schedule-summary-table';
+import MonthlyWorkloadSummaryTable from '@/components/rotawise/MonthlyWorkloadSummaryTable';
 
 type LoadMode = 'as-is' | 'as-pre-assigned';
 
@@ -52,8 +53,8 @@ export default function RotaWisePage() {
 
   const [stableDefaultPageFormValues] = useState<Partial<ScheduleFormValues>>(() => ({
     numberOfDoctors: 1,
-    startDate: undefined, 
-    endDate: undefined,   
+    startDate: undefined,
+    endDate: undefined,
     minIntervalBetweenWorkDays: 1,
     doctors: [
       { id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false },
@@ -156,13 +157,13 @@ export default function RotaWisePage() {
           if (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') {
             newEntries = newEntries.filter(e => {
                 const isSameDayEntry = e.date.getTime() === updatedEntry.date.getTime();
-                if (!isSameDayEntry) return true; 
+                if (!isSameDayEntry) return true;
                 const isConflictingWork = (e.assignment === 'Work' || e.assignment === 'Pre-assigned') && e.doctorId !== updatedEntry.doctorId;
                 return !(e.assignment === 'Off' || isConflictingWork);
             });
           }
           newEntries.push(updatedEntry);
-      } else { 
+      } else {
           const idx = newEntries.findIndex(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId);
           if (idx > -1) newEntries.splice(idx, 1);
 
@@ -296,7 +297,7 @@ export default function RotaWisePage() {
 
         const deserializedScheduleEntries = loadedData.schedule.entries.map(entry => ({
             ...entry,
-            date: new Date(entry.date), 
+            date: new Date(entry.date),
         }));
         const deserializedDoctorsProfiles = loadedData.doctorsProfiles.map(profile => ({
             ...profile,
@@ -322,7 +323,7 @@ export default function RotaWisePage() {
         if (mode === 'as-pre-assigned') {
             const originalWorkDatesByDoctor = new Map<string, Date[]>();
             deserializedScheduleEntries.forEach(entry => {
-              if (entry.assignment === 'Work' && entry.doctorId !== 'system') { 
+              if (entry.assignment === 'Work' && entry.doctorId !== 'system') {
                 if (!originalWorkDatesByDoctor.has(entry.doctorId)) {
                   originalWorkDatesByDoctor.set(entry.doctorId, []);
                 }
@@ -378,13 +379,13 @@ export default function RotaWisePage() {
         setSchedule(finalSchedule);
         setDoctorsProfiles(finalDoctorsProfiles);
         setCurrentMinInterval(finalFormValues.minIntervalBetweenWorkDays || 1);
-        setLoadedFormValues(finalFormValues); 
-        setDataInputFormKey(prevKey => prevKey + 1); 
+        setLoadedFormValues(finalFormValues);
+        setDataInputFormKey(prevKey => prevKey + 1);
 
         toast({
           title: t('page.toast.scheduleLoaded.title'),
-          description: mode === 'as-pre-assigned' 
-            ? t('page.toast.scheduleLoadedAsPreassigned.description') 
+          description: mode === 'as-pre-assigned'
+            ? t('page.toast.scheduleLoadedAsPreassigned.description')
             : t('page.toast.scheduleLoaded.description')
         });
       } catch (err) {
@@ -397,7 +398,7 @@ export default function RotaWisePage() {
       } finally {
         setIsLoading(false);
         if (event.target) {
-          event.target.value = ""; 
+          event.target.value = "";
         }
       }
     };
@@ -488,10 +489,10 @@ export default function RotaWisePage() {
         pdf.text(monthTitle, margin, currentY);
         currentY += titleHeight;
         
-        if (currentY + minImageHeight > pdfHeight - margin && allMonthsToExport.indexOf(month) > 0) { 
+        if (currentY + minImageHeight > pdfHeight - margin && allMonthsToExport.indexOf(month) > 0) {
             pdf.addPage();
             currentY = margin;
-            pdf.setFontSize(16); 
+            pdf.setFontSize(16);
             pdf.text(monthTitle, margin, currentY);
             currentY += titleHeight;
         }
@@ -506,12 +507,12 @@ export default function RotaWisePage() {
             const spaceForImageOnCurrentPage = pdfHeight - currentY - margin;
 
             if (imgHeight > spaceForImageOnCurrentPage ) {
-                 imgHeight = spaceForImageOnCurrentPage; 
+                 imgHeight = spaceForImageOnCurrentPage;
             }
 
 
             pdf.addImage(imgData, 'PNG', margin, currentY, contentWidth, imgHeight);
-            currentY += imgHeight + 10; 
+            currentY += imgHeight + 10;
 
         } catch (captureError) {
             console.error("Error capturing calendar for month:", monthTitle, captureError);
@@ -527,7 +528,7 @@ export default function RotaWisePage() {
     setIsPdfExportMode(false);
 
     for (const doctor of doctorsProfiles) {
-        if (currentY + 70 > pdfHeight - margin) { 
+        if (currentY + 70 > pdfHeight - margin) {
           pdf.addPage();
           currentY = margin;
         }
@@ -551,7 +552,7 @@ export default function RotaWisePage() {
         const vacationDates = doctor.vacationDates;
         const excludedDates = doctor.excludedDates || [];
         const generatedWorkDates = schedule.entries
-          .filter(e => e.doctorId === doctor.id && e.assignment === 'Work') 
+          .filter(e => e.doctorId === doctor.id && e.assignment === 'Work')
           .map(e => e.date);
 
         autoTable(pdf, {
@@ -572,7 +573,7 @@ export default function RotaWisePage() {
         currentY = (pdf as any).lastAutoTable.finalY + 10;
       }
 
-    if (currentY + 50 > pdfHeight - margin) { 
+    if (currentY + 50 > pdfHeight - margin) {
         pdf.addPage();
         currentY = margin;
     }
@@ -633,6 +634,75 @@ export default function RotaWisePage() {
         headStyles: { fillColor: [75, 150, 220], textColor: 255, fontStyle: 'bold' },
         margin: { left: margin, right: margin },
     });
+    currentY = (pdf as any).lastAutoTable.finalY + 10;
+
+    // --- Add Monthly Workload Summary to PDF ---
+    if (currentY + 60 > pdfHeight - margin) { // Estimate space needed
+        pdf.addPage();
+        currentY = margin;
+    }
+    pdf.setFontSize(16);
+    pdf.text(t('pdf.monthlyWorkloadSummary.title'), margin, currentY);
+    currentY += 10;
+
+    const scheduleMonthsForPdf = eachMonthOfInterval({
+      start: schedule.startDate,
+      end: schedule.endDate,
+    }).map(monthDate => startOfMonth(monthDate));
+
+    const monthHeadersForPdf = scheduleMonthsForPdf.map(m => format(m, 'MMM yyyy', { locale: currentDateFnsLocale }));
+    const pdfMonthlyTableHead = [[
+        t('pdf.monthlyWorkloadSummary.doctorHeader'),
+        ...monthHeadersForPdf,
+        t('pdf.monthlyWorkloadSummary.totalHeader')
+    ]];
+
+    const pdfMonthlyTableBody: (string | number)[][] = [];
+    const pdfMonthlyTotalsRow: (string | number)[] = [t('pdf.monthlyWorkloadSummary.totalHeader')];
+    const monthTotalsMap = new Map<string, number>();
+    scheduleMonthsForPdf.forEach(m => monthTotalsMap.set(format(m, 'yyyy-MM'), 0));
+    let grandTotalWorkdays = 0;
+
+    for (const doctor of doctorsProfiles) {
+        const doctorRow: (string | number)[] = [doctor.name];
+        let doctorTotalAcrossMonths = 0;
+        for (const monthDate of scheduleMonthsForPdf) {
+            const monthKey = format(monthDate, 'yyyy-MM');
+            let workdaysInMonthForDoctor = 0;
+            schedule.entries.forEach(entry => {
+                if (entry.doctorId === doctor.id && (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned') && isSameMonth(entry.date, monthDate)) {
+                    workdaysInMonthForDoctor++;
+                }
+            });
+            doctorRow.push(workdaysInMonthForDoctor);
+            doctorTotalAcrossMonths += workdaysInMonthForDoctor;
+            monthTotalsMap.set(monthKey, (monthTotalsMap.get(monthKey) || 0) + workdaysInMonthForDoctor);
+        }
+        doctorRow.push(doctorTotalAcrossMonths);
+        grandTotalWorkdays += doctorTotalAcrossMonths;
+        pdfMonthlyTableBody.push(doctorRow);
+    }
+
+    scheduleMonthsForPdf.forEach(monthDate => {
+        const monthKey = format(monthDate, 'yyyy-MM');
+        pdfMonthlyTotalsRow.push(monthTotalsMap.get(monthKey) || 0);
+    });
+    pdfMonthlyTotalsRow.push(grandTotalWorkdays);
+    pdfMonthlyTableBody.push(pdfMonthlyTotalsRow);
+
+
+    autoTable(pdf, {
+        startY: currentY,
+        head: pdfMonthlyTableHead,
+        body: pdfMonthlyTableBody,
+        theme: 'striped',
+        styles: { fontSize: 9, cellPadding: 1.5 },
+        headStyles: { fillColor: [75, 150, 220], textColor: 255, fontStyle: 'bold' },
+        margin: { left: margin, right: margin },
+    });
+    // currentY = (pdf as any).lastAutoTable.finalY + 10; // Update currentY if more content follows
+
+    // --- End of Monthly Workload Summary for PDF ---
 
     try {
       pdf.save('rotawise-report.pdf');
@@ -719,6 +789,7 @@ export default function RotaWisePage() {
               />
             </div>
             <ScheduleSummaryTable schedule={schedule} doctors={doctorsProfiles} />
+            <MonthlyWorkloadSummaryTable schedule={schedule} doctors={doctorsProfiles} />
           </>
         ) : (
           <Card className="mt-8 shadow-lg text-center">
