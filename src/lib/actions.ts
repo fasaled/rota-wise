@@ -24,23 +24,25 @@ export async function generateScheduleAction(
   currentLang: 'en' | 'es'
 ): Promise<{ schedule?: Schedule; error?: string; warnings?: string[] }> {
   try {
-    const translations = currentLang === 'es' ? esTranslations : enTranslations;
+    const currentFileTranslations = currentLang === 'es' ? esTranslations : enTranslations;
+    const englishTranslations = enTranslations; // For fallback
+
     const tAction = (key: string, replacements?: Record<string, string | number>): string => {
-      let translationPath = key.split('.');
-      let translation: any = translations;
-      for (const part of translationPath) {
-        if (translation && typeof translation === 'object' && part in translation) {
-          translation = translation[part];
-        } else {
-          translation = undefined;
-          break;
-        }
+      let translation: string | undefined = (currentFileTranslations as any)[key];
+
+      if (translation === undefined && currentLang !== 'en') {
+        // If not found in current (non-English) lang, try English
+        translation = (englishTranslations as any)[key];
       }
 
-      if (translation === undefined) return key; // Fallback to key if not found
+      if (translation === undefined) {
+        // If still not found in English or current language, fallback to the key itself
+        // console.warn(`Translation key "${key}" not found in ${currentLang} or en.`); // Optional: server-side logging for missing keys
+        return key; 
+      }
       
       let result = String(translation);
-      if (replacements && typeof result === 'string') {
+      if (replacements) {
         Object.keys(replacements).forEach(placeholder => {
           result = result.replace(new RegExp(`{${placeholder}}`, 'g'), String(replacements[placeholder]));
         });
@@ -144,11 +146,22 @@ export async function generateScheduleAction(
       }
 
       let dayHasAnyPreAssignment = false;
-      const preAssignedDoctorsNamesForThisDay: string[] = [];
+      const preAssignedDoctorsForThisDay: string[] = [];
+
 
       for (const doctor of doctorsWithIds) {
           if (isDateInArray(currentDate, doctor.preAssignedWorkDates)) {
-              preAssignedDoctorsNamesForThisDay.push(doctor.name);
+              preAssignedDoctorsForThisDay.push(doctor.name);
+              // Log entry for UI and individual stats update
+              mockEntries.push({ 
+                  date: new Date(currentDate),
+                  doctorId: doctor.id,
+                  assignment: 'Pre-assigned',
+                  dayOfWeek: dayOfWeekFullName,
+              });
+              dayHasAnyPreAssignment = true; 
+
+              // Update doctor's last workday and stats
               doctorLastWorkDay[doctor.id] = new Date(currentDate);
               if (doctorStats[doctor.id]) { 
                   doctorStats[doctor.id].totalWorkdays++;
@@ -158,27 +171,18 @@ export async function generateScheduleAction(
               if (isCurrentDayWeekend) {
                   doctorHasWorkedThisWeekend[doctor.id] = true;
               }
-            
-              mockEntries.push({ 
-                  date: new Date(currentDate),
-                  doctorId: doctor.id,
-                  assignment: 'Pre-assigned',
-                  dayOfWeek: dayOfWeekFullName,
-              });
-              dayHasAnyPreAssignment = true; 
           }
       }
-
-      if (preAssignedDoctorsNamesForThisDay.length > 1) {
+      
+      if (preAssignedDoctorsForThisDay.length > 1) {
         const warningMessage = tAction('warnings.multiplePreAssigned', {
             date: format(currentDate, 'PPP', { locale: currentLocaleForFormatting }),
-            doctors: preAssignedDoctorsNamesForThisDay.join(', ')
+            doctors: preAssignedDoctorsForThisDay.join(', ')
         });
         if (!warnings.includes(warningMessage)) {
             warnings.push(warningMessage);
         }
       }
-
 
       for (const doctor of doctorsWithIds) {
           if (isDateInArray(currentDate, doctor.vacationDates)) {
@@ -230,15 +234,17 @@ export async function generateScheduleAction(
                 
                 const diffPercentage = Math.abs(percentageWorkedA - percentageWorkedB);
 
-                if (diffPercentage > 0.02) { 
+                if (diffPercentage > 0.02) { // If difference is significant, prioritize by percentage
                     return percentageWorkedA - percentageWorkedB;
                 }
                 
+                // If percentages are close, prioritize day-of-week count
                 const dayOfWeekComparison = (statsA?.workloadByDayOfWeek[dayOfWeekKey] ?? 0) - (statsB?.workloadByDayOfWeek[dayOfWeekKey] ?? 0);
                 if (dayOfWeekComparison !== 0) {
                     return dayOfWeekComparison;
                 }
 
+                // If day-of-week counts are also tied, then use the original percentage difference
                 if (percentageWorkedA !== percentageWorkedB) { 
                     return percentageWorkedA - percentageWorkedB;
                 }
@@ -255,7 +261,7 @@ export async function generateScheduleAction(
             });
 
             const doctorToAssign = eligibleDoctors[0];
-            if (doctorToAssign) { // Ensure a doctor was actually selected after sorting
+            if (doctorToAssign) { 
                 mockEntries.push({
                     date: new Date(currentDate),
                     doctorId: doctorToAssign.id,
@@ -276,27 +282,36 @@ export async function generateScheduleAction(
         }
         
         if (!automaticallyAssignedDoctorThisDay && !dayHasAnyPreAssignment) {
-             mockEntries.push({
-                date: new Date(currentDate),
-                doctorId: 'system', 
-                assignment: 'Off',
-                dayOfWeek: dayOfWeekFullName,
-            });
-             const anyDoctorPotentiallyAvailable = doctorsWithIds.some(doc => {
+            const anyDoctorPotentiallyAvailable = doctorsWithIds.some(doc => {
                 const isDoctorOnVacation = isDateInArray(currentDate, doc.vacationDates);
                 const isDoctorExcludedOnDate = isDateInArray(currentDate, doc.excludedDates);
                 const isFullyExcludedFromAuto = doc.isExcludedFromAutomaticAssignment;
                 return !isDoctorOnVacation && !isDoctorExcludedOnDate && !isFullyExcludedFromAuto;
             });
-            if (anyDoctorPotentiallyAvailable) {
+
+            // Only add 'Off' and warning if it wasn't due to all doctors being unavailable (vacation/excluded)
+            if (anyDoctorPotentiallyAvailable) { 
+                 mockEntries.push({
+                    date: new Date(currentDate),
+                    doctorId: 'system', 
+                    assignment: 'Off',
+                    dayOfWeek: dayOfWeekFullName,
+                });
                  const warningMessage = tAction('warnings.uncoveredDay', { date: format(currentDate, 'PPP', { locale: currentLocaleForFormatting }) });
                  if (!warnings.includes(warningMessage)) {
                     warnings.push(warningMessage);
                  }
+            } else if (doctorsWithIds.length > 0) { // All doctors are unavailable (vacation/excluded)
+                mockEntries.push({
+                    date: new Date(currentDate),
+                    doctorId: 'system', 
+                    assignment: 'Off',
+                    dayOfWeek: dayOfWeekFullName,
+                });
             }
         }
 
-      } else if (!dayHasAnyPreAssignment) { 
+      } else if (!dayHasAnyPreAssignment && doctorsWithIds.length === 0) { // No doctors defined at all
          mockEntries.push({
             date: new Date(currentDate),
             doctorId: 'system', 
