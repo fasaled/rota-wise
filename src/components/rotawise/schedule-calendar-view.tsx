@@ -1,4 +1,3 @@
-
 "use client";
 
 import type React from 'react';
@@ -13,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { VacationIcon, PreAssignedIcon, WorkIcon } from '@/components/icons';
 import ManualAdjustmentDialog from './manual-adjustment-dialog';
 import { useLanguage } from '@/context/language-context';
+import { useToast } from "@/hooks/use-toast";
 
 interface ScheduleCalendarViewProps {
   schedule: Schedule;
@@ -32,12 +32,21 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
   const { t, currentDateFnsLocale } = useLanguage();
   const [currentMonth, setCurrentMonth] = useState(schedule.startDate || new Date());
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | 'all'>('all');
+  const { toast } = useToast();
 
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
   const [selectedEntryForAdjustment, setSelectedEntryForAdjustment] = useState<ScheduleEntry | null>(null);
   const [selectedDateForAdjustment, setSelectedDateForAdjustment] = useState<Date | null>(null);
 
   const handleOpenAdjustmentDialog = (entry: ScheduleEntry | null, date: Date) => {
+    if (entry && entry.assignment === 'Vacation') {
+      toast({
+        title: t('calendar.toast.vacationUneditable.title'),
+        description: t('calendar.toast.vacationUneditable.description'),
+        variant: "default",
+      });
+      return; 
+    }
     setSelectedEntryForAdjustment(entry);
     setSelectedDateForAdjustment(date);
     setIsAdjustmentDialogOpen(true);
@@ -125,11 +134,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                 textColor = 'text-blue-700 dark:text-blue-300';
                 break;
               case 'Off': 
-                return (
-                  <div key={index} className="p-1 rounded text-muted-foreground italic">
-                    {doctor?.name || entry.doctorId}: {t('calendar.assignment.off')}
-                  </div>
-                );
+                return null;
               default: 
                 return null; 
             }
@@ -142,7 +147,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 
             return (
               <div
-                key={index}
+                key={`${entry.doctorId}-${entry.assignment}-${index}`}
                 className={cn(
                   "rounded-md flex items-center",
                   itemGap,

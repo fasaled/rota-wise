@@ -74,6 +74,9 @@
   "calendar.previousMonth": "Mes anterior",
   "calendar.nextMonth": "Mes siguiente",
 
+  "calendar.toast.vacationUneditable.title": "Vacaciones no editables",
+  "calendar.toast.vacationUneditable.description": "Las entradas de vacaciones se gestionan en el formulario principal y no se pueden editar directamente en el calendario.",
+
   "dialog.adjustTitle": "Ajustar horario para {date}",
   "dialog.modifyDescription": "Modifique la asignación para este día.",
   "dialog.addDescription": "Añada una nueva asignación para este día.",

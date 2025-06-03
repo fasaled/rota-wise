@@ -247,19 +247,63 @@ export default function RotawisePage() {
     setSchedule(prevSchedule => {
       if (!prevSchedule) return null;
 
+      let newEntries: ScheduleEntry[];
+
+      if (updatedEntry.assignment === 'Off') {
+        // When 'Off' is selected, updatedEntry.doctorId is 'system'.
+        // Remove 'Work'/'Pre-assigned' for the day, keep 'Vacation', and add a 'system/Off'.
+        newEntries = prevSchedule.entries.filter(e => {
+          if (isSameDay(e.date, updatedEntry.date)) {
+            // Keep if it's a Vacation entry.
+            // Remove if it's Work, Pre-assigned, or an existing system/Off.
+            return e.assignment === 'Vacation';
+          }
+          return true; // Keep entries for other dates.
+        });
+
+        // Add the new system 'Off' entry.
+        // Ensure no duplicate system 'Off' if one was somehow kept by filter (unlikely with above logic but safe).
+        if (!newEntries.some(e => isSameDay(e.date, updatedEntry.date) && e.doctorId === 'system' && e.assignment === 'Off')) {
+            newEntries.push(updatedEntry); // updatedEntry is { date, doctorId: 'system', assignment: 'Off', dayOfWeek }
+        }
+
+      } else { // For 'Work', 'Pre-assigned', 'Vacation' for a specific doctor (updatedEntry.doctorId is a real ID)
+        newEntries = prevSchedule.entries.filter(e => {
+          if (isSameDay(e.date, updatedEntry.date)) {
+            // Rule 1: Remove any existing entry for the *same doctor* (it will be replaced by updatedEntry).
+            if (e.doctorId === updatedEntry.doctorId) return false;
+            
+            // Rule 2: If the new assignment is Work/Pre-assigned, additional cleanup is needed for the day:
+            if (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') {
+              // Remove any *other doctor's* Work/Pre-assigned entry (conflict).
+              if (e.assignment === 'Work' || e.assignment === 'Pre-assigned') return false;
+              // Remove any 'system/Off' entry (specific assignment overrides it).
+              if (e.doctorId === 'system' && e.assignment === 'Off') return false;
+            }
+            // Keep other entries (e.g., another doctor's vacation on the same day).
+            return true;
+          }
+          return true; // Keep all entries for other dates.
+        });
+        newEntries.push(updatedEntry);
+      }
+
+      // Min interval validation for the updated/added entry if it's a work assignment
       const doctorProfile = doctorsProfiles.find(dp => dp.id === updatedEntry.doctorId);
       const effectiveMinInterval = prevSchedule.minIntervalBetweenWorkDays ?? currentMinInterval;
 
       if (doctorProfile && (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned')) {
-        const workOrPreassignedEntries = prevSchedule.entries.filter(
-          e => e.doctorId === updatedEntry.doctorId && (e.assignment === 'Work' || e.assignment === 'Pre-assigned') && !isSameDay(e.date, updatedEntry.date)
+        const workOrPreassignedEntriesForValidation = newEntries.filter(
+          e => e.doctorId === updatedEntry.doctorId && 
+               (e.assignment === 'Work' || e.assignment === 'Pre-assigned') && 
+               !isSameDay(e.date, updatedEntry.date) // Exclude the entry being currently processed
         );
         
-        const closestWorkDayBefore = workOrPreassignedEntries
+        const closestWorkDayBefore = workOrPreassignedEntriesForValidation
           .filter(e => e.date < updatedEntry.date)
           .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
 
-        const closestWorkDayAfter = workOrPreassignedEntries
+        const closestWorkDayAfter = workOrPreassignedEntriesForValidation
           .filter(e => e.date > updatedEntry.date)
           .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
 
@@ -271,6 +315,8 @@ export default function RotawisePage() {
               description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
               variant: "destructive",
             });
+            // Potentially revert or prevent the change if it's a hard rule, 
+            // or just warn like it does now. Current logic only warns.
           }
         }
         if (closestWorkDayAfter) {
@@ -281,47 +327,12 @@ export default function RotawisePage() {
               description: t('page.toast.minIntervalWarning.description', { doctorName: doctorProfile.name, interval: effectiveMinInterval }),
               variant: "destructive",
             });
+            // Potentially revert or prevent.
           }
         }
       }
-
-
-      let newEntries = prevSchedule.entries.filter(e =>
-        !(e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === (updatedEntry.assignment === 'Off' ? e.doctorId : updatedEntry.doctorId))
-      );
-
-      if (updatedEntry.assignment !== 'Off') {
-          const idx = newEntries.findIndex(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId);
-          if (idx > -1) newEntries.splice(idx, 1);
-          
-          if (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') {
-            newEntries = newEntries.filter(e => {
-                const isSameDayEntry = e.date.getTime() === updatedEntry.date.getTime();
-                if (!isSameDayEntry) return true;
-                const isConflictingWork = (e.assignment === 'Work' || e.assignment === 'Pre-assigned') && e.doctorId !== updatedEntry.doctorId;
-                return !(e.assignment === 'Off' || isConflictingWork);
-            });
-          }
-          newEntries.push(updatedEntry);
-      } else {
-          const idx = newEntries.findIndex(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === updatedEntry.doctorId);
-          if (idx > -1) newEntries.splice(idx, 1);
-
-          const otherDoctorWorking = newEntries.some(e => e.date.getTime() === updatedEntry.date.getTime() && (e.assignment === 'Work' || e.assignment === 'Pre-assigned'));
-          if (!otherDoctorWorking) {
-            const systemOffExists = newEntries.some(e => e.date.getTime() === updatedEntry.date.getTime() && e.doctorId === 'system' && e.assignment === 'Off');
-            if (!systemOffExists) {
-                newEntries.push({
-                    date: updatedEntry.date,
-                    doctorId: 'system',
-                    assignment: 'Off',
-                    dayOfWeek: updatedEntry.dayOfWeek,
-                });
-            }
-          }
-      }
-
-
+      
+      // Vacation/Excluded day validation for 'Work' assignments
       if (doctorProfile && updatedEntry.assignment === 'Work') {
         const isVacation = doctorProfile.vacationDates.some(vd =>
           isSameDay(vd, updatedEntry.date)
@@ -329,7 +340,7 @@ export default function RotawisePage() {
         if (isVacation) {
           toast({
             title: t('page.toast.scheduleWarning.title'),
-            description: t('page.toast.scheduleWarning.description', { doctorName: doctorProfile.name }),
+            description: t('page.toast.scheduleWarning.description', { doctorName: doctorProfile.name }), // This message seems generic, might need "on vacation" specific message
             variant: "destructive",
           });
         }
@@ -338,12 +349,20 @@ export default function RotawisePage() {
         );
         if (isExcluded) {
           toast({
-            title: t('page.toast.scheduleWarning.title'),
+            title: t('page.toast.scheduleWarning.title'), // Consider a more specific title
             description: t('page.toast.excludedDayWarning.description', { doctorName: doctorProfile.name }),
             variant: "destructive",
           });
         }
       }
+      
+      // Sort entries by date and then doctorId for consistent order
+      newEntries.sort((a,b) => {
+        const dateDiff = a.date.getTime() - b.date.getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return a.doctorId.localeCompare(b.doctorId);
+      });
+
       return { ...prevSchedule, entries: newEntries };
     });
   };

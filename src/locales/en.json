@@ -74,6 +74,9 @@
   "calendar.previousMonth": "Previous month",
   "calendar.nextMonth": "Next month",
 
+  "calendar.toast.vacationUneditable.title": "Vacation Uneditable",
+  "calendar.toast.vacationUneditable.description": "Vacation entries are managed in the main form and cannot be edited directly on the calendar.",
+
   "dialog.adjustTitle": "Adjust schedule for {date}",
   "dialog.modifyDescription": "Modify the assignment for this day.",
   "dialog.addDescription": "Add a new assignment for this day.",
