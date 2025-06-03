@@ -101,6 +101,7 @@
   "pdf.generatedWork": "Trabajo generado",
   "pdf.vacation": "Vacaciones",
   "pdf.excludedDates": "Fechas excluidas",
+  "pdf.workDays": "Días de trabajo",
   "pdf.workdaysSummary.title": "Días de trabajo por médico por día de la semana",
   "pdf.workdaysSummary.doctorHeader": "Médico",
   "pdf.workdaysSummary.monHeader": "Lun",
@@ -135,3 +136,5 @@
   "language.en": "English",
   "language.es": "Español"
 }
+
+    

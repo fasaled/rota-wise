@@ -20,7 +20,7 @@ import { buttonVariants } from '@/components/ui/button';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
-import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays, eachMonthOfInterval } from 'date-fns';
+import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays, eachMonthOfInterval, isSameMonth as isSameMonthDateFns } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import { useLanguage } from '@/context/language-context';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -528,7 +528,7 @@ export default function RotaWisePage() {
     setIsPdfExportMode(false);
 
     for (const doctor of doctorsProfiles) {
-        if (currentY + 70 > pdfHeight - margin) {
+        if (currentY + 70 > pdfHeight - margin) { // Adjusted estimated height for fewer rows
           pdf.addPage();
           currentY = margin;
         }
@@ -545,24 +545,24 @@ export default function RotaWisePage() {
             pdf.setTextColor(0); // Reset color
         }
 
-
         const getFormattedDates = (dates: Date[]) => dates.length > 0 ? dates.map(d => format(d, 'PPP', { locale: currentDateFnsLocale })).join('\n') : t('pdf.none');
 
-        const preAssignedWorkDates = doctor.preAssignedWorkDates;
-        const vacationDates = doctor.vacationDates;
-        const excludedDates = doctor.excludedDates || [];
-        const generatedWorkDates = schedule.entries
-          .filter(e => e.doctorId === doctor.id && e.assignment === 'Work')
-          .map(e => e.date);
+        const allWorkDatesSet = new Set<number>();
+        doctor.preAssignedWorkDates.forEach(date => allWorkDatesSet.add(date.getTime()));
+        schedule.entries.forEach(entry => {
+          if (entry.doctorId === doctor.id && entry.assignment === 'Work') {
+            allWorkDatesSet.add(entry.date.getTime());
+          }
+        });
+        const allWorkDates = Array.from(allWorkDatesSet)
+          .map(time => new Date(time))
+          .sort((a, b) => a.getTime() - b.getTime());
 
         autoTable(pdf, {
           startY: currentY,
           head: [[t('pdf.assignmentTypeHeader'), t('pdf.datesHeader')]],
           body: [
-            [t('pdf.preAssignedWork'), getFormattedDates(preAssignedWorkDates)],
-            [t('pdf.generatedWork'), getFormattedDates(generatedWorkDates)],
-            [t('pdf.vacation'), getFormattedDates(vacationDates)],
-            [t('pdf.excludedDates'), getFormattedDates(excludedDates)],
+            [t('pdf.workDays'), getFormattedDates(allWorkDates)],
           ],
           theme: 'grid',
           styles: { fontSize: 9, cellPadding: 1.5, overflow: 'linebreak' },
@@ -670,7 +670,7 @@ export default function RotaWisePage() {
             const monthKey = format(monthDate, 'yyyy-MM');
             let workdaysInMonthForDoctor = 0;
             schedule.entries.forEach(entry => {
-                if (entry.doctorId === doctor.id && (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned') && isSameMonth(entry.date, monthDate)) {
+                if (entry.doctorId === doctor.id && (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned') && isSameMonthDateFns(entry.date, monthDate)) {
                     workdaysInMonthForDoctor++;
                 }
             });
@@ -818,3 +818,5 @@ export default function RotaWisePage() {
     </div>
   );
 }
+
+    
