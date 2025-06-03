@@ -6,7 +6,7 @@ import { parse, isSameDay, format, differenceInCalendarDays, subDays, getDaysInM
 import { enUS } from 'date-fns/locale';
 
 function isDateInArray(date: Date, dateArray: Date[]): boolean {
-  return dateArray.some(d => isSameDay(d, date));
+  return dateArray.some(d => d instanceof Date && isSameDay(d, date));
 }
 
 interface DoctorWorkloadStats {
@@ -21,10 +21,17 @@ export async function generateScheduleAction(
   try {
     const { doctors: doctorInputs, startDate, endDate, minIntervalBetweenWorkDays = 1 } = data;
     
+    const ensureDateArray = (dates: (Date | string)[] | undefined): Date[] => {
+        if (!dates) return [];
+        return dates.map(d => d instanceof Date ? d : new Date(d)).filter(d => !isNaN(d.getTime()));
+    };
+
     const doctorsWithIds: DoctorFormFieldInput[] = doctorInputs.map(doc => ({
         ...doc,
         id: doc.id || `doc-${Math.random().toString(36).substr(2, 9)}`,
-        excludedDates: doc.excludedDates || [], 
+        vacationDates: ensureDateArray(doc.vacationDates),
+        preAssignedWorkDates: ensureDateArray(doc.preAssignedWorkDates),
+        excludedDates: ensureDateArray(doc.excludedDates),
         isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
     }));
 
@@ -44,7 +51,7 @@ export async function generateScheduleAction(
     const scheduleInterval = { start: new Date(startDate), end: new Date(finalEndDate) };
     const monthsInSchedule = eachMonthOfInterval(scheduleInterval);
 
-    doctorInputs.forEach(doc => {
+    doctorsWithIds.forEach(doc => { // Use doctorsWithIds which has guaranteed Date objects
         const monthlyAvailability = new Map<string, number>();
         monthsInSchedule.forEach(monthDate => {
             const monthKey = format(monthDate, 'yyyy-MM');
@@ -58,8 +65,8 @@ export async function generateScheduleAction(
             for (const dayInMonth of daysIterator) {
                 if (isWithinInterval(dayInMonth, scheduleInterval)) {
                     daysInCurrentMonthSegment++;
-                    const isOnVacation = isDateInArray(dayInMonth, doc.vacationDates || []);
-                    const isExcluded = isDateInArray(dayInMonth, doc.excludedDates || []);
+                    const isOnVacation = isDateInArray(dayInMonth, doc.vacationDates);
+                    const isExcluded = isDateInArray(dayInMonth, doc.excludedDates);
                     if (isOnVacation || isExcluded) {
                         unavailableDaysInMonthSegment++;
                     }
@@ -100,53 +107,49 @@ export async function generateScheduleAction(
       const isCurrentDayWeekend = weekendDayKeys.includes(dayOfWeekKey);
 
       if (dayOfWeekKey === 'Mon' && previousDayWasSunday) {
-        doctorsWithIds.forEach(doc => {
-          doctorHasWorkedThisWeekend[doc.id] = false;
+        Object.keys(doctorHasWorkedThisWeekend).forEach(docId => {
+            doctorHasWorkedThisWeekend[docId] = false;
         });
       }
 
-      let dayHasBeenAssignedWorkOrPreassigned = false;
-
-      // Process pre-assignments first and log ALL of them to mockEntries
+      let dayHasAnyPreAssignment = false;
       for (const doctor of doctorsWithIds) {
-        if (isDateInArray(currentDate, doctor.preAssignedWorkDates)) {
-          doctorLastWorkDay[doctor.id] = new Date(currentDate);
-          if (doctorStats[doctor.id]) { 
-            doctorStats[doctor.id].totalWorkdays++;
-            doctorStats[doctor.id].workloadByDayOfWeek[dayOfWeekKey]++;
-            doctorStats[doctor.id].monthlyWorkdays[currentMonthKey] = (doctorStats[doctor.id].monthlyWorkdays[currentMonthKey] || 0) + 1;
+          if (isDateInArray(currentDate, doctor.preAssignedWorkDates)) {
+              doctorLastWorkDay[doctor.id] = new Date(currentDate);
+              if (doctorStats[doctor.id]) { 
+                  doctorStats[doctor.id].totalWorkdays++;
+                  doctorStats[doctor.id].workloadByDayOfWeek[dayOfWeekKey]++;
+                  doctorStats[doctor.id].monthlyWorkdays[currentMonthKey] = (doctorStats[doctor.id].monthlyWorkdays[currentMonthKey] || 0) + 1;
+              }
+              if (isCurrentDayWeekend) {
+                  doctorHasWorkedThisWeekend[doctor.id] = true;
+              }
+            
+              mockEntries.push({ 
+                  date: new Date(currentDate),
+                  doctorId: doctor.id,
+                  assignment: 'Pre-assigned',
+                  dayOfWeek: dayOfWeekFullName,
+              });
+              dayHasAnyPreAssignment = true; 
           }
-          if (isCurrentDayWeekend) {
-            doctorHasWorkedThisWeekend[doctor.id] = true;
-          }
-          
-          mockEntries.push({
-            date: new Date(currentDate),
-            doctorId: doctor.id,
-            assignment: 'Pre-assigned',
-            dayOfWeek: dayOfWeekFullName,
-          });
-          dayHasBeenAssignedWorkOrPreassigned = true; // Mark that the day has at least one pre-assignment
-        }
-      }
-      
-      // Process vacations and log them
-      for (const doctor of doctorsWithIds) {
-         if (isDateInArray(currentDate, doctor.vacationDates)) {
-          mockEntries.push({
-            date: new Date(currentDate),
-            doctorId: doctor.id,
-            assignment: 'Vacation',
-            dayOfWeek: dayOfWeekFullName,
-          });
-        }
       }
 
-      // Attempt automatic assignment only if no pre-assignments covered the day
-      if (!dayHasBeenAssignedWorkOrPreassigned && doctorsWithIds.length > 0) {
+      for (const doctor of doctorsWithIds) {
+          if (isDateInArray(currentDate, doc.vacationDates)) {
+              mockEntries.push({
+                  date: new Date(currentDate),
+                  doctorId: doctor.id,
+                  assignment: 'Vacation',
+                  dayOfWeek: dayOfWeekFullName,
+              });
+          }
+      }
+
+      if (!dayHasAnyPreAssignment && doctorsWithIds.length > 0) {
         const eligibleDoctors = doctorsWithIds.filter(doc => {
             const isDoctorOnVacation = isDateInArray(currentDate, doc.vacationDates);
-            const isDoctorExcludedOnDate = isDateInArray(currentDate, doc.excludedDates || []);
+            const isDoctorExcludedOnDate = isDateInArray(currentDate, doc.excludedDates);
             const isFullyExcludedFromAuto = doc.isExcludedFromAutomaticAssignment;
             
             const lastWork = doctorLastWorkDay[doc.id];
@@ -173,11 +176,11 @@ export async function generateScheduleAction(
                 const workdaysInCurrentMonthA = statsA?.monthlyWorkdays[currentMonthKey] || 0;
                 const workdaysInCurrentMonthB = statsB?.monthlyWorkdays[currentMonthKey] || 0;
                 
-                const availableDaysThisMonthA = availableDaysPerDoctorPerMonth.get(a.id)?.get(currentMonthKey);
-                const availableDaysThisMonthB = availableDaysPerDoctorPerMonth.get(b.id)?.get(currentMonthKey);
+                const availableDaysThisMonthA = availableDaysPerDoctorPerMonth.get(a.id)?.get(currentMonthKey) ?? 0;
+                const availableDaysThisMonthB = availableDaysPerDoctorPerMonth.get(b.id)?.get(currentMonthKey) ?? 0;
 
-                const percentageWorkedA = (availableDaysThisMonthA !== undefined && availableDaysThisMonthA > 0) ? workdaysInCurrentMonthA / availableDaysThisMonthA : Infinity;
-                const percentageWorkedB = (availableDaysThisMonthB !== undefined && availableDaysThisMonthB > 0) ? workdaysInCurrentMonthB / availableDaysThisMonthB : Infinity;
+                const percentageWorkedA = (availableDaysThisMonthA > 0) ? workdaysInCurrentMonthA / availableDaysThisMonthA : (workdaysInCurrentMonthA > 0 ? Infinity : 0);
+                const percentageWorkedB = (availableDaysThisMonthB > 0) ? workdaysInCurrentMonthB / availableDaysThisMonthB : (workdaysInCurrentMonthB > 0 ? Infinity : 0);
                 
                 const diffPercentage = Math.abs(percentageWorkedA - percentageWorkedB);
 
@@ -221,12 +224,16 @@ export async function generateScheduleAction(
             if (isCurrentDayWeekend) {
                 doctorHasWorkedThisWeekend[doctorToAssign.id] = true;
             }
-            dayHasBeenAssignedWorkOrPreassigned = true; // Day is now covered by auto-assignment
+            // No need to set dayHasAnyPreAssignment here as this branch is only if !dayHasAnyPreAssignment
+        } else { // No eligible doctors for automatic assignment
+             mockEntries.push({
+                date: new Date(currentDate),
+                doctorId: 'system', 
+                assignment: 'Off',
+                dayOfWeek: dayOfWeekFullName,
+            });
         }
-      }
-      
-      // Add system 'Off' if no work assignment (neither pre-assigned nor auto)
-      if (!dayHasBeenAssignedWorkOrPreassigned) {
+      } else if (!dayHasAnyPreAssignment) { // No pre-assignments and no doctors to auto-assign (e.g., empty doctor list)
          mockEntries.push({
             date: new Date(currentDate),
             doctorId: 'system', 
@@ -253,3 +260,4 @@ export async function generateScheduleAction(
     return { error: errorMessage };
   }
 }
+
