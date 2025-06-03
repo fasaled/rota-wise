@@ -63,7 +63,7 @@
   "form.shiftClickTip": "Consejo: mantén pulsada la tecla mayús y haz clic para seleccionar un rango de fechas.",
 
   "calendar.title": "Horario generado",
-  "calendar.filterDoctorPlaceholder": "Filtrar por médico",
+  "calendar.filterDoctorPlaceholder": "Filtrar por médico...",
   "calendar.allDoctors": "Todos los médicos",
   "calendar.legend.work": "Trabajo",
   "calendar.legend.vacation": "Vacaciones",
@@ -150,5 +150,10 @@
   "language.es": "Español",
 
   "warnings.multiplePreAssignedInput": "Múltiples doctores ({doctors}) están preasignados a la misma fecha del calendario: {date}. Por favor revise.",
-  "warnings.uncoveredDay": "No se pudo asignar ningún médico al {date} debido a restricciones de programación (p. ej., intervalo mínimo, límites de fin de semana, etc.). el día se ha marcado como 'libre'."
+  "warnings.uncoveredDay": "No se pudo asignar ningún médico al {date} debido a restricciones de programación (p. ej., intervalo mínimo, límites de fin de semana, etc.). el día se ha marcado como 'libre'.",
+
+  "calendar.filterAssignmentPlaceholder": "Filtrar por tipo...",
+  "calendar.filterAssignment.all": "Todas las asignaciones",
+  "calendar.filterAssignment.workOnly": "Solo Trabajo",
+  "calendar.filterAssignment.vacationOnly": "Solo Vacaciones"
 }

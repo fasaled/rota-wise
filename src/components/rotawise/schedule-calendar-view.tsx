@@ -6,7 +6,7 @@ import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, en
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Users, CalendarDays as CalendarIconLucide } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, CalendarDays as CalendarIconLucide, FilterIcon } from 'lucide-react';
 import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { VacationIcon, PreAssignedIcon, WorkIcon } from '@/components/icons';
@@ -32,6 +32,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
   const { t, currentDateFnsLocale } = useLanguage();
   const [currentMonth, setCurrentMonth] = useState(schedule.startDate || new Date());
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | 'all'>('all');
+  const [assignmentFilter, setAssignmentFilter] = useState<string>('all');
   const { toast } = useToast();
 
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
@@ -68,10 +69,17 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
       );
       
       entriesForDay = entriesForDay.filter(entry => 
-          !(entry.doctorId === 'system' && entry.assignment === 'Off')
-      );
-      entriesForDay = entriesForDay.filter(entry =>
         selectedDoctorId === 'all' || entry.doctorId === selectedDoctorId
+      );
+
+      if (assignmentFilter === 'workOnly') {
+        entriesForDay = entriesForDay.filter(entry => entry.assignment === 'Work' || entry.assignment === 'Pre-assigned');
+      } else if (assignmentFilter === 'vacationOnly') {
+        entriesForDay = entriesForDay.filter(entry => entry.assignment === 'Vacation');
+      }
+      
+      entriesForDay = entriesForDay.filter(entry => 
+          !(entry.doctorId === 'system' && entry.assignment === 'Off')
       );
       
       return {
@@ -81,7 +89,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         assignments: entriesForDay,
       };
     });
-  }, [currentMonth, schedule.entries, selectedDoctorId, currentDateFnsLocale]);
+  }, [currentMonth, schedule.entries, selectedDoctorId, currentDateFnsLocale, assignmentFilter]);
 
   const renderDayCell = (day: DayDetails) => {
     const cellBaseClasses = "h-28 md:h-32 lg:h-36 p-1.5 border flex flex-col overflow-hidden rounded-md";
@@ -196,6 +204,17 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                 {doctors.map(doc => (
                     <SelectItem key={doc.id} value={doc.id}>{doc.name}</SelectItem>
                 ))}
+                </SelectContent>
+            </Select>
+            <Select value={assignmentFilter} onValueChange={(value) => setAssignmentFilter(value as string)}>
+                <SelectTrigger className="w-full sm:w-[180px] bg-card">
+                <FilterIcon className="w-4 h-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder={t('calendar.filterAssignmentPlaceholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">{t('calendar.filterAssignment.all')}</SelectItem>
+                    <SelectItem value="workOnly">{t('calendar.filterAssignment.workOnly')}</SelectItem>
+                    <SelectItem value="vacationOnly">{t('calendar.filterAssignment.vacationOnly')}</SelectItem>
                 </SelectContent>
             </Select>
             <div className="flex items-center gap-2">

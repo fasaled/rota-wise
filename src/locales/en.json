@@ -63,8 +63,8 @@
   "form.shiftClickTip": "Tip: hold shift and click to select a range of dates.",
 
   "calendar.title": "Generated schedule",
-  "calendar.filterDoctorPlaceholder": "Filter by doctor",
-  "calendar.allDoctors": "All doctors",
+  "calendar.filterDoctorPlaceholder": "Filter by doctor...",
+  "calendar.allDoctors": "All Doctors",
   "calendar.legend.work": "Work",
   "calendar.legend.vacation": "Vacation",
   "calendar.legend.preAssigned": "Pre-assigned",
@@ -150,5 +150,10 @@
   "language.es": "Español",
 
   "warnings.multiplePreAssignedInput": "Multiple doctors ({doctors}) are pre-assigned to the same calendar date: {date}. Please review.",
-  "warnings.uncoveredDay": "No doctor could be assigned to {date} due to scheduling constraints (e.g., minimum interval, weekend limits, etc.). The day has been marked as 'Off'."
+  "warnings.uncoveredDay": "No doctor could be assigned to {date} due to scheduling constraints (e.g., minimum interval, weekend limits, etc.). The day has been marked as 'Off'.",
+
+  "calendar.filterAssignmentPlaceholder": "Filter by type...",
+  "calendar.filterAssignment.all": "All Assignments",
+  "calendar.filterAssignment.workOnly": "Work Only",
+  "calendar.filterAssignment.vacationOnly": "Vacations Only"
 }
