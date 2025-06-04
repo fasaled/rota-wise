@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -14,7 +13,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { CalendarIcon, DoctorsIcon, PreferencesIcon, VacationIcon, PreAssignedIcon, CalendarXIcon, Clock3Icon } from '@/components/icons';
-import { format } from 'date-fns';
+import { format, eachDayOfInterval } from 'date-fns';
 import type { ScheduleFormValues } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Trash2 } from 'lucide-react';
@@ -53,6 +52,8 @@ interface DataInputFormProps {
 
 const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, initialValues }) => {
   const { t, currentDateFnsLocale } = useLanguage();
+  const [anchorDates, setAnchorDates] = React.useState<Record<string, Date | null>>({});
+
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleFormSchema),
     defaultValues: {
@@ -121,6 +122,39 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
     }
   }, [initialValues, form]);
 
+  const handleDateSelectionWithShiftSupport = (
+    currentSelectionFromFormField: Date[] | undefined,
+    rdpCalculatedNewSelection: Date[] | undefined,
+    clickedDate: Date,
+    event: React.MouseEvent,
+    fieldOnChange: (dates: Date[]) => void,
+    anchorKey: string
+  ) => {
+    const actualCurrentSelection = currentSelectionFromFormField || [];
+    const currentAnchorDate = anchorDates[anchorKey];
+
+    if (event.shiftKey && currentAnchorDate) {
+      const rangeDates = eachDayOfInterval({
+        start: new Date(Math.min(currentAnchorDate.getTime(), clickedDate.getTime())),
+        end: new Date(Math.max(currentAnchorDate.getTime(), clickedDate.getTime())),
+      });
+
+      const newSelectedTimestamps = new Set(actualCurrentSelection.map(d => new Date(d).setHours(0,0,0,0)));
+
+      rangeDates.forEach(dateInRange => {
+        newSelectedTimestamps.add(new Date(dateInRange).setHours(0,0,0,0));
+      });
+      
+      const finalDatesArray = Array.from(newSelectedTimestamps).map(time => new Date(time));
+      finalDatesArray.sort((a,b) => a.getTime() - b.getTime());
+      
+      fieldOnChange(finalDatesArray);
+      setAnchorDates(prev => ({ ...prev, [anchorKey]: clickedDate }));
+    } else {
+      fieldOnChange(rdpCalculatedNewSelection || []);
+      setAnchorDates(prev => ({ ...prev, [anchorKey]: clickedDate }));
+    }
+  };
 
   return (
     <Card className="shadow-lg">
@@ -315,13 +349,19 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                               <Calendar
                                 mode="multiple"
                                 selected={field.value}
-                                onSelect={field.onChange}
+                                onSelect={(newDays, dayClicked, modifiers, event) => {
+                                  handleDateSelectionWithShiftSupport(
+                                    field.value,
+                                    newDays,
+                                    dayClicked,
+                                    event as unknown as React.MouseEvent,
+                                    field.onChange,
+                                    `${item.id}-vacationDates`
+                                  );
+                                }}
                                 locale={currentDateFnsLocale}
                                 initialFocus
                               />
-                              <p className="text-xs text-muted-foreground p-2 text-center border-t">
-                                {t('form.shiftClickTip')}
-                              </p>
                             </PopoverContent>
                           </Popover>
                         )}
@@ -344,13 +384,19 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                <Calendar
                                 mode="multiple"
                                 selected={field.value}
-                                onSelect={field.onChange}
+                                onSelect={(newDays, dayClicked, modifiers, event) => {
+                                  handleDateSelectionWithShiftSupport(
+                                    field.value,
+                                    newDays,
+                                    dayClicked,
+                                    event as unknown as React.MouseEvent,
+                                    field.onChange,
+                                    `${item.id}-preAssignedWorkDates`
+                                  );
+                                }}
                                 locale={currentDateFnsLocale}
                                 initialFocus
                               />
-                              <p className="text-xs text-muted-foreground p-2 text-center border-t">
-                                {t('form.shiftClickTip')}
-                              </p>
                             </PopoverContent>
                           </Popover>
                         )}
@@ -373,13 +419,19 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
                                <Calendar
                                 mode="multiple"
                                 selected={field.value}
-                                onSelect={field.onChange}
+                                onSelect={(newDays, dayClicked, modifiers, event) => {
+                                  handleDateSelectionWithShiftSupport(
+                                    field.value,
+                                    newDays,
+                                    dayClicked,
+                                    event as unknown as React.MouseEvent,
+                                    field.onChange,
+                                    `${item.id}-excludedDates`
+                                  );
+                                }}
                                 locale={currentDateFnsLocale}
                                 initialFocus
                               />
-                              <p className="text-xs text-muted-foreground p-2 text-center border-t">
-                                {t('form.shiftClickTip')}
-                              </p>
                             </PopoverContent>
                           </Popover>
                         )}
