@@ -48,9 +48,10 @@ interface DataInputFormProps {
   onSubmit: (data: ScheduleFormValues) => void;
   isLoading: boolean;
   initialValues?: Partial<ScheduleFormValues>;
+  onValuesChange?: (values: ScheduleFormValues) => void;
 }
 
-const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, initialValues }) => {
+const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, initialValues, onValuesChange }) => {
   const { t, currentDateFnsLocale } = useLanguage();
   const [anchorDates, setAnchorDates] = React.useState<Record<string, Date | null>>({});
 
@@ -101,26 +102,79 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
 
   }, [numberOfDoctorsWatched, fields.length, append, remove, form]);
 
+  // Define a stable default for a single doctor to avoid re-creating it on every render
+  const stableDefaultDoctorValue = React.useMemo(() => ({
+    id: crypto.randomUUID(),
+    name: '',
+    vacationDates: [] as Date[],
+    preAssignedWorkDates: [] as Date[],
+    excludedDates: [] as Date[],
+    isExcludedFromAutomaticAssignment: false
+  }), []);
+
   React.useEffect(() => {
     if (initialValues) {
-      form.reset({
-        numberOfDoctors: initialValues.numberOfDoctors || 1,
-        startDate: initialValues.startDate,
-        endDate: initialValues.endDate,
-        minIntervalBetweenWorkDays: initialValues.minIntervalBetweenWorkDays || 1,
-        doctors: initialValues.doctors && initialValues.doctors.length > 0
-                   ? initialValues.doctors.map(doc => ({
-                       id: doc.id || crypto.randomUUID(),
-                       name: doc.name || '',
-                       vacationDates: (doc.vacationDates || []).map(d => d instanceof Date ? d : new Date(d)),
-                       preAssignedWorkDates: (doc.preAssignedWorkDates || []).map(d => d instanceof Date ? d : new Date(d)),
-                       excludedDates: (doc.excludedDates || []).map(d => d instanceof Date ? d : new Date(d)),
-                       isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
-                     }))
-                   : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false }],
-      });
+      const numDocsFromInitial = initialValues.numberOfDoctors !== undefined && initialValues.numberOfDoctors >= 1
+                                   ? initialValues.numberOfDoctors
+                                   : 1; // Default to 1 if not provided or invalid
+
+      let doctorsArrayForReset: Array<typeof stableDefaultDoctorValue> = [];
+
+      if (initialValues.doctors && initialValues.doctors.length > 0) {
+        doctorsArrayForReset = initialValues.doctors.slice(0, numDocsFromInitial).map(doc => ({
+          ...stableDefaultDoctorValue, // Spread default structure first
+          ...(doc || {}), // Spread loaded doctor data
+          id: doc?.id || crypto.randomUUID(), // Ensure ID
+          name: doc?.name || '',
+          // Ensure dates are Date objects
+          vacationDates: (doc?.vacationDates || []).map(d => d instanceof Date ? d : new Date(d)),
+          preAssignedWorkDates: (doc?.preAssignedWorkDates || []).map(d => d instanceof Date ? d : new Date(d)),
+          excludedDates: (doc?.excludedDates || []).map(d => d instanceof Date ? d : new Date(d)),
+          isExcludedFromAutomaticAssignment: doc?.isExcludedFromAutomaticAssignment || false,
+        }));
+      }
+
+      // If numDocsFromInitial is greater than what initialValues.doctors provided, fill with defaults
+      if (doctorsArrayForReset.length < numDocsFromInitial) {
+        for (let i = doctorsArrayForReset.length; i < numDocsFromInitial; i++) {
+          doctorsArrayForReset.push({
+            ...stableDefaultDoctorValue,
+            id: crypto.randomUUID(), // New ID for new default doctor
+            // Ensure date arrays are new instances and correctly typed
+            vacationDates: [] as Date[],
+            preAssignedWorkDates: [] as Date[],
+            excludedDates: [] as Date[],
+          });
+        }
+      }
+      
+      const resetData = {
+        numberOfDoctors: numDocsFromInitial,
+        startDate: initialValues.startDate, // Assumed to be Date object or undefined from parent
+        endDate: initialValues.endDate,     // Assumed to be Date object or undefined from parent
+        minIntervalBetweenWorkDays: initialValues.minIntervalBetweenWorkDays !== undefined 
+                                      ? initialValues.minIntervalBetweenWorkDays 
+                                      : 1, // Default minInterval
+        doctors: doctorsArrayForReset,
+      };
+
+      form.reset(resetData);
     }
-  }, [initialValues, form]);
+  }, [initialValues, form, stableDefaultDoctorValue]);
+
+  // Effect to call onValuesChange when form values change (debounced)
+  React.useEffect(() => {
+    if (!onValuesChange) return;
+
+    const subscription = form.watch((values) => {
+      // The `values` object from watch might contain functions if not careful with how fields are registered.
+      // We need to ensure we're passing a clean data object.
+      // However, getValues() should provide the clean, current state of the form.
+      onValuesChange(form.getValues() as ScheduleFormValues);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form, onValuesChange]);
 
   const handleDateSelectionWithShiftSupport = (
     currentSelectionFromFormField: Date[] | undefined,
@@ -449,17 +503,13 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSubmit, isLoading, init
             )}
           </div>
 
-          <div className="flex justify-end">
-            <Button type="submit" disabled={isLoading} size="lg" className="min-w-[200px]">
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-4 pt-6">
+            <Button type="submit" disabled={isLoading} className="w-full sm:w-auto sm:flex-grow-0 max-w-md">
               {isLoading ? (
-                <div className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {t('form.generatingButton')}
-                </div>
-              ) : t('form.generateButton')}
+                <><span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>{t('form.generatingButton')}</>
+              ) : (
+                t('form.generateButton')
+              )}
             </Button>
           </div>
         </form>

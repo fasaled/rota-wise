@@ -11,7 +11,7 @@ import { ThemeIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
-import { Save, Upload, FileDown, Layers, AlertTriangle } from 'lucide-react';
+import { Save, Upload, FileDown, Layers, AlertTriangle, Trash2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
@@ -28,6 +28,41 @@ import { generateSchedule, type ScheduleWarning } from '@/lib/schedule-generator
 type LoadMode = 'as-is' | 'as-pre-assigned';
 
 const LOCAL_STORAGE_KEY = 'rotawiseAppState';
+const FORM_INPUT_LOCAL_STORAGE_KEY = 'rotawiseFormInputState'; // New key for live form input
+
+// Type for the data stored in FORM_INPUT_LOCAL_STORAGE_KEY
+type SerializedLiveFormData = Omit<ScheduleFormValues, 'startDate' | 'endDate' | 'doctors'> & { 
+  startDate?: string; 
+  endDate?: string; 
+  doctors: SerializedDoctorFormFieldInput[]; 
+};
+
+// Debounce hook
+function useDebouncedCallback<A extends any[]>(
+  callback: (...args: A) => void,
+  wait: number
+) {
+  const argsRef = useRef<A>();
+  const timeout = useRef<ReturnType<typeof setTimeout>>();
+
+  function cleanup() {
+    if (timeout.current) {
+      clearTimeout(timeout.current);
+    }
+  }
+
+  useEffect(() => cleanup, []); // Cleanup on unmount
+
+  return function debouncedCallback(...args: A) {
+    argsRef.current = args;
+    cleanup();
+    timeout.current = setTimeout(() => {
+      if (argsRef.current) {
+        callback(...argsRef.current);
+      }
+    }, wait);
+  };
+}
 
 export default function RotawisePage() {
   const { t, language, currentDateFnsLocale } = useLanguage();
@@ -50,6 +85,44 @@ export default function RotawisePage() {
   // Load state from localStorage on initial mount
   useEffect(() => {
     if (!isMounted) return;
+
+    let formStateLoaded = false;
+    try {
+      const persistedFormInputString = localStorage.getItem(FORM_INPUT_LOCAL_STORAGE_KEY);
+      if (persistedFormInputString) {
+        const loadedFormInput = JSON.parse(persistedFormInputString) as SerializedLiveFormData; 
+        
+        // Attempt to deserialize and set form values
+        const deserializedFormValues: Partial<ScheduleFormValues> = {
+            numberOfDoctors: loadedFormInput.numberOfDoctors,
+            startDate: loadedFormInput.startDate ? new Date(loadedFormInput.startDate) : undefined,
+            endDate: loadedFormInput.endDate ? new Date(loadedFormInput.endDate) : undefined,
+            minIntervalBetweenWorkDays: loadedFormInput.minIntervalBetweenWorkDays || 1,
+            doctors: loadedFormInput.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
+                id: doc.id || crypto.randomUUID(),
+                name: doc.name || '',
+                vacationDates: (doc.vacationDates || []).map((d: string) => new Date(d)),
+                preAssignedWorkDates: (doc.preAssignedWorkDates || []).map((d: string) => new Date(d)),
+                excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
+                isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+            }))
+        };
+        // Validate if the loaded data makes sense, e.g., has numberOfDoctors
+        if (typeof deserializedFormValues.numberOfDoctors === 'number') {
+            setLoadedFormValues(deserializedFormValues);
+            setDataInputFormKey(prevKey => prevKey + 1);
+            formStateLoaded = true;
+        } else {
+            console.warn("Loaded form input state was invalid, discarding.");
+            localStorage.removeItem(FORM_INPUT_LOCAL_STORAGE_KEY);
+        }
+      }
+    } catch (error) {
+        console.error("Failed to load form input state from localStorage:", error);
+        localStorage.removeItem(FORM_INPUT_LOCAL_STORAGE_KEY); // Clear corrupted data
+    }
+
+    if (formStateLoaded) return; // If form input was loaded, don't try to load full app state over it
 
     try {
       const persistedStateString = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -178,6 +251,55 @@ export default function RotawisePage() {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
   }, [schedule, doctorsProfiles, scheduleWarnings, currentMinInterval, isMounted, t, toast]); // Added t and toast
+
+  const handleSaveParameters = (data: ScheduleFormValues) => {
+    if (!data.doctors || data.doctors.length === 0) {
+      toast({
+        title: t('page.toast.nothingToSaveParameters.title'),
+        description: t('page.toast.nothingToSaveParameters.description'),
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Serialize form data (convert dates to ISO strings)
+      const serializableFormData: Omit<ScheduleFormValues, 'startDate' | 'endDate' | 'doctors'> & { startDate?: string; endDate?: string; doctors: SerializedDoctorFormFieldInput[] } = {
+        ...data,
+        startDate: data.startDate ? data.startDate.toISOString() : undefined,
+        endDate: data.endDate ? data.endDate.toISOString() : undefined,
+        doctors: data.doctors.map(doc => ({
+          ...doc,
+          vacationDates: doc.vacationDates.map(d => d.toISOString()),
+          preAssignedWorkDates: doc.preAssignedWorkDates.map(d => d.toISOString()),
+          excludedDates: (doc.excludedDates || []).map(d => d.toISOString()),
+        })),
+      };
+
+      const jsonString = JSON.stringify(serializableFormData, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'rotawise-parameters.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: t('page.toast.parametersSaved.title'),
+        description: t('page.toast.parametersSaved.description'),
+      });
+    } catch (error) {
+      console.error("Error saving parameters:", error);
+      toast({
+        title: t('page.toast.errorSavingParameters.title'),
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    }
+  };
 
   const [stableDefaultPageFormValues] = useState<Partial<ScheduleFormValues>>(() => ({
     numberOfDoctors: 1,
@@ -384,7 +506,12 @@ export default function RotawisePage() {
   };
 
   const handleSaveSchedule = () => {
-    if (!schedule || !doctorsProfiles.length) {
+    const noScheduleData = !schedule;
+    // Check loadedFormValues for parameters if no schedule exists.
+    // Ensure loadedFormValues and its doctors array are populated.
+    const noFormData = !loadedFormValues || !loadedFormValues.doctors || loadedFormValues.doctors.length === 0 || loadedFormValues.doctors.every(doc => !doc.name);
+
+    if (noScheduleData && noFormData) {
       toast({
         title: t('page.toast.nothingToSave.title'),
         description: t('page.toast.nothingToSave.description'),
@@ -393,70 +520,121 @@ export default function RotawisePage() {
       return;
     }
 
-    const dataToSave: PersistedScheduleData = {
-      schedule: {
-        ...schedule,
-        startDate: schedule.startDate.toISOString(),
-        endDate: schedule.endDate.toISOString(),
-        minIntervalBetweenWorkDays: schedule.minIntervalBetweenWorkDays || currentMinInterval,
-        entries: schedule.entries.map(entry => ({
-          ...entry,
-          date: entry.date.toISOString(),
+    if (!noScheduleData && schedule) { // If schedule exists, save full PersistedScheduleData
+      const dataToSave: PersistedScheduleData = {
+        schedule: {
+          ...schedule,
+          startDate: schedule.startDate.toISOString(),
+          endDate: schedule.endDate.toISOString(),
+          minIntervalBetweenWorkDays: schedule.minIntervalBetweenWorkDays || currentMinInterval,
+          entries: schedule.entries.map(entry => ({
+            ...entry,
+            date: entry.date.toISOString(),
+          })),
+        },
+        doctorsProfiles: doctorsProfiles.map(profile => ({
+          ...profile,
+          vacationDates: profile.vacationDates.map(d => d.toISOString()),
+          preAssignedWorkDates: profile.preAssignedWorkDates.map(d => d.toISOString()),
+          excludedDates: (profile.excludedDates || []).map(d => d.toISOString()),
+          isExcludedFromAutomaticAssignment: profile.isExcludedFromAutomaticAssignment || false,
         })),
-      },
-      doctorsProfiles: doctorsProfiles.map(profile => ({
-        ...profile,
-        vacationDates: profile.vacationDates.map(d => d.toISOString()),
-        preAssignedWorkDates: profile.preAssignedWorkDates.map(d => d.toISOString()),
-        excludedDates: (profile.excludedDates || []).map(d => d.toISOString()),
-        isExcludedFromAutomaticAssignment: profile.isExcludedFromAutomaticAssignment || false,
-      })),
-      formValues: {
-        numberOfDoctors: doctorsProfiles.length,
-        startDate: schedule.startDate.toISOString(),
-        endDate: schedule.endDate.toISOString(),
-        minIntervalBetweenWorkDays: schedule.minIntervalBetweenWorkDays || currentMinInterval,
-        doctors: doctorsProfiles.map(p => ({
-          id: p.id,
-          name: p.name,
-          vacationDates: p.vacationDates.map(d => d.toISOString()),
-          preAssignedWorkDates: p.preAssignedWorkDates.map(d => d.toISOString()),
-          excludedDates: (p.excludedDates || []).map(d => d.toISOString()),
-          isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
-        }))
-      }
-    };
+        // Form values at the time of schedule generation are already part of PersistedScheduleData if loaded from an older file
+        // or can be sourced from doctorsProfiles and schedule if not directly available in loadedData.formValues
+        // For a fresh save, it should reflect the state that generated this schedule.
+        // The existing structure for PersistedScheduleData.formValues seems to derive it appropriately.
+        formValues: {
+            numberOfDoctors: doctorsProfiles.length, // Assuming doctorsProfiles is up-to-date
+            startDate: schedule.startDate.toISOString(),
+            endDate: schedule.endDate.toISOString(),
+            minIntervalBetweenWorkDays: schedule.minIntervalBetweenWorkDays || currentMinInterval,
+            doctors: doctorsProfiles.map(p => ({ // Use doctorsProfiles as the source of truth for form values when schedule exists
+              id: p.id,
+              name: p.name,
+              vacationDates: p.vacationDates.map(d => d.toISOString()),
+              preAssignedWorkDates: p.preAssignedWorkDates.map(d => d.toISOString()),
+              excludedDates: (p.excludedDates || []).map(d => d.toISOString()),
+              isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
+            }))
+        },
+        scheduleWarnings: scheduleWarnings, // Save current warnings with the schedule
+        currentMinInterval: currentMinInterval, // Save current interval
+      };
 
-    const jsonString = JSON.stringify(dataToSave, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "rotawise-schedule.json";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast({
-      title: t('page.toast.scheduleSaved.title'),
-      description: t('page.toast.scheduleSaved.description')
-    });
+      const jsonString = JSON.stringify(dataToSave, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "rotawise-schedule.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({
+        title: t('page.toast.scheduleSaved.title'),
+        description: t('page.toast.scheduleSaved.description')
+      });
+    } else if (noScheduleData && !noFormData && loadedFormValues) { // No schedule, but form data exists
+        try {
+            const dataToSave: SerializedLiveFormData = {
+              numberOfDoctors: loadedFormValues.numberOfDoctors || 1,
+              startDate: loadedFormValues.startDate ? loadedFormValues.startDate.toISOString() : undefined,
+              endDate: loadedFormValues.endDate ? loadedFormValues.endDate.toISOString() : undefined,
+              minIntervalBetweenWorkDays: loadedFormValues.minIntervalBetweenWorkDays || 1,
+              doctors: (loadedFormValues.doctors || []).map(doc => ({
+                id: doc.id || crypto.randomUUID(),
+                name: doc.name || '',
+                vacationDates: (doc.vacationDates || []).map(d => d instanceof Date ? d.toISOString() : d), // Handle if dates are already strings or Date objects
+                preAssignedWorkDates: (doc.preAssignedWorkDates || []).map(d => d instanceof Date ? d.toISOString() : d),
+                excludedDates: (doc.excludedDates || []).map(d => d instanceof Date ? d.toISOString() : d),
+                isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+              })),
+            };
+
+            const jsonString = JSON.stringify(dataToSave, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'rotawise-parameters.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            toast({
+                title: t('page.toast.parametersSaved.title'),
+                description: t('page.toast.parametersSaved.description'),
+            });
+        } catch (error) {
+            console.error("Error saving parameters only:", error);
+            toast({
+                title: t('page.toast.errorSavingParameters.title'), // You might need this key if it was removed
+                description: error instanceof Error ? error.message : String(error),
+                variant: "destructive",
+            });
+        }
+    }
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, mode: LoadMode) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Clear localStorage before loading from file to prevent conflicts
+    // Clear main schedule localStorage; form input persistence will be updated by new content.
     try {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     } catch (error) {
-      console.warn("Could not clear localStorage before file upload:", error);
+      console.warn("Could not clear main schedule localStorage before file upload:", error);
     }
 
+    // Reset relevant states before loading new data
     setSchedule(null);
     setScheduleWarnings([]);
     setDoctorsProfiles([]);
+    // loadedFormValues will be set by the loaded file content or cleared if error.
+    // dataInputFormKey will be updated to re-render the form.
     
     setIsLoading(true);
     const reader = new FileReader();
@@ -466,122 +644,216 @@ export default function RotawisePage() {
         if (typeof text !== 'string') {
           throw new Error("Failed to read file content.");
         }
-        const loadedData = JSON.parse(text) as PersistedScheduleData;
+        const loadedRawData = JSON.parse(text); // Parse first, then check structure
 
-        if (!loadedData.schedule || !loadedData.doctorsProfiles || !loadedData.formValues) {
-          throw new Error("Invalid schedule file format. Missing key data.");
-        }
-        if (typeof loadedData.schedule.startDate !== 'string' || typeof loadedData.schedule.endDate !== 'string') {
-          throw new Error("Invalid date format in schedule data.");
-        }
-        if (typeof loadedData.formValues.startDate !== 'string' || typeof loadedData.formValues.endDate !== 'string') {
-             throw new Error("Invalid date format in form values data for schedule.");
-        }
+        // Check if it's a full PersistedScheduleData (has 'schedule' and 'formValues')
+        if (loadedRawData && typeof loadedRawData === 'object' && 'schedule' in loadedRawData && 'formValues' in loadedRawData) {
+          const loadedData = loadedRawData as PersistedScheduleData;
 
-        const deserializedScheduleEntries = loadedData.schedule.entries.map(entry => ({
-            ...entry,
-            date: new Date(entry.date),
-        }));
-        const deserializedDoctorsProfiles = loadedData.doctorsProfiles.map(profile => ({
-            ...profile,
-            vacationDates: profile.vacationDates.map((d: string) => new Date(d)),
-            preAssignedWorkDates: profile.preAssignedWorkDates.map((d: string) => new Date(d)),
-            excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)),
-            isExcludedFromAutomaticAssignment: profile.isExcludedFromAutomaticAssignment || false,
-        }));
-        const deserializedFormValuesDoctors = loadedData.formValues.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
-            id: doc.id,
-            name: doc.name,
-            vacationDates: doc.vacationDates.map((d: string) => new Date(d)),
-            preAssignedWorkDates: doc.preAssignedWorkDates.map((d: string) => new Date(d)),
-            excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
-            isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
-        }));
+          // Basic validation for full schedule data
+          if (!loadedData.doctorsProfiles) { // doctorsProfiles is also essential
+            throw new Error("Invalid schedule file format. Missing doctorsProfiles data.");
+          }
+          if (typeof loadedData.schedule.startDate !== 'string' || typeof loadedData.schedule.endDate !== 'string') {
+            throw new Error("Invalid date format in schedule data.");
+          }
+          if (typeof loadedData.formValues.startDate !== 'string' || typeof loadedData.formValues.endDate !== 'string') {
+               throw new Error("Invalid date format in form values data for schedule.");
+          }
+
+          const deserializedScheduleEntries = loadedData.schedule.entries.map(entry => ({
+              ...entry,
+              date: new Date(entry.date),
+          }));
+          const deserializedDoctorsProfiles = loadedData.doctorsProfiles.map(profile => ({
+              ...profile,
+              vacationDates: profile.vacationDates.map((d: string) => new Date(d)),
+              preAssignedWorkDates: profile.preAssignedWorkDates.map((d: string) => new Date(d)),
+              excludedDates: (profile.excludedDates || []).map((d: string) => new Date(d)),
+              isExcludedFromAutomaticAssignment: profile.isExcludedFromAutomaticAssignment || false,
+          }));
+          const deserializedFormValuesDoctors = loadedData.formValues.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
+              id: doc.id || crypto.randomUUID(),
+              name: doc.name || '',
+              vacationDates: doc.vacationDates.map((d: string) => new Date(d)),
+              preAssignedWorkDates: doc.preAssignedWorkDates.map((d: string) => new Date(d)),
+              excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
+              isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+          }));
 
 
-        let finalScheduleEntries: ScheduleEntry[];
-        let finalDoctorsProfiles: DoctorProfile[];
-        let finalFormValuesDoctors: DoctorFormFieldInput[];
+          let finalScheduleEntries: ScheduleEntry[];
+          let finalDoctorsProfiles: DoctorProfile[];
+          let finalFormValuesDoctors: DoctorFormFieldInput[];
 
-        if (mode === 'as-pre-assigned') {
-            const originalWorkDatesByDoctor = new Map<string, Date[]>();
-            deserializedScheduleEntries.forEach(entry => {
-              if (entry.assignment === 'Work' && entry.doctorId !== 'system') {
-                if (!originalWorkDatesByDoctor.has(entry.doctorId)) {
-                  originalWorkDatesByDoctor.set(entry.doctorId, []);
+          if (mode === 'as-pre-assigned') {
+              const originalWorkDatesByDoctor = new Map<string, Date[]>();
+              deserializedScheduleEntries.forEach(entry => {
+                if (entry.assignment === 'Work' && entry.doctorId !== 'system') {
+                  if (!originalWorkDatesByDoctor.has(entry.doctorId)) {
+                    originalWorkDatesByDoctor.set(entry.doctorId, []);
+                  }
+                  originalWorkDatesByDoctor.get(entry.doctorId)!.push(entry.date);
                 }
-                originalWorkDatesByDoctor.get(entry.doctorId)!.push(entry.date);
-              }
-            });
+              });
 
-            finalScheduleEntries = deserializedScheduleEntries.map(entry => {
-              if (entry.assignment === 'Work' && entry.doctorId !== 'system') {
-                return { ...entry, assignment: 'Pre-assigned' };
-              }
-              return entry;
-            });
-            
-            finalDoctorsProfiles = deserializedDoctorsProfiles.map(profile => {
-              const workDatesForThisDoctor = originalWorkDatesByDoctor.get(profile.id) || [];
-              const allPreAssignedDates = [...profile.preAssignedWorkDates, ...workDatesForThisDoctor];
-              const uniquePreAssignedDates = Array.from(new Set(allPreAssignedDates.map(d => d.getTime())))
-                                               .map(time => new Date(time));
-              return { ...profile, preAssignedWorkDates: uniquePreAssignedDates };
-            });
+              finalScheduleEntries = deserializedScheduleEntries.map(entry => {
+                if (entry.assignment === 'Work' && entry.doctorId !== 'system') {
+                  return { ...entry, assignment: 'Pre-assigned' };
+                }
+                return entry;
+              });
+              
+              finalDoctorsProfiles = deserializedDoctorsProfiles.map(profile => {
+                const workDatesForThisDoctor = originalWorkDatesByDoctor.get(profile.id) || [];
+                const allPreAssignedDates = [...profile.preAssignedWorkDates, ...workDatesForThisDoctor];
+                const uniquePreAssignedDates = Array.from(new Set(allPreAssignedDates.map(d => d.getTime())))
+                                                 .map(time => new Date(time));
+                return { ...profile, preAssignedWorkDates: uniquePreAssignedDates };
+              });
 
-            finalFormValuesDoctors = deserializedFormValuesDoctors.map(doc => {
-              const workDatesForThisDoctor = originalWorkDatesByDoctor.get(doc.id) || [];
-              const allPreAssignedDates = [...doc.preAssignedWorkDates, ...workDatesForThisDoctor];
-              const uniquePreAssignedDates = Array.from(new Set(allPreAssignedDates.map(d => d.getTime())))
-                                               .map(time => new Date(time));
-              return { ...doc, preAssignedWorkDates: uniquePreAssignedDates };
-            });
+              finalFormValuesDoctors = deserializedFormValuesDoctors.map(doc => {
+                const workDatesForThisDoctor = originalWorkDatesByDoctor.get(doc.id) || [];
+                const allPreAssignedDates = [...doc.preAssignedWorkDates, ...workDatesForThisDoctor];
+                const uniquePreAssignedDates = Array.from(new Set(allPreAssignedDates.map(d => d.getTime())))
+                                                 .map(time => new Date(time));
+                return { ...doc, preAssignedWorkDates: uniquePreAssignedDates };
+              });
 
-        } else { // mode === 'as-is'
-            finalScheduleEntries = deserializedScheduleEntries;
-            finalDoctorsProfiles = deserializedDoctorsProfiles;
-            finalFormValuesDoctors = deserializedFormValuesDoctors;
+          } else { // mode === 'as-is'
+              finalScheduleEntries = deserializedScheduleEntries;
+              finalDoctorsProfiles = deserializedDoctorsProfiles;
+              finalFormValuesDoctors = deserializedFormValuesDoctors;
+          }
+
+          const finalSchedule: Schedule = {
+            ...loadedData.schedule,
+            startDate: new Date(loadedData.schedule.startDate),
+            endDate: new Date(loadedData.schedule.endDate),
+            minIntervalBetweenWorkDays: loadedData.schedule.minIntervalBetweenWorkDays || 1,
+            entries: finalScheduleEntries,
+          };
+          
+          const finalFormValues: ScheduleFormValues = {
+             numberOfDoctors: loadedData.formValues.numberOfDoctors,
+             startDate: new Date(loadedData.formValues.startDate),
+             endDate: new Date(loadedData.formValues.endDate),
+             minIntervalBetweenWorkDays: loadedData.formValues.minIntervalBetweenWorkDays || 1,
+             doctors: finalFormValuesDoctors
+          };
+
+          setSchedule(finalSchedule);
+          setDoctorsProfiles(finalDoctorsProfiles);
+          setCurrentMinInterval(finalFormValues.minIntervalBetweenWorkDays || 1);
+          setLoadedFormValues(finalFormValues);
+          setDataInputFormKey(prevKey => prevKey + 1);
+          setScheduleWarnings(loadedData.scheduleWarnings || []); // Load warnings from schedule file
+
+          // Synchronize FORM_INPUT_LOCAL_STORAGE_KEY with the loaded form values
+          try {
+            const serializableFormData: SerializedLiveFormData = {
+              ...finalFormValues,
+              startDate: finalFormValues.startDate ? finalFormValues.startDate.toISOString() : undefined,
+              endDate: finalFormValues.endDate ? finalFormValues.endDate.toISOString() : undefined,
+              doctors: finalFormValues.doctors.map(doc => ({
+                ...doc,
+                id: doc.id || crypto.randomUUID(),
+                vacationDates: (doc.vacationDates || []).map(d => d.toISOString()),
+                preAssignedWorkDates: (doc.preAssignedWorkDates || []).map(d => d.toISOString()),
+                excludedDates: (doc.excludedDates || []).map(d => d.toISOString()),
+              })),
+            };
+            localStorage.setItem(FORM_INPUT_LOCAL_STORAGE_KEY, JSON.stringify(serializableFormData));
+          } catch (lsError) {
+            console.error("Failed to save loaded schedule's form values to form input localStorage:", lsError);
+          }
+
+          toast({
+            title: t('page.toast.scheduleLoaded.title'),
+            description: mode === 'as-pre-assigned'
+              ? t('page.toast.scheduleLoadedAsPreassigned.description')
+              : t('page.toast.scheduleLoaded.description')
+          });
+
+        // Check if it's a parameters-only file (SerializedLiveFormData structure)
+        } else if (loadedRawData && typeof loadedRawData === 'object' && 'doctors' in loadedRawData && 'numberOfDoctors' in loadedRawData && !('schedule' in loadedRawData)) {
+          const loadedParams = loadedRawData as SerializedLiveFormData;
+          // console.log("[RotawisePage] Loaded Parameters File (raw loadedParams):", JSON.parse(JSON.stringify(loadedParams)));
+
+          // Deserialize parameters
+          const deserializedFormValues: Partial<ScheduleFormValues> = {
+            numberOfDoctors: loadedParams.numberOfDoctors,
+            startDate: loadedParams.startDate ? new Date(loadedParams.startDate) : undefined,
+            endDate: loadedParams.endDate ? new Date(loadedParams.endDate) : undefined,
+            minIntervalBetweenWorkDays: loadedParams.minIntervalBetweenWorkDays || 1,
+            doctors: loadedParams.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
+                id: doc.id || crypto.randomUUID(),
+                name: doc.name || '',
+                vacationDates: (doc.vacationDates || []).map((d: string) => new Date(d)),
+                preAssignedWorkDates: (doc.preAssignedWorkDates || []).map((d: string) => new Date(d)),
+                excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
+                isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+            }))
+          };
+          // console.log("[RotawisePage] Deserialized Form Values (for parameters-only file):", JSON.parse(JSON.stringify(deserializedFormValues)));
+
+          // Validate if the loaded data makes sense
+          if (typeof deserializedFormValues.numberOfDoctors !== 'number' || !Array.isArray(deserializedFormValues.doctors)) {
+              throw new Error(t('page.toast.errorLoadingParameters.title') + ": Invalid parameters file format.");
+          }
+
+          setSchedule(null); // Clear any existing schedule
+          setScheduleWarnings([]); // Clear any warnings
+          
+          const newDoctorProfiles: DoctorProfile[] = (deserializedFormValues.doctors || []).map(doc => ({
+            id: doc.id!, // id is guaranteed by deserialization logic or crypto.randomUUID()
+            name: doc.name!,
+            vacationDates: doc.vacationDates || [],
+            preAssignedWorkDates: doc.preAssignedWorkDates || [],
+            excludedDates: doc.excludedDates || [],
+            isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+          }));
+          setDoctorsProfiles(newDoctorProfiles);
+          
+          setCurrentMinInterval(deserializedFormValues.minIntervalBetweenWorkDays || 1);
+          setLoadedFormValues(deserializedFormValues);
+          setDataInputFormKey(prevKey => prevKey + 1);
+
+          // Save loaded parameters to FORM_INPUT_LOCAL_STORAGE_KEY for persistence
+          try {
+            // loadedParams is already in SerializedLiveFormData format
+            localStorage.setItem(FORM_INPUT_LOCAL_STORAGE_KEY, JSON.stringify(loadedParams));
+          } catch (lsError) {
+            console.error("Failed to save loaded parameters to form input localStorage:", lsError);
+          }
+
+          toast({
+            title: t('page.toast.parametersLoaded.title'),
+            description: t('page.toast.parametersLoaded.description'),
+          });
+
+        } else {
+          // Unrecognized file format
+          throw new Error("Invalid file format. Unrecognized structure.");
         }
 
-        const finalSchedule: Schedule = {
-          ...loadedData.schedule,
-          startDate: new Date(loadedData.schedule.startDate),
-          endDate: new Date(loadedData.schedule.endDate),
-          minIntervalBetweenWorkDays: loadedData.schedule.minIntervalBetweenWorkDays || 1,
-          entries: finalScheduleEntries,
-        };
-        
-        const finalFormValues: ScheduleFormValues = {
-           numberOfDoctors: loadedData.formValues.numberOfDoctors,
-           startDate: new Date(loadedData.formValues.startDate),
-           endDate: new Date(loadedData.formValues.endDate),
-           minIntervalBetweenWorkDays: loadedData.formValues.minIntervalBetweenWorkDays || 1,
-           doctors: finalFormValuesDoctors
-        };
-
-        setSchedule(finalSchedule);
-        setDoctorsProfiles(finalDoctorsProfiles);
-        setCurrentMinInterval(finalFormValues.minIntervalBetweenWorkDays || 1);
-        setLoadedFormValues(finalFormValues);
-        setDataInputFormKey(prevKey => prevKey + 1);
-
-        toast({
-          title: t('page.toast.scheduleLoaded.title'),
-          description: mode === 'as-pre-assigned'
-            ? t('page.toast.scheduleLoadedAsPreassigned.description')
-            : t('page.toast.scheduleLoaded.description')
-        });
       } catch (err) {
-        console.error("Error loading schedule:", err);
+        console.error("Error loading file:", err);
+        // Distinguish error source if possible, default to general loading error
+        const isParametersError = (err as Error).message.includes(t('page.toast.errorLoadingParameters.title'));
         toast({
-          title: t('page.toast.errorLoading.title'),
+          title: isParametersError ? t('page.toast.errorLoadingParameters.title') : t('page.toast.errorLoading.title'),
           description: (err as Error).message,
           variant: "destructive"
         });
+        // Clear form values if loading failed to avoid inconsistent state
+        setLoadedFormValues(null); 
+        setDataInputFormKey(prevKey => prevKey + 1);
+        localStorage.removeItem(FORM_INPUT_LOCAL_STORAGE_KEY); // Also clear persisted form input
       } finally {
         setIsLoading(false);
         if (event.target) {
-          event.target.value = "";
+          event.target.value = ""; // Reset file input
         }
       }
     };
@@ -1056,6 +1328,57 @@ export default function RotawisePage() {
     }
   };
 
+  const handleClearSchedule = () => {
+    setSchedule(null);
+    // setDoctorsProfiles([]); // Keep doctor profiles (form parameters)
+    setScheduleWarnings([]);
+    // setLoadedFormValues(stableDefaultPageFormValues); // Do not reset the form to default
+    // setDataInputFormKey(prevKey => prevKey + 1); // Do not force re-initialization of the form
+    localStorage.removeItem(LOCAL_STORAGE_KEY); // Clear the generated schedule's persisted state
+    // localStorage.removeItem(FORM_INPUT_LOCAL_STORAGE_KEY); // Do NOT clear live form input
+
+    toast({
+      title: t('page.toast.scheduleCleared.title'),
+      description: t('page.toast.scheduleCleared.description'),
+    });
+  };
+
+  const debouncedSaveFormInput = useDebouncedCallback(
+    (data: ScheduleFormValues) => {
+      try {
+        const serializableFormData: SerializedLiveFormData = {
+          ...data,
+          startDate: data.startDate ? data.startDate.toISOString() : undefined,
+          endDate: data.endDate ? data.endDate.toISOString() : undefined,
+          doctors: data.doctors.map(doc => ({
+            ...doc,
+            id: doc.id || crypto.randomUUID(), // ensure id is present
+            vacationDates: (doc.vacationDates || []).map(d => d.toISOString()),
+            preAssignedWorkDates: (doc.preAssignedWorkDates || []).map(d => d.toISOString()),
+            excludedDates: (doc.excludedDates || []).map(d => d.toISOString()),
+          })),
+        };
+        localStorage.setItem(FORM_INPUT_LOCAL_STORAGE_KEY, JSON.stringify(serializableFormData));
+      } catch (error) {
+        console.error("Failed to save form input state to localStorage:", error);
+        // Optionally, show a muted toast or log this error
+      }
+    },
+    500 // Debounce wait time in milliseconds
+  );
+
+  const handleLiveFormValuesChange = (values: ScheduleFormValues) => {
+    // We must ensure `values` is not undefined and has the expected structure
+    if (values && values.doctors) {
+        debouncedSaveFormInput(values);
+    } else {
+        // This case might happen if the form is somehow cleared to an invalid state.
+        // We could choose to clear the localStorage entry here or log an error.
+        // For now, let's just ensure we don't try to save undefined/malformed data.
+        console.warn("handleLiveFormValuesChange received unexpected values:", values);
+    }
+  };
+
   if (!isMounted) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -1088,14 +1411,24 @@ export default function RotawisePage() {
           onSubmit={handleSubmitForm}
           isLoading={isLoading}
           initialValues={loadedFormValues || stableDefaultPageFormValues}
+          onValuesChange={handleLiveFormValuesChange}
         />
 
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 mt-6 mb-8 justify-center items-center">
-          <Button onClick={handleSaveSchedule} variant="outline" disabled={!schedule || isLoading || isExportingPdf} className="w-full sm:w-auto">
-            <Save className="mr-2 h-4 w-4" /> {t('page.saveSchedule')}
+          <Button 
+            onClick={handleSaveSchedule} 
+            variant="outline" 
+            disabled={
+              (!schedule && (!loadedFormValues || !loadedFormValues.doctors || loadedFormValues.doctors.length === 0 || loadedFormValues.doctors.every(doc => !doc.name))) || 
+              isLoading || 
+              isExportingPdf
+            }
+            className="w-full sm:w-auto"
+          >
+            <Save className="mr-2 h-4 w-4" /> {t('page.saveData')}
           </Button>
           <Label htmlFor="load-schedule-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf) && "opacity-50 cursor-not-allowed")}>
-            <Upload className="mr-2 h-4 w-4" /> {t('page.loadSchedule')}
+            <Upload className="mr-2 h-4 w-4" /> {t('page.loadData')}
             <input id="load-schedule-input" type="file" accept=".json" className="hidden" onChange={(e) => handleFileUpload(e, 'as-is')} disabled={isLoading || isExportingPdf}/>
           </Label>
           <Label htmlFor="load-schedule-preassigned-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf) && "opacity-50 cursor-not-allowed")}>
@@ -1106,6 +1439,9 @@ export default function RotawisePage() {
             <FileDown className="mr-2 h-4 w-4" />
             {isExportingPdf ? t('page.exportingPdf') : t('page.exportPdf')}
             {isExportingPdf && <span className="animate-spin ml-2 h-4 w-4 border-t-2 border-b-2 border-primary rounded-full"></span>}
+          </Button>
+          <Button onClick={handleClearSchedule} variant="destructive" disabled={!schedule || isLoading || isExportingPdf} className="w-full sm:w-auto">
+            <Trash2 className="mr-2 h-4 w-4" /> {t('page.clearSchedule')}
           </Button>
         </div>
 
