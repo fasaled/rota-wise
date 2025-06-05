@@ -114,6 +114,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
     const { onSubmit, isLoading, initialValues, onValuesChange } = props;
     const { t, currentDateFnsLocale } = useLanguage();
     const [anchorDates, setAnchorDates] = React.useState<Record<string, Date | null>>({});
+    const [openPopoverKey, setOpenPopoverKey] = React.useState<string | null>(null);
 
     const form = useForm<ScheduleFormValues>({
       resolver: zodResolver(scheduleFormSchema),
@@ -367,6 +368,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                 type="button"
                                 variant="ghost"
                                 size="icon"
+                                onPointerDown={(e) => e.stopPropagation()}
                                 onClick={() => {
                                   const currentNumDoctors = form.getValues('numberOfDoctors');
                                   if (currentNumDoctors > 1) {
@@ -389,7 +391,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                 <Controller
                                   name={`doctors.${index}.name`}
                                   control={form.control}
-                                  render={({ field }) => <Input {...field} id={`doctors.${index}.name`} placeholder={t('form.doctorNamePlaceholder')} className="mt-1 bg-background"/>}
+                                  render={({ field }) => <Input {...field} id={`doctors.${index}.name`} placeholder={t('form.doctorNamePlaceholder')} className="mt-1 bg-background" onPointerDown={(e) => e.stopPropagation()}/>}
                                 />
                                 {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors[index]?.name?.message}</p>}
                               </div>
@@ -404,6 +406,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                         checked={field.value}
                                         onCheckedChange={field.onChange}
                                         className="bg-background"
+                                        onPointerDown={(e) => e.stopPropagation()}
                                       />
                                       <Label htmlFor={`doctors.${index}.isExcludedFromAutomaticAssignment`} className="font-medium text-sm">
                                         {t('form.excludeFromAutoAssignment')}
@@ -422,16 +425,17 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                   render={({ field: controllerDateField }) => {
                                     const pickerKey = `${docField.id}-vacationDates`;
                                     return (
-                                      <Popover 
-                                        open={!!anchorDates[pickerKey]} 
+                                      <Popover
+                                        open={openPopoverKey === pickerKey}
                                         onOpenChange={(isOpen) => {
+                                          setOpenPopoverKey(isOpen ? pickerKey : null);
                                           if (!isOpen) {
                                             setAnchorDates(prev => ({ ...prev, [pickerKey]: null }));
                                           }
                                         }}
                                       >
                                         <PopoverTrigger asChild>
-                                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
+                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
                                             <CalendarIcon className="mr-2 h-4 w-4" />
                                             {controllerDateField.value?.length ? t('form.datesSelected', { count: controllerDateField.value.length }) : <span>{t('form.selectDates')}</span>}
                                           </Button>
@@ -467,16 +471,17 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                   render={({ field: controllerDateField }) => {
                                     const pickerKey = `${docField.id}-preAssignedWorkDates`;
                                     return (
-                                      <Popover 
-                                        open={!!anchorDates[pickerKey]} 
+                                      <Popover
+                                        open={openPopoverKey === pickerKey}
                                         onOpenChange={(isOpen) => {
+                                          setOpenPopoverKey(isOpen ? pickerKey : null);
                                           if (!isOpen) {
                                             setAnchorDates(prev => ({ ...prev, [pickerKey]: null }));
                                           }
                                         }}
                                       >
                                         <PopoverTrigger asChild>
-                                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
+                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
                                             <CalendarIcon className="mr-2 h-4 w-4" />
                                             {controllerDateField.value?.length ? t('form.datesSelected', { count: controllerDateField.value.length }) : <span>{t('form.selectDates')}</span>}
                                           </Button>
@@ -512,16 +517,17 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                   render={({ field: controllerDateField }) => {
                                     const pickerKey = `${docField.id}-excludedDates`;
                                     return (
-                                      <Popover 
-                                        open={!!anchorDates[pickerKey]} 
+                                      <Popover
+                                        open={openPopoverKey === pickerKey}
                                         onOpenChange={(isOpen) => {
+                                          setOpenPopoverKey(isOpen ? pickerKey : null);
                                           if (!isOpen) {
                                             setAnchorDates(prev => ({ ...prev, [pickerKey]: null }));
                                           }
                                         }}
                                       >
                                         <PopoverTrigger asChild>
-                                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
+                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
                                             <CalendarIcon className="mr-2 h-4 w-4" />
                                             {controllerDateField.value?.length ? t('form.datesSelected', { count: controllerDateField.value.length }) : <span>{t('form.selectDates')}</span>}
                                           </Button>
