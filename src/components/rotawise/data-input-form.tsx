@@ -43,9 +43,9 @@ const dateArraySchema = z.array(z.date()).optional();
 const doctorSchema = z.object({
   id: z.string().default(() => crypto.randomUUID()),
   name: z.string().min(1, { message: "Name is required." }),
-  vacationDates: dateArraySchema,
-  preAssignedWorkDates: dateArraySchema,
-  excludedDates: dateArraySchema,
+  vacationDates: z.array(z.date()).default([]),
+  preAssignedWorkDates: z.array(z.date()).default([]),
+  excludedDates: z.array(z.date()).default([]),
   isExcludedFromAutomaticAssignment: z.boolean().optional().default(false),
 });
 
@@ -158,19 +158,14 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
         const newIndex = fields.findIndex((field) => field.id === over.id);
         if (oldIndex !== -1 && newIndex !== -1) {
           move(oldIndex, newIndex);
-          if (onValuesChange) {
-            // Ensure changes are propagated for live persistence
-            // Using a timeout to allow react-hook-form to settle state after `move`
-            setTimeout(() => onValuesChange(form.getValues()), 0);
-          }
         }
       }
     };
 
+    // Effect to synchronize numberOfDoctorsWatched with the fields array
     React.useEffect(() => {
       const currentDoctorCount = fields.length;
       const targetDoctorCount = Math.max(1, isNaN(numberOfDoctorsWatched) ? 1 : numberOfDoctorsWatched);
-
 
       if (targetDoctorCount > currentDoctorCount) {
         for (let i = 0; i < targetDoctorCount - currentDoctorCount; i++) {
@@ -184,78 +179,15 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
       if (form.getValues('numberOfDoctors') < 1 || isNaN(form.getValues('numberOfDoctors'))) {
         form.setValue('numberOfDoctors', 1, { shouldValidate: true });
       }
-
     }, [numberOfDoctorsWatched, fields.length, append, remove, form]);
 
-    // Define a stable default for a single doctor to avoid re-creating it on every render
-    const stableDefaultDoctorValue = React.useMemo(() => ({
-      id: crypto.randomUUID(),
-      name: '',
-      vacationDates: [] as Date[],
-      preAssignedWorkDates: [] as Date[],
-      excludedDates: [] as Date[],
-      isExcludedFromAutomaticAssignment: false
-    }), []);
-
-    React.useEffect(() => {
-      if (initialValues) {
-        const numDocsFromInitial = initialValues.numberOfDoctors !== undefined && initialValues.numberOfDoctors >= 1
-                                     ? initialValues.numberOfDoctors
-                                     : 1; // Default to 1 if not provided or invalid
-
-        let doctorsArrayForReset: Array<typeof stableDefaultDoctorValue> = [];
-
-        if (initialValues.doctors && initialValues.doctors.length > 0) {
-          doctorsArrayForReset = initialValues.doctors.slice(0, numDocsFromInitial).map(doc => ({
-            ...stableDefaultDoctorValue, // Spread default structure first
-            ...(doc || {}), // Spread loaded doctor data
-            id: doc?.id || crypto.randomUUID(), // Ensure ID
-            name: doc?.name || '',
-            // Ensure dates are Date objects
-            vacationDates: (doc?.vacationDates || []).map(d => d instanceof Date ? d : new Date(d)),
-            preAssignedWorkDates: (doc?.preAssignedWorkDates || []).map(d => d instanceof Date ? d : new Date(d)),
-            excludedDates: (doc?.excludedDates || []).map(d => d instanceof Date ? d : new Date(d)),
-            isExcludedFromAutomaticAssignment: doc?.isExcludedFromAutomaticAssignment || false,
-          }));
-        }
-
-        // If numDocsFromInitial is greater than what initialValues.doctors provided, fill with defaults
-        if (doctorsArrayForReset.length < numDocsFromInitial) {
-          for (let i = doctorsArrayForReset.length; i < numDocsFromInitial; i++) {
-            doctorsArrayForReset.push({
-              ...stableDefaultDoctorValue,
-              id: crypto.randomUUID(), // New ID for new default doctor
-              // Ensure date arrays are new instances and correctly typed
-              vacationDates: [] as Date[],
-              preAssignedWorkDates: [] as Date[],
-              excludedDates: [] as Date[],
-            });
-          }
-        }
-        
-        const resetData = {
-          numberOfDoctors: numDocsFromInitial,
-          startDate: initialValues.startDate, // Assumed to be Date object or undefined from parent
-          endDate: initialValues.endDate,     // Assumed to be Date object or undefined from parent
-          minIntervalBetweenWorkDays: initialValues.minIntervalBetweenWorkDays !== undefined 
-                                        ? initialValues.minIntervalBetweenWorkDays 
-                                        : 1, // Default minInterval
-          doctors: doctorsArrayForReset,
-        };
-
-        form.reset(resetData);
-      }
-    }, [initialValues, form, stableDefaultDoctorValue]);
-
-    // Effect to call onValuesChange when form values change (debounced)
+    // Effect to call onValuesChange when form values change
     React.useEffect(() => {
       if (!onValuesChange) return;
 
-      const subscription = form.watch((values) => {
-        // The `values` object from watch might contain functions if not careful with how fields are registered.
-        // We need to ensure we're passing a clean data object.
-        // However, getValues() should provide the clean, current state of the form.
-        onValuesChange(form.getValues() as ScheduleFormValues);
+      const subscription = form.watch((watchedValues) => {
+        // Use the `watchedValues` directly from the watcher
+        onValuesChange(watchedValues as ScheduleFormValues);
       });
 
       return () => subscription.unsubscribe();

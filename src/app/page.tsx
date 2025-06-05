@@ -1393,10 +1393,11 @@ export default function RotawisePage() {
   );
 
   const handleLiveFormValuesChange = (values: ScheduleFormValues) => {
-    // Update numDoctorsInForm whenever form values change
     if (typeof values.numberOfDoctors === 'number') {
       setNumDoctorsInForm(values.numberOfDoctors);
     }
+    // The `values` object should now have the correct shape due to Zod schema defaults.
+    setLoadedFormValues(values);
     debouncedSaveFormInput(values);
   };
 
