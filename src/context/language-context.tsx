@@ -111,13 +111,13 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const t = useMemo(() => (key: string, replacements?: Record<string, string | number>): string => {
     let translation: string | undefined;
-
+    
     // Try current language - first as flat key, then as nested path
     if (loadedTranslations) {
       // Try flat key first (e.g., "header.title")
       translation = loadedTranslations[key];
       // If not found as flat key, try nested path (e.g., "page.toast.clearedDoctorItems.title")
-      if (translation === undefined) {
+    if (translation === undefined) {
         translation = getNestedValue(loadedTranslations, key);
       }
     }
@@ -132,11 +132,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }
 
-    // Final fallback to the key itself if not found in English either
+        // Final fallback to the key itself if not found in English either
     if (translation === undefined) {
       // console.warn(`Translation not found for key: ${key}`); // Optional for debugging
       return key;
-    }
+      }
 
     // At this point, translation is a string if found successfully
     if (replacements && typeof translation === 'string') {
