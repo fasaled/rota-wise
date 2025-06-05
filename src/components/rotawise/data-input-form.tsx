@@ -1,6 +1,6 @@
 "use client";
 
-import React, { forwardRef, useImperativeHandle } from 'react';
+import React, { forwardRef, useImperativeHandle, useEffect } from 'react';
 import { useForm, useFieldArray, Controller, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -19,13 +19,33 @@ import { cn } from '@/lib/utils';
 import { Trash2 } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
 // Schema for a single doctor
+const dateArraySchema = z.array(z.date()).optional();
+
 const doctorSchema = z.object({
-  id: z.string(),
-  name: z.string().min(1, "Doctor's name is required."),
-  vacationDates: z.array(z.date()).default([]),
-  preAssignedWorkDates: z.array(z.date()).default([]),
-  excludedDates: z.array(z.date()).default([]),
+  id: z.string().default(() => crypto.randomUUID()),
+  name: z.string().min(1, { message: "Name is required." }),
+  vacationDates: dateArraySchema,
+  preAssignedWorkDates: dateArraySchema,
+  excludedDates: dateArraySchema,
   isExcludedFromAutomaticAssignment: z.boolean().optional().default(false),
 });
 
@@ -50,6 +70,44 @@ interface DataInputFormProps {
   initialValues?: Partial<ScheduleFormValues>;
   onValuesChange?: (values: ScheduleFormValues) => void;
 }
+
+interface SortableDoctorItemProps {
+  id: string;
+  children: React.ReactNode;
+  isDraggingOverlay?: boolean;
+}
+
+const SortableDoctorItem = ({ id, children, isDraggingOverlay }: SortableDoctorItemProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 100 : undefined,
+    cursor: 'grab',
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      {...attributes}
+      {...listeners}
+      className={cn("relative", isDraggingOverlay && "shadow-xl", isDragging && "cursor-grabbing")}
+      aria-label="Draggable doctor entry. Press space to lift."
+    >
+      {children}
+    </div>
+  );
+};
 
 const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFormProps>(
   (props, ref) => {
@@ -79,12 +137,35 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
 
     useImperativeHandle(ref, () => form, [form]);
 
-    const { fields, append, remove } = useFieldArray({
+    const { fields, append, remove, update, move } = useFieldArray({
       control: form.control,
       name: "doctors",
     });
 
     const numberOfDoctorsWatched = form.watch('numberOfDoctors');
+
+    const sensors = useSensors(
+      useSensor(PointerSensor),
+      useSensor(KeyboardSensor, {
+        coordinateGetter: sortableKeyboardCoordinates,
+      })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (over && active.id !== over.id) {
+        const oldIndex = fields.findIndex((field) => field.id === active.id);
+        const newIndex = fields.findIndex((field) => field.id === over.id);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          move(oldIndex, newIndex);
+          if (onValuesChange) {
+            // Ensure changes are propagated for live persistence
+            // Using a timeout to allow react-hook-form to settle state after `move`
+            setTimeout(() => onValuesChange(form.getValues()), 0);
+          }
+        }
+      }
+    };
 
     React.useEffect(() => {
       const currentDoctorCount = fields.length;
@@ -332,173 +413,218 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
               <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                 <DoctorsIcon className="text-primary"/> {t('form.doctorDetails')}
               </h3>
-              {fields.map((item, index) => (
-                <Card key={item.id} className="mb-6 p-2 md:p-4 bg-secondary/30 shadow-md">
-                  <CardHeader className="p-2 md:p-4">
-                    <div className="flex justify-between items-center">
-                      <CardTitle className="text-lg">{t('form.doctorNum', { index: index + 1 })}</CardTitle>
-                      {fields.length > 1 && (
-                         <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            const currentNumDoctors = form.getValues('numberOfDoctors');
-                            if (currentNumDoctors > 1) {
-                              form.setValue('numberOfDoctors', currentNumDoctors - 1, { shouldValidate: true });
-                            } else {
-                               form.setValue('numberOfDoctors', 1, { shouldValidate: true }); 
-                            }
-                            remove(index);
-                          }}
-                          className="text-destructive hover:text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4 p-2 md:p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                      <div>
-                        <Label htmlFor={`doctors.${index}.name`} className="font-medium">{t('form.doctorNameLabel')}</Label>
-                        <Controller
-                          name={`doctors.${index}.name`}
-                          control={form.control}
-                          render={({ field }) => <Input {...field} id={`doctors.${index}.name`} placeholder={t('form.doctorNamePlaceholder')} className="mt-1 bg-background"/>}
-                        />
-                        {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors[index]?.name?.message}</p>}
-                      </div>
-                      <div>
-                        <Controller
-                          name={`doctors.${index}.isExcludedFromAutomaticAssignment`}
-                          control={form.control}
-                          render={({ field }) => (
-                            <div className="flex items-center space-x-2 mt-2 md:mt-0 md:justify-start">
-                              <Checkbox
-                                id={`doctors.${index}.isExcludedFromAutomaticAssignment`}
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                className="bg-background"
-                              />
-                              <Label htmlFor={`doctors.${index}.isExcludedFromAutomaticAssignment`} className="font-medium text-sm">
-                                {t('form.excludeFromAutoAssignment')}
-                              </Label>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={fields.map(field => field.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-6">
+                    {fields.map((docField, index) => (
+                      <SortableDoctorItem key={docField.id} id={docField.id}>
+                        <Card className="relative shadow-md">
+                          <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <CardTitle className="text-lg">
+                              {t('form.doctorNum', { index: index + 1 })}
+                            </CardTitle>
+                            {fields.length > 1 && (
+                               <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  const currentNumDoctors = form.getValues('numberOfDoctors');
+                                  if (currentNumDoctors > 1) {
+                                    form.setValue('numberOfDoctors', currentNumDoctors - 1, { shouldValidate: true });
+                                  } else {
+                                     form.setValue('numberOfDoctors', 1, { shouldValidate: true }); 
+                                  }
+                                  remove(index);
+                                }}
+                                className="text-destructive hover:text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </CardHeader>
+                          <CardContent className="space-y-4 p-2 md:p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                              <div>
+                                <Label htmlFor={`doctors.${index}.name`} className="font-medium">{t('form.doctorNameLabel')}</Label>
+                                <Controller
+                                  name={`doctors.${index}.name`}
+                                  control={form.control}
+                                  render={({ field }) => <Input {...field} id={`doctors.${index}.name`} placeholder={t('form.doctorNamePlaceholder')} className="mt-1 bg-background"/>}
+                                />
+                                {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors[index]?.name?.message}</p>}
+                              </div>
+                              <div>
+                                <Controller
+                                  name={`doctors.${index}.isExcludedFromAutomaticAssignment`}
+                                  control={form.control}
+                                  render={({ field }) => (
+                                    <div className="flex items-center space-x-2 mt-2 md:mt-0 md:justify-start">
+                                      <Checkbox
+                                        id={`doctors.${index}.isExcludedFromAutomaticAssignment`}
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                        className="bg-background"
+                                      />
+                                      <Label htmlFor={`doctors.${index}.isExcludedFromAutomaticAssignment`} className="font-medium text-sm">
+                                        {t('form.excludeFromAutoAssignment')}
+                                      </Label>
+                                    </div>
+                                  )}
+                                />
+                              </div>
                             </div>
-                          )}
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <Label htmlFor={`doctors.${index}.vacationDates`} className="font-medium flex items-center gap-1"><VacationIcon className="w-4 h-4 text-accent"/>{t('form.vacationDates')}</Label>
-                        <Controller
-                          name={`doctors.${index}.vacationDates`}
-                          control={form.control}
-                          render={({ field }) => (
-                             <Popover>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !field.value?.length && "text-muted-foreground")}>
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {field.value?.length ? t('form.datesSelected', { count: field.value.length }) : <span>{t('form.selectDates')}</span>}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
-                                <Calendar
-                                  mode="multiple"
-                                  selected={field.value}
-                                  onSelect={(newDays, dayClicked, modifiers, event) => {
-                                    handleDateSelectionWithShiftSupport(
-                                      field.value,
-                                      newDays,
-                                      dayClicked,
-                                      event as unknown as React.MouseEvent,
-                                      field.onChange,
-                                      `${item.id}-vacationDates`
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <Label htmlFor={`doctors.${index}.vacationDates`} className="font-medium flex items-center gap-1"><VacationIcon className="w-4 h-4 text-accent"/>{t('form.vacationDates')}</Label>
+                                <Controller
+                                  name={`doctors.${index}.vacationDates`}
+                                  control={form.control}
+                                  render={({ field: controllerDateField }) => {
+                                    const pickerKey = `${docField.id}-vacationDates`;
+                                    return (
+                                      <Popover 
+                                        open={!!anchorDates[pickerKey]} 
+                                        onOpenChange={(isOpen) => {
+                                          if (!isOpen) {
+                                            setAnchorDates(prev => ({ ...prev, [pickerKey]: null }));
+                                          }
+                                        }}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {controllerDateField.value?.length ? t('form.datesSelected', { count: controllerDateField.value.length }) : <span>{t('form.selectDates')}</span>}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                          <Calendar
+                                            mode="multiple"
+                                            selected={controllerDateField.value}
+                                            onSelect={(newDays, dayClicked, modifiers, event) => {
+                                              handleDateSelectionWithShiftSupport(
+                                                controllerDateField.value,
+                                                newDays,
+                                                dayClicked,
+                                                event as unknown as React.MouseEvent,
+                                                controllerDateField.onChange,
+                                                pickerKey
+                                              );
+                                            }}
+                                            locale={currentDateFnsLocale}
+                                            initialFocus
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
                                     );
                                   }}
-                                  locale={currentDateFnsLocale}
-                                  initialFocus
                                 />
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`doctors.${index}.preAssignedWorkDates`} className="font-medium flex items-center gap-1"><PreAssignedIcon className="w-4 h-4 text-primary"/>{t('form.preAssignedWorkDates')}</Label>
-                         <Controller
-                          name={`doctors.${index}.preAssignedWorkDates`}
-                          control={form.control}
-                          render={({ field }) => (
-                             <Popover>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !field.value?.length && "text-muted-foreground")}>
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {field.value?.length ? t('form.datesSelected', { count: field.value.length }) : <span>{t('form.selectDates')}</span>}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
-                                 <Calendar
-                                  mode="multiple"
-                                  selected={field.value}
-                                  onSelect={(newDays, dayClicked, modifiers, event) => {
-                                    handleDateSelectionWithShiftSupport(
-                                      field.value,
-                                      newDays,
-                                      dayClicked,
-                                      event as unknown as React.MouseEvent,
-                                      field.onChange,
-                                      `${item.id}-preAssignedWorkDates`
+                              </div>
+                              <div>
+                                <Label htmlFor={`doctors.${index}.preAssignedWorkDates`} className="font-medium flex items-center gap-1"><PreAssignedIcon className="w-4 h-4 text-primary"/>{t('form.preAssignedWorkDates')}</Label>
+                                 <Controller
+                                  name={`doctors.${index}.preAssignedWorkDates`}
+                                  control={form.control}
+                                  render={({ field: controllerDateField }) => {
+                                    const pickerKey = `${docField.id}-preAssignedWorkDates`;
+                                    return (
+                                      <Popover 
+                                        open={!!anchorDates[pickerKey]} 
+                                        onOpenChange={(isOpen) => {
+                                          if (!isOpen) {
+                                            setAnchorDates(prev => ({ ...prev, [pickerKey]: null }));
+                                          }
+                                        }}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {controllerDateField.value?.length ? t('form.datesSelected', { count: controllerDateField.value.length }) : <span>{t('form.selectDates')}</span>}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                           <Calendar
+                                            mode="multiple"
+                                            selected={controllerDateField.value}
+                                            onSelect={(newDays, dayClicked, modifiers, event) => {
+                                              handleDateSelectionWithShiftSupport(
+                                                controllerDateField.value,
+                                                newDays,
+                                                dayClicked,
+                                                event as unknown as React.MouseEvent,
+                                                controllerDateField.onChange,
+                                                pickerKey
+                                              );
+                                            }}
+                                            locale={currentDateFnsLocale}
+                                            initialFocus
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
                                     );
                                   }}
-                                  locale={currentDateFnsLocale}
-                                  initialFocus
                                 />
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`doctors.${index}.excludedDates`} className="font-medium flex items-center gap-1"><CalendarXIcon className="w-4 h-4 text-destructive"/>{t('form.excludedDates')}</Label>
-                         <Controller
-                          name={`doctors.${index}.excludedDates`}
-                          control={form.control}
-                          render={({ field }) => (
-                             <Popover>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !field.value?.length && "text-muted-foreground")}>
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {field.value?.length ? t('form.datesSelected', { count: field.value.length }) : <span>{t('form.selectDates')}</span>}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
-                                 <Calendar
-                                  mode="multiple"
-                                  selected={field.value}
-                                  onSelect={(newDays, dayClicked, modifiers, event) => {
-                                    handleDateSelectionWithShiftSupport(
-                                      field.value,
-                                      newDays,
-                                      dayClicked,
-                                      event as unknown as React.MouseEvent,
-                                      field.onChange,
-                                      `${item.id}-excludedDates`
+                              </div>
+                              <div>
+                                <Label htmlFor={`doctors.${index}.excludedDates`} className="font-medium flex items-center gap-1"><CalendarXIcon className="w-4 h-4 text-destructive"/>{t('form.excludedDates')}</Label>
+                                 <Controller
+                                  name={`doctors.${index}.excludedDates`}
+                                  control={form.control}
+                                  render={({ field: controllerDateField }) => {
+                                    const pickerKey = `${docField.id}-excludedDates`;
+                                    return (
+                                      <Popover 
+                                        open={!!anchorDates[pickerKey]} 
+                                        onOpenChange={(isOpen) => {
+                                          if (!isOpen) {
+                                            setAnchorDates(prev => ({ ...prev, [pickerKey]: null }));
+                                          }
+                                        }}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {controllerDateField.value?.length ? t('form.datesSelected', { count: controllerDateField.value.length }) : <span>{t('form.selectDates')}</span>}
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                           <Calendar
+                                            mode="multiple"
+                                            selected={controllerDateField.value}
+                                            onSelect={(newDays, dayClicked, modifiers, event) => {
+                                              handleDateSelectionWithShiftSupport(
+                                                controllerDateField.value,
+                                                newDays,
+                                                dayClicked,
+                                                event as unknown as React.MouseEvent,
+                                                controllerDateField.onChange,
+                                                pickerKey
+                                              );
+                                            }}
+                                            locale={currentDateFnsLocale}
+                                            initialFocus
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
                                     );
                                   }}
-                                  locale={currentDateFnsLocale}
-                                  initialFocus
                                 />
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </SortableDoctorItem>
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
               {(form.formState.errors.doctors && typeof form.formState.errors.doctors.message === 'string') && (
                   <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors.message}</p>
               )}
