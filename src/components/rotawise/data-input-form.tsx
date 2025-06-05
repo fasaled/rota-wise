@@ -462,6 +462,8 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                     const endDate = form.getValues('endDate');
                                     return date < startDate || date > endDate;
                                   }}
+                                  fromDate={form.getValues('startDate')}
+                                  toDate={form.getValues('endDate')}
                                   initialFocus
                                   components={{
                                     IconLeft: () => <ChevronLeft className="h-4 w-4" />,
@@ -519,6 +521,8 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                     const endDate = form.getValues('endDate');
                                     return date < startDate || date > endDate;
                                   }}
+                                  fromDate={form.getValues('startDate')}
+                                  toDate={form.getValues('endDate')}
                                   initialFocus
                                   components={{
                                     IconLeft: () => <ChevronLeft className="h-4 w-4" />,
@@ -576,6 +580,8 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                     const endDate = form.getValues('endDate');
                                     return date < startDate || date > endDate;
                                   }}
+                                  fromDate={form.getValues('startDate')}
+                                  toDate={form.getValues('endDate')}
                                   initialFocus
                                   components={{
                                     IconLeft: () => <ChevronLeft className="h-4 w-4" />,
