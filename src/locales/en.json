@@ -48,7 +48,12 @@
   "page.toast.errorSavingParameters.title": "Error saving parameters",
   "page.toast.scheduleCleared.title": "Schedule cleared",
   "page.toast.scheduleCleared.description": "The generated schedule and associated data have been cleared.",
+  "page.toast.clearedDoctorItems": {
+    "title": "Doctor Details Cleared",
+    "description": "The doctor details have been successfully cleared from the form."
+  },
   "page.section.scheduleWarnings.title": "Important schedule warnings",
+  "page.clearDoctorDetails.button": "Clear Doctor Details",
 
   "form.title": "Schedule parameters",
   "form.description": "Define the doctors and date range for the schedule.",

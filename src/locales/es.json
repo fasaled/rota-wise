@@ -43,9 +43,14 @@
   "page.toast.errorRestoringState.description": "No se pudo restaurar tu sesión anterior. Empezando de cero.",
   "page.toast.errorPersistingState.title": "Error al Guardar",
   "page.toast.errorPersistingState.description": "No se pudo guardar automáticamente los datos de tu sesión en el navegador.",
-  "page.toast.scheduleCleared.title": "Horario borrado",
-  "page.toast.scheduleCleared.description": "El horario generado y los datos asociados han sido borrados.",
+  "page.toast.scheduleCleared.title": "Horario eliminado",
+  "page.toast.scheduleCleared.description": "El horario generado y los datos asociados han sido eliminados.",
+  "page.toast.clearedDoctorItems": {
+    "title": "Detalles de Médicos Eliminados",
+    "description": "Los detalles de los médicos han sido eliminados del formulario exitosamente."
+  },
   "page.section.scheduleWarnings.title": "Advertencias importantes del horario",
+  "page.clearDoctorDetails.button": "Limpiar Detalles de Médicos",
 
   "form.title": "Parámetros del horario",
   "form.description": "Defina los médicos y el rango de fechas para el horario.",

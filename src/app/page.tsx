@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { Schedule, ScheduleFormValues, DoctorProfile, ScheduleEntry, PersistedScheduleData, SerializedDoctorFormFieldInput, DoctorFormFieldInput } from '@/lib/types';
+import { type UseFormReturn } from 'react-hook-form';
 import DataInputForm from '@/components/rotawise/data-input-form';
 import ScheduleCalendarView from '@/components/rotawise/schedule-calendar-view';
 import LanguageSelector from '@/components/rotawise/language-selector';
@@ -11,7 +12,7 @@ import { ThemeIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
-import { Save, Upload, FileDown, Layers, AlertTriangle, Trash2 } from 'lucide-react';
+import { Save, Upload, FileDown, Layers, AlertTriangle, Trash2, UserX } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
@@ -77,6 +78,9 @@ export default function RotawisePage() {
   const [currentMinInterval, setCurrentMinInterval] = useState<number>(1);
   const [loadedFormValues, setLoadedFormValues] = useState<Partial<ScheduleFormValues> | null>(null);
   const [dataInputFormKey, setDataInputFormKey] = useState(0);
+  const [numDoctorsInForm, setNumDoctorsInForm] = useState<number>(0);
+
+  const formRef = useRef<UseFormReturn<ScheduleFormValues> | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -111,6 +115,7 @@ export default function RotawisePage() {
         if (typeof deserializedFormValues.numberOfDoctors === 'number') {
             setLoadedFormValues(deserializedFormValues);
             setDataInputFormKey(prevKey => prevKey + 1);
+            setNumDoctorsInForm(deserializedFormValues.numberOfDoctors);
             formStateLoaded = true;
         } else {
             console.warn("Loaded form input state was invalid, discarding.");
@@ -170,6 +175,7 @@ export default function RotawisePage() {
             doctors: deserializedFormValuesDoctors
           };
           setLoadedFormValues(finalFormValues);
+          setNumDoctorsInForm(finalFormValues.numberOfDoctors);
           setDataInputFormKey(prevKey => prevKey + 1); // Re-initialize form
 
           setScheduleWarnings(loadedData.scheduleWarnings || []);
@@ -1343,6 +1349,25 @@ export default function RotawisePage() {
     });
   };
 
+  const handleClearDoctorDetails = () => {
+    if (formRef.current) {
+      const currentValues = formRef.current.getValues();
+      const newValues: ScheduleFormValues = {
+        ...currentValues,
+        numberOfDoctors: 0,
+        doctors: [],
+      };
+      formRef.current.reset(newValues);
+      debouncedSaveFormInput(newValues);
+      setNumDoctorsInForm(0);
+
+      toast({
+        title: t('page.toast.clearedDoctorItems.title'),
+        description: t('page.toast.clearedDoctorItems.description'),
+      });
+    }
+  };
+
   const debouncedSaveFormInput = useDebouncedCallback(
     (data: ScheduleFormValues) => {
       try {
@@ -1368,15 +1393,11 @@ export default function RotawisePage() {
   );
 
   const handleLiveFormValuesChange = (values: ScheduleFormValues) => {
-    // We must ensure `values` is not undefined and has the expected structure
-    if (values && values.doctors) {
-        debouncedSaveFormInput(values);
-    } else {
-        // This case might happen if the form is somehow cleared to an invalid state.
-        // We could choose to clear the localStorage entry here or log an error.
-        // For now, let's just ensure we don't try to save undefined/malformed data.
-        console.warn("handleLiveFormValuesChange received unexpected values:", values);
+    // Update numDoctorsInForm whenever form values change
+    if (typeof values.numberOfDoctors === 'number') {
+      setNumDoctorsInForm(values.numberOfDoctors);
     }
+    debouncedSaveFormInput(values);
   };
 
   if (!isMounted) {
@@ -1408,6 +1429,7 @@ export default function RotawisePage() {
       <main className="container mx-auto p-4 md:p-8 space-y-8">
         <DataInputForm
           key={dataInputFormKey}
+          ref={formRef}
           onSubmit={handleSubmitForm}
           isLoading={isLoading}
           initialValues={loadedFormValues || stableDefaultPageFormValues}
@@ -1442,6 +1464,15 @@ export default function RotawisePage() {
           </Button>
           <Button onClick={handleClearSchedule} variant="destructive" disabled={!schedule || isLoading || isExportingPdf} className="w-full sm:w-auto">
             <Trash2 className="mr-2 h-4 w-4" /> {t('page.clearSchedule')}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={handleClearDoctorDetails} 
+            disabled={numDoctorsInForm === 0}
+            className="w-full sm:w-auto"
+          >
+            <UserX className="mr-2 h-4 w-4" />
+            {t('page.clearDoctorDetails.button')}
           </Button>
         </div>
 
