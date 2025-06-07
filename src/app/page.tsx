@@ -259,14 +259,6 @@ export default function RotawisePage() {
   }, [schedule, doctorsProfiles, scheduleWarnings, currentMinInterval, isMounted, t, toast]); // Added t and toast
 
   const handleSaveParameters = (data: ScheduleFormValues) => {
-    if (!data.doctors || data.doctors.length === 0) {
-      toast({
-        title: t('page.toast.nothingToSaveParameters.title'),
-        description: t('page.toast.nothingToSaveParameters.description'),
-        variant: "destructive"
-      });
-      return;
-    }
 
     try {
       // Serialize form data (convert dates to ISO strings)
@@ -514,8 +506,8 @@ export default function RotawisePage() {
   const handleSaveSchedule = () => {
     const noScheduleData = !schedule;
     // Check loadedFormValues for parameters if no schedule exists.
-    // Ensure loadedFormValues and its doctors array are populated.
-    const noFormData = !loadedFormValues || !loadedFormValues.doctors || loadedFormValues.doctors.length === 0 || loadedFormValues.doctors.every(doc => !doc.name);
+    // Allow saving even with 0 doctors, but check if dates are provided
+    const noFormData = !loadedFormValues || (!loadedFormValues.startDate && !loadedFormValues.endDate);
 
     if (noScheduleData && noFormData) {
       toast({

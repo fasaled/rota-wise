@@ -52,14 +52,14 @@ const doctorSchema = z.object({
 
 // Main form schema
 export const scheduleFormSchema = z.object({
-  numberOfDoctors: z.coerce.number().min(1, "At least one doctor is required.").max(20, "Maximum of 20 doctors allowed."),
+  numberOfDoctors: z.coerce.number().min(0, "Number of doctors cannot be negative.").max(20, "Maximum of 20 doctors allowed."),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." })
     .refine((data) => data >= new Date(new Date().setHours(0,0,0,0)), {
       message: "End date must be today or a future date.",
     }),
   minIntervalBetweenWorkDays: z.coerce.number().int().min(0, "Minimum interval cannot be negative.").max(30, "Interval cannot exceed 30 days.").optional().default(1),
-  doctors: z.array(doctorSchema).min(1, "At least one doctor's details must be provided."),
+  doctors: z.array(doctorSchema).min(0, "Doctor details array cannot be negative."),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"],
@@ -93,7 +93,7 @@ const SortableDoctorItem = ({ id, children, isDraggingOverlay }: SortableDoctorI
     transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 100 : undefined,
-    cursor: 'grab',
+    cursor: isDragging ? 'grabbing' : 'auto',
   };
 
   return (
@@ -102,8 +102,14 @@ const SortableDoctorItem = ({ id, children, isDraggingOverlay }: SortableDoctorI
       style={style} 
       {...attributes}
       {...listeners}
-      className={cn("relative", isDraggingOverlay && "shadow-xl", isDragging && "cursor-grabbing")}
+      className={cn("relative", isDraggingOverlay && "shadow-xl")}
       aria-label="Draggable doctor entry. Press space to lift."
+      onKeyDown={(e) => {
+        // Prevent keyboard dragging when focus is on input elements
+        if (e.target !== e.currentTarget) {
+          e.stopPropagation();
+        }
+      }}
     >
       {children}
     </div>
@@ -120,7 +126,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleFormSchema),
     defaultValues: {
-      numberOfDoctors: initialValues?.numberOfDoctors || 1,
+      numberOfDoctors: initialValues?.numberOfDoctors ?? 0,
       startDate: initialValues?.startDate,
       endDate: initialValues?.endDate,
       minIntervalBetweenWorkDays: initialValues?.minIntervalBetweenWorkDays || 1,
@@ -133,7 +139,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                      excludedDates: doc.excludedDates || [],
                      isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
                    }))
-                 : [{ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false }],
+                 : [],
     },
   });
 
@@ -147,7 +153,11 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
   const numberOfDoctorsWatched = form.watch('numberOfDoctors');
 
     const sensors = useSensors(
-      useSensor(PointerSensor),
+      useSensor(PointerSensor, {
+        activationConstraint: {
+          distance: 8, // Require minimum 8px movement before starting drag
+        },
+      }),
       useSensor(KeyboardSensor, {
         coordinateGetter: sortableKeyboardCoordinates,
       })
@@ -167,7 +177,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
     // Effect to synchronize numberOfDoctorsWatched with the fields array
   React.useEffect(() => {
     const currentDoctorCount = fields.length;
-    const targetDoctorCount = Math.max(1, isNaN(numberOfDoctorsWatched) ? 1 : numberOfDoctorsWatched);
+    const targetDoctorCount = Math.max(0, isNaN(numberOfDoctorsWatched) ? 0 : numberOfDoctorsWatched);
 
     if (targetDoctorCount > currentDoctorCount) {
       for (let i = 0; i < targetDoctorCount - currentDoctorCount; i++) {
@@ -178,8 +188,8 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
         remove(currentDoctorCount - 1 - i);
       }
     }
-    if (form.getValues('numberOfDoctors') < 1 || isNaN(form.getValues('numberOfDoctors'))) {
-      form.setValue('numberOfDoctors', 1, { shouldValidate: true });
+    if (form.getValues('numberOfDoctors') < 0 || isNaN(form.getValues('numberOfDoctors'))) {
+      form.setValue('numberOfDoctors', 0, { shouldValidate: true });
     }
   }, [numberOfDoctorsWatched, fields.length, append, remove, form]);
 
@@ -238,7 +248,17 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
         <CardDescription>{t('form.description')}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <form 
+          onSubmit={form.handleSubmit(onSubmit)} 
+          className="space-y-8"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && e.target !== e.currentTarget) {
+              // Prevent form submission when Enter is pressed on form elements
+              // (except when explicitly targeting the form itself)
+              e.preventDefault();
+            }
+          }}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div>
               <Label htmlFor="numberOfDoctors" className="font-semibold min-h-7 block">{t('form.numDoctors')}</Label>
@@ -249,11 +269,17 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                   <Input
                     id="numberOfDoctors"
                     type="number"
-                    min="1" max="20"
+                    min="0" max="20"
                     {...field}
                     onChange={e => {
                       const val = parseInt(e.target.value, 10);
-                      field.onChange(isNaN(val) ? 1 : val);
+                      field.onChange(isNaN(val) ? 0 : val);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
                     }}
                     className="mt-1"
                   />
@@ -333,6 +359,12 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                       const val = parseInt(e.target.value, 10);
                       field.onChange(isNaN(val) ? 1 : val);
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }}
                     className="mt-1"
                   />
                 )}
@@ -364,7 +396,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                             <CardTitle className="text-lg">
                               {t('form.doctorNum', { index: index + 1 })}
                             </CardTitle>
-                    {fields.length > 1 && (
+                    {fields.length > 0 && (
                        <Button
                         type="button"
                         variant="ghost"
@@ -372,10 +404,10 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                 onPointerDown={(e) => e.stopPropagation()}
                         onClick={() => {
                           const currentNumDoctors = form.getValues('numberOfDoctors');
-                          if (currentNumDoctors > 1) {
+                          if (currentNumDoctors > 0) {
                             form.setValue('numberOfDoctors', currentNumDoctors - 1, { shouldValidate: true });
                           } else {
-                             form.setValue('numberOfDoctors', 1, { shouldValidate: true }); 
+                             form.setValue('numberOfDoctors', 0, { shouldValidate: true }); 
                           }
                           remove(index);
                         }}
@@ -392,7 +424,21 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                       <Controller
                         name={`doctors.${index}.name`}
                         control={form.control}
-                                  render={({ field }) => <Input {...field} id={`doctors.${index}.name`} placeholder={t('form.doctorNamePlaceholder')} className="mt-1 bg-background" onPointerDown={(e) => e.stopPropagation()}/>}
+                                  render={({ field }) => (
+                                    <Input 
+                                      {...field} 
+                                      id={`doctors.${index}.name`} 
+                                      placeholder={t('form.doctorNamePlaceholder')} 
+                                      className="mt-1 bg-background" 
+                                      onPointerDown={(e) => e.stopPropagation()}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                        }
+                                      }}
+                                    />
+                                  )}
                       />
                       {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors[index]?.name?.message}</p>}
                     </div>
