@@ -52,6 +52,10 @@
     "title": "Doctor Details Cleared",
     "description": "The doctor details have been successfully cleared from the form."
   },
+  "page.toast.monthFixed.title": "Month Fixed",
+  "page.toast.monthFixed.description": "All work assignments in {month} are now fixed and will be preserved when regenerating.",
+  "page.toast.monthUnfixed.title": "Month Unfixed",
+  "page.toast.monthUnfixed.description": "Work assignments in {month} are no longer fixed and may change when regenerating.",
   "page.section.scheduleWarnings.title": "Important schedule warnings",
   "page.clearDoctorDetails.button": "Clear Doctor Details",
 
@@ -87,6 +91,8 @@
   "calendar.header.monthYear": "{monthYear}",
   "calendar.previousMonth": "Previous month",
   "calendar.nextMonth": "Next month",
+  "calendar.fixMonth": "Fix Month",
+  "calendar.unfixMonth": "Unfix Month",
 
   "calendar.toast.vacationUneditable.title": "Vacation Uneditable",
   "calendar.toast.vacationUneditable.description": "Vacation entries are managed in the main form and cannot be edited directly on the calendar.",
@@ -110,6 +116,8 @@
   "dialog.toast.scheduleUpdated.title": "Schedule updated",
   "dialog.toast.scheduleUpdated.description.modified": "Assignment for {date} has been modified.",
   "dialog.toast.scheduleUpdated.description.added": "Assignment for {date} has been added.",
+  "dialog.markAsFixedLabel": "Mark as fixed",
+  "dialog.markAsFixedDescription": "Preserve this assignment when regenerating the schedule",
   
   "assignmentType.Work": "Work",
   "assignmentType.Vacation": "Vacation",

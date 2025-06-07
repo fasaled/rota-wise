@@ -49,6 +49,10 @@
     "title": "Detalles de Médicos Eliminados",
     "description": "Los detalles de los médicos han sido eliminados del formulario exitosamente."
   },
+  "page.toast.monthFixed.title": "Mes Fijado",
+  "page.toast.monthFixed.description": "Todas las asignaciones de trabajo en {month} están ahora fijas y se preservarán al regenerar.",
+  "page.toast.monthUnfixed.title": "Mes Desfijado",
+  "page.toast.monthUnfixed.description": "Las asignaciones de trabajo en {month} ya no están fijas y pueden cambiar al regenerar.",
   "page.section.scheduleWarnings.title": "Advertencias importantes del horario",
   "page.clearDoctorDetails.button": "Limpiar Detalles de Médicos",
 
@@ -84,6 +88,8 @@
   "calendar.header.monthYear": "{monthYear}",
   "calendar.previousMonth": "Mes anterior",
   "calendar.nextMonth": "Mes siguiente",
+  "calendar.fixMonth": "Fijar Mes",
+  "calendar.unfixMonth": "Desfijar Mes",
 
   "calendar.toast.vacationUneditable.title": "Vacaciones no editables",
   "calendar.toast.vacationUneditable.description": "Las entradas de vacaciones se gestionan en el formulario principal y no se pueden editar directamente en el calendario.",
@@ -107,6 +113,8 @@
   "dialog.toast.scheduleUpdated.title": "Horario actualizado",
   "dialog.toast.scheduleUpdated.description.modified": "La asignación para {date} ha sido modificada.",
   "dialog.toast.scheduleUpdated.description.added": "La asignación para {date} ha sido añadida.",
+  "dialog.markAsFixedLabel": "Marcar como fijo",
+  "dialog.markAsFixedDescription": "Preservar esta asignación al regenerar el horario",
 
   "assignmentType.Work": "Trabajo",
   "assignmentType.Vacation": "Vacaciones",

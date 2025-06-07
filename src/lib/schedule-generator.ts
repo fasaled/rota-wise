@@ -26,7 +26,8 @@ export interface ScheduleWarning {
 }
 
 export function generateSchedule(
-  data: ScheduleFormValues
+  data: ScheduleFormValues,
+  existingFixedEntries?: ScheduleEntry[]
 ): { schedule?: Schedule; error?: string; warnings?: ScheduleWarning[] } {
   try {
     const { doctors: doctorInputs, startDate, endDate, minIntervalBetweenWorkDays = 1 } = data;
@@ -68,6 +69,21 @@ export function generateSchedule(
     });
 
     const mockEntries: ScheduleEntry[] = [];
+    
+    // Add existing fixed entries first
+    if (existingFixedEntries) {
+      existingFixedEntries.forEach(entry => {
+        const entryDate = new Date(entry.date);
+        if (entryDate >= startDate && entryDate <= endDate && entry.isFixed) {
+          mockEntries.push({
+            ...entry,
+            date: new Date(entryDate),
+            isFixed: true
+          });
+        }
+      });
+    }
+    
     let currentDateLoopVar = new Date(startDate); 
     const finalEndDate = new Date(endDate);
     
@@ -142,26 +158,42 @@ export function generateSchedule(
       const currentMonthKey = format(currentDate, 'yyyy-MM');
       const isCurrentDayWeekend = weekendDayKeys.includes(dayOfWeekKey);
 
+      // Check if this day already has a fixed assignment
+      const existingFixedEntry = mockEntries.find(entry => 
+        isSameDay(entry.date, currentDate) && entry.isFixed
+      );
+      
       let dayHasAnyPreAssignment = false;
+      let dayHasFixedAssignment = !!existingFixedEntry;
       
       for (const doctor of doctorsWithIds) {
           if (isDateInArray(currentDate, doctor.preAssignedWorkDates)) {
-              mockEntries.push({ 
-                  date: new Date(currentDate), 
-                  doctorId: doctor.id,
-                  assignment: 'Pre-assigned',
-                  dayOfWeek: dayOfWeekFullName,
-              });
-              dayHasAnyPreAssignment = true; 
+              // Check if this doctor already has a fixed entry on this date
+              const doctorHasFixedEntryOnDate = mockEntries.some(entry => 
+                  isSameDay(entry.date, currentDate) && 
+                  entry.doctorId === doctor.id && 
+                  entry.isFixed
+              );
+              
+              // Only add pre-assigned entry if there's no fixed entry for this doctor on this date
+              if (!doctorHasFixedEntryOnDate) {
+                  mockEntries.push({ 
+                      date: new Date(currentDate), 
+                      doctorId: doctor.id,
+                      assignment: 'Pre-assigned',
+                      dayOfWeek: dayOfWeekFullName,
+                  });
+                  dayHasAnyPreAssignment = true; 
 
-              doctorLastWorkDay[doctor.id] = new Date(currentDate);
-              if (doctorStats[doctor.id]) { 
-                  doctorStats[doctor.id].totalWorkdays++;
-                  doctorStats[doctor.id].workloadByDayOfWeek[dayOfWeekKey]++;
-                  doctorStats[doctor.id].monthlyWorkdays[currentMonthKey] = (doctorStats[doctor.id].monthlyWorkdays[currentMonthKey] || 0) + 1;
-              }
-              if (isCurrentDayWeekend) {
-                  doctorWeekendDaysThisMonth[doctor.id][currentMonthKey] = (doctorWeekendDaysThisMonth[doctor.id][currentMonthKey] || 0) + 1;
+                  doctorLastWorkDay[doctor.id] = new Date(currentDate);
+                  if (doctorStats[doctor.id]) { 
+                      doctorStats[doctor.id].totalWorkdays++;
+                      doctorStats[doctor.id].workloadByDayOfWeek[dayOfWeekKey]++;
+                      doctorStats[doctor.id].monthlyWorkdays[currentMonthKey] = (doctorStats[doctor.id].monthlyWorkdays[currentMonthKey] || 0) + 1;
+                  }
+                  if (isCurrentDayWeekend) {
+                      doctorWeekendDaysThisMonth[doctor.id][currentMonthKey] = (doctorWeekendDaysThisMonth[doctor.id][currentMonthKey] || 0) + 1;
+                  }
               }
           }
       }
@@ -178,7 +210,7 @@ export function generateSchedule(
       }
       
       let automaticallyAssignedDoctorThisDay = false;
-      if (!dayHasAnyPreAssignment && doctorsWithIds.length > 0) {
+      if (!dayHasAnyPreAssignment && !dayHasFixedAssignment && doctorsWithIds.length > 0) {
         const eligibleDoctors = doctorsWithIds.filter(doc => {
             const isDoctorOnVacation = isDateInArray(currentDate, doc.vacationDates);
             const isDoctorExcludedOnDate = isDateInArray(currentDate, doc.excludedDates);
@@ -282,7 +314,7 @@ export function generateSchedule(
             }
         }
         
-        if (!automaticallyAssignedDoctorThisDay && !dayHasAnyPreAssignment) {
+        if (!automaticallyAssignedDoctorThisDay && !dayHasAnyPreAssignment && !dayHasFixedAssignment) {
              const anyDoctorPotentiallyAvailableButConstrained = eligibleDoctors.length === 0 && doctorsWithIds.some(doc => {
                 const isDoctorOnVacation = isDateInArray(currentDate, doc.vacationDates);
                 const isDoctorExcludedOnDate = isDateInArray(currentDate, doc.excludedDates);
@@ -301,7 +333,7 @@ export function generateSchedule(
                      key: 'warnings.uncoveredDay',
                      params: { date: new Date(currentDate) } // Pass original Date
                  });
-            } else if (doctorsWithIds.length > 0 && !dayHasAnyPreAssignment && !automaticallyAssignedDoctorThisDay) { 
+            } else if (doctorsWithIds.length > 0 && !dayHasAnyPreAssignment && !automaticallyAssignedDoctorThisDay && !dayHasFixedAssignment) { 
                  mockEntries.push({
                     date: new Date(currentDate),
                     doctorId: 'system', 
@@ -311,7 +343,7 @@ export function generateSchedule(
             }
         }
 
-      } else if (!dayHasAnyPreAssignment && doctorsWithIds.length === 0) { 
+      } else if (!dayHasAnyPreAssignment && !dayHasFixedAssignment && doctorsWithIds.length === 0) { 
          mockEntries.push({
             date: new Date(currentDate),
             doctorId: 'system', 

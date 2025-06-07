@@ -34,6 +34,7 @@ export interface ScheduleEntry {
   doctorId: string; // ID of the assigned doctor
   assignment: 'Work' | 'Vacation' | 'Pre-assigned' | 'Off';
   dayOfWeek: string; // e.g., "Monday"
+  isFixed?: boolean; // Whether this entry should be preserved when regenerating the schedule
 }
 
 export interface Schedule {

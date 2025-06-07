@@ -6,7 +6,7 @@ import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, en
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Users, CalendarDays as CalendarIconLucide, FilterIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, CalendarDays as CalendarIconLucide, FilterIcon, Lock, Unlock } from 'lucide-react';
 import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { VacationIcon, PreAssignedIcon, WorkIcon } from '@/components/icons';
@@ -19,7 +19,8 @@ interface ScheduleCalendarViewProps {
   doctors: DoctorProfile[];
   onUpdateScheduleEntry: (updatedEntry: ScheduleEntry) => void;
   minIntervalBetweenWorkDays: number;
-  allScheduleEntries: ScheduleEntry[]; 
+  allScheduleEntries: ScheduleEntry[];
+  onToggleMonthFixed?: (month: Date, isFixed: boolean) => void;
 }
 
 const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
@@ -28,6 +29,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     onUpdateScheduleEntry,
     minIntervalBetweenWorkDays,
     allScheduleEntries,
+    onToggleMonthFixed,
 }) => {
   const { t, currentDateFnsLocale } = useLanguage();
   const [currentMonth, setCurrentMonth] = useState(schedule.startDate || new Date());
@@ -163,13 +165,15 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                   assignmentTextClasses,
                   bgColor,
                   textColor,
-                  "cursor-pointer"
+                  "cursor-pointer",
+                  entry.isFixed && "ring-2 ring-orange-500 ring-opacity-75" // Visual indicator for fixed entries
                 )}
                 onClick={(e) => { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date);}}
-                title={`${doctor?.name || entry.doctorId}: ${assignmentText}`}
+                title={`${doctor?.name || entry.doctorId}: ${assignmentText}${entry.isFixed ? ' (Fixed)' : ''}`}
               >
                 {IconComponent && <IconComponent className={iconClasses} />}
                 <span className={doctorNameSpanClasses}>{doctor?.name || entry.doctorId}</span>
+                {entry.isFixed && <span className="text-xs ml-1">🔒</span>}
               </div>
             );
           })}
@@ -185,6 +189,21 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     const firstDayOfWeek = startOfWeek(new Date(), { locale: currentDateFnsLocale });
     return Array.from({ length: 7 }).map((_, i) => format(addDays(firstDayOfWeek, i), 'EEE', { locale: currentDateFnsLocale }));
   }, [currentDateFnsLocale]);
+
+  const monthHasFixedEntries = useMemo(() => {
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
+    return schedule.entries.some(entry => {
+      const entryDate = entry.date instanceof Date ? entry.date : parseISO(entry.date as unknown as string);
+      return entry.isFixed && entryDate >= monthStart && entryDate <= monthEnd;
+    });
+  }, [currentMonth, schedule.entries]);
+
+  const handleToggleMonthFixed = () => {
+    if (onToggleMonthFixed) {
+      onToggleMonthFixed(currentMonth, !monthHasFixedEntries);
+    }
+  };
 
 
   return (
@@ -227,6 +246,18 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                 <Button variant="outline" size="icon" onClick={nextMonth} aria-label={t('calendar.nextMonth')}>
                 <ChevronRight className="h-5 w-5" />
                 </Button>
+                {onToggleMonthFixed && (
+                  <Button 
+                    variant={monthHasFixedEntries ? "default" : "outline"} 
+                    size="sm" 
+                    onClick={handleToggleMonthFixed}
+                    className="ml-2"
+                    title={monthHasFixedEntries ? t('calendar.unfixMonth') : t('calendar.fixMonth')}
+                  >
+                    {monthHasFixedEntries ? <Unlock className="h-4 w-4 mr-1" /> : <Lock className="h-4 w-4 mr-1" />}
+                    {monthHasFixedEntries ? t('calendar.unfixMonth') : t('calendar.fixMonth')}
+                  </Button>
+                )}
             </div>
         </div>
       </CardHeader>

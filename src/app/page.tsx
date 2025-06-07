@@ -324,7 +324,9 @@ export default function RotawisePage() {
     setDoctorsProfiles(profiles);
 
     // Call the client-side function
-    const result = generateSchedule(data);
+    // Get existing fixed entries if regenerating
+    const existingFixedEntries = schedule?.entries.filter(entry => entry.isFixed) || [];
+    const result = generateSchedule(data, existingFixedEntries);
     setIsLoading(false);
 
     if (result.error) {
@@ -1393,6 +1395,33 @@ export default function RotawisePage() {
     debouncedSaveFormInput(values);
   };
 
+  const handleToggleMonthFixed = (month: Date, isFixed: boolean) => {
+    setSchedule(prevSchedule => {
+      if (!prevSchedule) return null;
+
+      const monthStart = startOfMonth(month);
+      const monthEnd = endOfMonth(month);
+
+      const updatedEntries = prevSchedule.entries.map(entry => {
+        const entryDate = new Date(entry.date);
+        if (entryDate >= monthStart && entryDate <= monthEnd && 
+            (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned')) {
+          return { ...entry, isFixed };
+        }
+        return entry;
+      });
+
+      toast({
+        title: isFixed ? t('page.toast.monthFixed.title') : t('page.toast.monthUnfixed.title'),
+        description: isFixed 
+          ? t('page.toast.monthFixed.description', { month: format(month, 'MMMM yyyy', { locale: currentDateFnsLocale }) })
+          : t('page.toast.monthUnfixed.description', { month: format(month, 'MMMM yyyy', { locale: currentDateFnsLocale }) }),
+      });
+
+      return { ...prevSchedule, entries: updatedEntries };
+    });
+  };
+
   if (!isMounted) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -1496,6 +1525,7 @@ export default function RotawisePage() {
                   onUpdateScheduleEntry={handleUpdateScheduleEntry}
                   minIntervalBetweenWorkDays={currentMinInterval}
                   allScheduleEntries={schedule.entries}
+                  onToggleMonthFixed={handleToggleMonthFixed}
               />
             </div>
             <ScheduleSummaryTable schedule={schedule} doctors={doctorsProfiles} />
