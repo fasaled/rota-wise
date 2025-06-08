@@ -320,13 +320,11 @@ export default function RotawisePage() {
   };
 
   const [stableDefaultPageFormValues] = useState<Partial<ScheduleFormValues>>(() => ({
-    numberOfDoctors: 1,
+    numberOfDoctors: 0,
     startDate: undefined,
     endDate: undefined,
     minIntervalBetweenWorkDays: 1,
-    doctors: [
-      { id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false },
-    ]
+    doctors: []
   }));
 
   const handleSubmitForm = async (data: ScheduleFormValues) => {

@@ -52,7 +52,12 @@ const doctorSchema = z.object({
 
 // Main form schema
 export const scheduleFormSchema = z.object({
-  numberOfDoctors: z.coerce.number().min(0, "Number of doctors cannot be negative.").max(20, "Maximum of 20 doctors allowed."),
+  numberOfDoctors: z.union([
+    z.string().transform((val) => val === "" ? 0 : parseInt(val, 10)),
+    z.number()
+  ]).refine((val) => !isNaN(val) && val >= 0 && val <= 20, {
+    message: "Number of doctors must be between 0 and 20, or empty (treated as 0)."
+  }),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." })
     .refine((data) => data >= new Date(new Date().setHours(0,0,0,0)), {
@@ -122,6 +127,8 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
   const { t, currentDateFnsLocale } = useLanguage();
   const [anchorDates, setAnchorDates] = React.useState<Record<string, Date | null>>({});
     const [openPopoverKey, setOpenPopoverKey] = React.useState<string | null>(null);
+    const [numberOfDoctorsInputElement, setNumberOfDoctorsInputElement] = React.useState<HTMLInputElement | null>(null);
+
 
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleFormSchema),
@@ -142,6 +149,8 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                  : [],
     },
   });
+
+
 
     useImperativeHandle(ref, () => form, [form]);
 
@@ -174,36 +183,59 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
       }
     };
 
-    // Effect to synchronize numberOfDoctorsWatched with the fields array
-  React.useEffect(() => {
-    const currentDoctorCount = fields.length;
-    const targetDoctorCount = Math.max(0, isNaN(numberOfDoctorsWatched) ? 0 : numberOfDoctorsWatched);
+    // Function to synchronize doctor fields based on committed number
+    const synchronizeDoctorFields = React.useCallback((targetCount: number) => {
+      const currentDoctorCount = fields.length;
+      const sanitizedTargetCount = Math.max(0, isNaN(targetCount) ? 0 : targetCount);
 
-    if (targetDoctorCount > currentDoctorCount) {
-      for (let i = 0; i < targetDoctorCount - currentDoctorCount; i++) {
-        append({ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false });
+      // Only synchronize if there's actually a difference
+      if (sanitizedTargetCount === currentDoctorCount) {
+        return; // No change needed
       }
-    } else if (targetDoctorCount < currentDoctorCount) {
-      for (let i = 0; i < currentDoctorCount - targetDoctorCount; i++) {
-        remove(currentDoctorCount - 1 - i);
-      }
-    }
-    if (form.getValues('numberOfDoctors') < 0 || isNaN(form.getValues('numberOfDoctors'))) {
-      form.setValue('numberOfDoctors', 0, { shouldValidate: true });
-    }
-  }, [numberOfDoctorsWatched, fields.length, append, remove, form]);
 
-    // Effect to call onValuesChange when form values change
-  React.useEffect(() => {
-      if (!onValuesChange) return;
+      if (sanitizedTargetCount > currentDoctorCount) {
+        for (let i = 0; i < sanitizedTargetCount - currentDoctorCount; i++) {
+          append({ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false });
+        }
+      } else if (sanitizedTargetCount < currentDoctorCount) {
+        for (let i = 0; i < currentDoctorCount - sanitizedTargetCount; i++) {
+          remove(currentDoctorCount - 1 - i);
+        }
+      }
+    }, [fields.length, append, remove]);
+
+    // Doctor fields will be synchronized on blur, not on every change
+
+    // Effect for form validation (but not field synchronization)
+    React.useEffect(() => {
+      const currentFormValue = form.getValues('numberOfDoctors');
+      if (currentFormValue < 0 || isNaN(currentFormValue) || currentFormValue == null) {
+        form.setValue('numberOfDoctors', 0, { shouldValidate: true });
+      }
+    }, [numberOfDoctorsWatched, form]);
+
+    // Effect to call onValuesChange when committed values change (debounced)
+    const debouncedOnValuesChange = React.useMemo(() => {
+      if (!onValuesChange) return null;
+      
+      let timeoutId: NodeJS.Timeout;
+      return (values: ScheduleFormValues) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          onValuesChange(values);
+        }, 300); // 300ms debounce to avoid calling on every keystroke
+      };
+    }, [onValuesChange]);
+
+    React.useEffect(() => {
+      if (!debouncedOnValuesChange) return;
 
       const subscription = form.watch((watchedValues) => {
-        // Use the `watchedValues` directly from the watcher
-        onValuesChange(watchedValues as ScheduleFormValues);
+        debouncedOnValuesChange(watchedValues as ScheduleFormValues);
       });
 
       return () => subscription.unsubscribe();
-    }, [form, onValuesChange]);
+    }, [form, debouncedOnValuesChange]);
 
   const handleDateSelectionWithShiftSupport = (
     currentSelectionFromFormField: Date[] | undefined,
@@ -270,10 +302,39 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                     id="numberOfDoctors"
                     type="number"
                     min="0" max="20"
+                    tabIndex={1}
                     {...field}
+                    ref={(el) => {
+                      field.ref(el);
+                      setNumberOfDoctorsInputElement(el);
+                    }}
+                    value={field.value === 0 ? "" : String(field.value)}
                     onChange={e => {
-                      const val = parseInt(e.target.value, 10);
-                      field.onChange(isNaN(val) ? 0 : val);
+                      const val = e.target.value;
+                      if (val === "") {
+                        field.onChange(0); // Treat empty as 0
+                      } else {
+                        const numVal = parseInt(val, 10);
+                        field.onChange(isNaN(numVal) ? 0 : numVal);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      field.onBlur(); // Call react-hook-form's onBlur
+                      const currentValue = form.getValues('numberOfDoctors');
+                      const sanitizedValue = Math.max(0, isNaN(currentValue) ? 0 : currentValue);
+                      
+                      // Capture where the user was trying to go (for tab or click)
+                      const targetElement = e.relatedTarget as HTMLElement;
+                      
+                      synchronizeDoctorFields(sanitizedValue);
+                      
+                      // Restore focus to the intended target if it exists
+                      if (targetElement) {
+                        // Use requestAnimationFrame to ensure DOM is updated first
+                        requestAnimationFrame(() => {
+                          targetElement.focus();
+                        });
+                      }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -295,7 +356,11 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                 render={({ field }) => (
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}>
+                      <Button 
+                        variant="outline" 
+                        tabIndex={2}
+                        className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}
+                      >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {field.value ? format(field.value, 'PPP', { locale: currentDateFnsLocale }) : <span>{t('form.pickDate')}</span>}
                       </Button>
@@ -322,7 +387,11 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                 render={({ field }) => (
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}>
+                      <Button 
+                        variant="outline" 
+                        tabIndex={3}
+                        className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}
+                      >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {field.value ? format(field.value, 'PPP', { locale: currentDateFnsLocale }) : <span>{t('form.pickDate')}</span>}
                       </Button>
@@ -354,6 +423,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                     id="minIntervalBetweenWorkDays"
                     type="number"
                     min="0" max="30"
+                    tabIndex={4}
                     {...field}
                      onChange={e => {
                       const val = parseInt(e.target.value, 10);
@@ -429,8 +499,9 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                       {...field} 
                                       id={`doctors.${index}.name`} 
                                       placeholder={t('form.doctorNamePlaceholder')} 
-                                      className="mt-1 bg-background" 
+                                                                                                                  className="mt-1 bg-background" 
                                       onPointerDown={(e) => e.stopPropagation()}
+
                                       onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                           e.preventDefault();
