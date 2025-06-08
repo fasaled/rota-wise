@@ -344,13 +344,13 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             switch (entry.assignment) {
               case 'Vacation': 
                 IconComponent = VacationIcon;
-                bgColor = 'bg-accent';
-                textColor = 'text-accent-foreground';
+                bgColor = 'bg-emerald-200 dark:bg-emerald-800';
+                textColor = 'text-emerald-700 dark:text-emerald-300';
                 break;
               case 'Pre-assigned':
                 IconComponent = PreAssignedIcon;
-                bgColor = 'bg-primary/80';
-                textColor = 'text-primary-foreground';
+                bgColor = 'bg-orange-200 dark:bg-orange-800';
+                textColor = 'text-orange-700 dark:text-orange-300';
                 break;
               case 'Work':
                 IconComponent = WorkIcon;
@@ -510,8 +510,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         </DndContext>
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
             <div className="flex items-center gap-1"><WorkIcon className="w-3 h-3 text-blue-700 dark:text-blue-300"/> <span className="p-0.5 rounded-sm bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-300">{t('calendar.legend.work')} (Draggable)</span></div>
-            <div className="flex items-center gap-1"><PreAssignedIcon className="w-3 h-3 text-primary-foreground"/> <span className="p-0.5 rounded-sm bg-primary/80 text-primary-foreground">{t('calendar.legend.preAssigned')}</span></div>
-            <div className="flex items-center gap-1"><VacationIcon className="w-3 h-3 text-accent-foreground"/> <span className="p-0.5 rounded-sm bg-accent text-accent-foreground">{t('calendar.legend.vacation')}</span></div>
+            <div className="flex items-center gap-1"><PreAssignedIcon className="w-3 h-3 text-orange-700 dark:text-orange-300"/> <span className="p-0.5 rounded-sm bg-orange-200 dark:bg-orange-800 text-orange-700 dark:text-orange-300">{t('calendar.legend.preAssigned')}</span></div>
+            <div className="flex items-center gap-1"><VacationIcon className="w-3 h-3 text-emerald-700 dark:text-emerald-300"/> <span className="p-0.5 rounded-sm bg-emerald-200 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300">{t('calendar.legend.vacation')}</span></div>
         </div>
       </CardContent>
        {selectedDateForAdjustment && (
