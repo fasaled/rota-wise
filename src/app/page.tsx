@@ -90,45 +90,8 @@ export default function RotawisePage() {
   useEffect(() => {
     if (!isMounted) return;
 
-    let formStateLoaded = false;
-    try {
-      const persistedFormInputString = localStorage.getItem(FORM_INPUT_LOCAL_STORAGE_KEY);
-      if (persistedFormInputString) {
-        const loadedFormInput = JSON.parse(persistedFormInputString) as SerializedLiveFormData; 
-        
-        // Attempt to deserialize and set form values
-        const deserializedFormValues: Partial<ScheduleFormValues> = {
-            numberOfDoctors: loadedFormInput.numberOfDoctors,
-            startDate: loadedFormInput.startDate ? new Date(loadedFormInput.startDate) : undefined,
-            endDate: loadedFormInput.endDate ? new Date(loadedFormInput.endDate) : undefined,
-            minIntervalBetweenWorkDays: loadedFormInput.minIntervalBetweenWorkDays || 1,
-            doctors: loadedFormInput.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
-                id: doc.id || crypto.randomUUID(),
-                name: doc.name || '',
-                vacationDates: (doc.vacationDates || []).map((d: string) => new Date(d)),
-                preAssignedWorkDates: (doc.preAssignedWorkDates || []).map((d: string) => new Date(d)),
-                excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
-                isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
-            }))
-        };
-        // Validate if the loaded data makes sense, e.g., has numberOfDoctors
-        if (typeof deserializedFormValues.numberOfDoctors === 'number') {
-            setLoadedFormValues(deserializedFormValues);
-            setDataInputFormKey(prevKey => prevKey + 1);
-            setNumDoctorsInForm(deserializedFormValues.numberOfDoctors);
-            formStateLoaded = true;
-        } else {
-            console.warn("Loaded form input state was invalid, discarding.");
-            localStorage.removeItem(FORM_INPUT_LOCAL_STORAGE_KEY);
-        }
-      }
-    } catch (error) {
-        console.error("Failed to load form input state from localStorage:", error);
-        localStorage.removeItem(FORM_INPUT_LOCAL_STORAGE_KEY); // Clear corrupted data
-    }
-
-    if (formStateLoaded) return; // If form input was loaded, don't try to load full app state over it
-
+    // First, try to load the full schedule state (higher priority)
+    let fullScheduleLoaded = false;
     try {
       const persistedStateString = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (persistedStateString) {
@@ -181,6 +144,25 @@ export default function RotawisePage() {
           setScheduleWarnings(loadedData.scheduleWarnings || []);
           setCurrentMinInterval(loadedData.currentMinInterval || 1);
 
+          // Sync the full schedule's form values to the form input localStorage
+          try {
+            const serializableFormData: SerializedLiveFormData = {
+              ...finalFormValues,
+              startDate: finalFormValues.startDate ? finalFormValues.startDate.toISOString() : undefined,
+              endDate: finalFormValues.endDate ? finalFormValues.endDate.toISOString() : undefined,
+              doctors: finalFormValues.doctors.map(doc => ({
+                ...doc,
+                vacationDates: (doc.vacationDates || []).map(d => d.toISOString()),
+                preAssignedWorkDates: (doc.preAssignedWorkDates || []).map(d => d.toISOString()),
+                excludedDates: (doc.excludedDates || []).map(d => d.toISOString()),
+              })),
+            };
+            localStorage.setItem(FORM_INPUT_LOCAL_STORAGE_KEY, JSON.stringify(serializableFormData));
+          } catch (syncError) {
+            console.warn("Failed to sync full schedule form values to form input localStorage:", syncError);
+          }
+
+          fullScheduleLoaded = true;
           toast({
             title: t('page.toast.stateRestored.title'),
             description: t('page.toast.stateRestored.description'),
@@ -190,13 +172,51 @@ export default function RotawisePage() {
         }
       }
     } catch (error) {
-      console.error("Failed to load state from localStorage:", error);
+      console.error("Failed to load full schedule state from localStorage:", error);
       toast({
         title: t('page.toast.errorRestoringState.title'),
         description: t('page.toast.errorRestoringState.description'),
         variant: "destructive",
       });
       localStorage.removeItem(LOCAL_STORAGE_KEY); // Clear corrupted data
+    }
+
+    // If no full schedule was loaded, try to load form input state as fallback
+    if (!fullScheduleLoaded) {
+      try {
+        const persistedFormInputString = localStorage.getItem(FORM_INPUT_LOCAL_STORAGE_KEY);
+        if (persistedFormInputString) {
+          const loadedFormInput = JSON.parse(persistedFormInputString) as SerializedLiveFormData; 
+          
+          // Attempt to deserialize and set form values
+          const deserializedFormValues: Partial<ScheduleFormValues> = {
+              numberOfDoctors: loadedFormInput.numberOfDoctors,
+              startDate: loadedFormInput.startDate ? new Date(loadedFormInput.startDate) : undefined,
+              endDate: loadedFormInput.endDate ? new Date(loadedFormInput.endDate) : undefined,
+              minIntervalBetweenWorkDays: loadedFormInput.minIntervalBetweenWorkDays || 1,
+              doctors: loadedFormInput.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
+                  id: doc.id || crypto.randomUUID(),
+                  name: doc.name || '',
+                  vacationDates: (doc.vacationDates || []).map((d: string) => new Date(d)),
+                  preAssignedWorkDates: (doc.preAssignedWorkDates || []).map((d: string) => new Date(d)),
+                  excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
+                  isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+              }))
+          };
+          // Validate if the loaded data makes sense, e.g., has numberOfDoctors
+          if (typeof deserializedFormValues.numberOfDoctors === 'number') {
+              setLoadedFormValues(deserializedFormValues);
+              setDataInputFormKey(prevKey => prevKey + 1);
+              setNumDoctorsInForm(deserializedFormValues.numberOfDoctors);
+          } else {
+              console.warn("Loaded form input state was invalid, discarding.");
+              localStorage.removeItem(FORM_INPUT_LOCAL_STORAGE_KEY);
+          }
+        }
+      } catch (error) {
+          console.error("Failed to load form input state from localStorage:", error);
+          localStorage.removeItem(FORM_INPUT_LOCAL_STORAGE_KEY); // Clear corrupted data
+      }
     }
   }, [isMounted, t, toast]); // Added t and toast as dependencies
 
