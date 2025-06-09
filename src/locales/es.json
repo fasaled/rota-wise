@@ -93,6 +93,16 @@
 
   "calendar.toast.vacationUneditable.title": "Vacaciones no editables",
   "calendar.toast.vacationUneditable.description": "Las entradas de vacaciones se gestionan en el formulario principal y no se pueden editar directamente en el calendario.",
+  "calendar.toast.doctorsSwapped.title": "Médicos intercambiados",
+  "calendar.toast.doctorsSwapped.description": "Los médicos han sido intercambiados entre las dos fechas.",
+  "calendar.toast.doctorMoved.title": "Médico movido",
+  "calendar.toast.doctorMoved.description": "El médico ha sido movido a la nueva fecha.",
+  "calendar.toast.onlyWorkDraggable.title": "No se puede mover la asignación",
+  "calendar.toast.onlyWorkDraggable.description": "Solo se pueden mover las asignaciones de trabajo no fijas.",
+  "calendar.toast.cannotMoveToFixed.title": "No se puede mover a fecha fija",
+  "calendar.toast.cannotMoveToFixed.description": "No se puede mover a una fecha que tiene una asignación fija.",
+  "calendar.toast.cannotSwapWithFixed.title": "No se puede intercambiar con asignación fija",
+  "calendar.toast.cannotSwapWithFixed.description": "No se puede intercambiar con una asignación fija.",
 
   "dialog.adjustTitle": "Ajustar horario para {date}",
   "dialog.modifyDescription": "Modifique la asignación para este día.",

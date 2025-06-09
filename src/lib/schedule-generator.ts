@@ -142,13 +142,59 @@ export function generateSchedule(
         monthlyWorkdays: initialMonthlyWorkdays, 
       };
 
-      const preAssignmentsBeforeStart = doc.preAssignedWorkDates
-        .filter(d => d < startDate)
-        .sort((a, b) => b.getTime() - a.getTime()); 
-      if (preAssignmentsBeforeStart.length > 0) {
-        doctorLastWorkDay[doc.id] = preAssignmentsBeforeStart[0];
+      // Find the most recent work day before the schedule start date
+      const workDatesBeforeStart: Date[] = [];
+      
+      // Add pre-assigned work dates before start
+      workDatesBeforeStart.push(...doc.preAssignedWorkDates.filter(d => d < startDate));
+      
+      // Add fixed work assignments before start
+      if (existingFixedEntries) {
+        const fixedWorkDatesBeforeStart = existingFixedEntries
+          .filter(entry => entry.doctorId === doc.id && 
+                         (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned') &&
+                         entry.date < startDate)
+          .map(entry => new Date(entry.date));
+        workDatesBeforeStart.push(...fixedWorkDatesBeforeStart);
+      }
+      
+      if (workDatesBeforeStart.length > 0) {
+        const sortedWorkDates = workDatesBeforeStart.sort((a, b) => b.getTime() - a.getTime());
+        doctorLastWorkDay[doc.id] = sortedWorkDates[0];
       }
     });
+
+    // Initialize doctor statistics based on existing fixed entries
+    if (existingFixedEntries) {
+      existingFixedEntries.forEach(entry => {
+        const entryDate = new Date(entry.date);
+        if (entryDate >= startDate && entryDate <= endDate && entry.isFixed && 
+            (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned')) {
+          const doctorId = entry.doctorId;
+          const dayOfWeekKey = format(entryDate, 'EEE', { locale: enUS });
+          const monthKey = format(entryDate, 'yyyy-MM');
+          const isWeekend = weekendDayKeys.includes(dayOfWeekKey);
+          
+          // Update doctor statistics to account for fixed work assignments
+          if (doctorStats[doctorId]) {
+            doctorStats[doctorId].totalWorkdays++;
+            doctorStats[doctorId].workloadByDayOfWeek[dayOfWeekKey]++;
+            doctorStats[doctorId].monthlyWorkdays[monthKey] = (doctorStats[doctorId].monthlyWorkdays[monthKey] || 0) + 1;
+            
+            if (isWeekend && doctorWeekendDaysThisMonth[doctorId]) {
+              doctorWeekendDaysThisMonth[doctorId][monthKey] = (doctorWeekendDaysThisMonth[doctorId][monthKey] || 0) + 1;
+            }
+          }
+          
+          // Only update doctorLastWorkDay for fixed entries that are BEFORE the start date
+          // or at the start date, since we process chronologically and doctorLastWorkDay
+          // should only track work days that have already been "processed"
+          if (entryDate <= startDate && (!doctorLastWorkDay[doctorId] || entryDate > doctorLastWorkDay[doctorId])) {
+            doctorLastWorkDay[doctorId] = new Date(entryDate);
+          }
+        }
+      });
+    }
 
     while (currentDateLoopVar <= finalEndDate) {
       const currentDate = new Date(currentDateLoopVar); 
@@ -162,6 +208,11 @@ export function generateSchedule(
       const existingFixedEntry = mockEntries.find(entry => 
         isSameDay(entry.date, currentDate) && entry.isFixed
       );
+      
+      // Update doctorLastWorkDay for fixed work assignments as we encounter them chronologically
+      if (existingFixedEntry && (existingFixedEntry.assignment === 'Work' || existingFixedEntry.assignment === 'Pre-assigned')) {
+        doctorLastWorkDay[existingFixedEntry.doctorId] = new Date(currentDate);
+      }
       
       let dayHasAnyPreAssignment = false;
       let dayHasFixedAssignment = !!existingFixedEntry;
@@ -216,24 +267,43 @@ export function generateSchedule(
             const isDoctorExcludedOnDate = isDateInArray(currentDate, doc.excludedDates);
             const isFullyExcludedFromAuto = doc.isExcludedFromAutomaticAssignment;
             
-            const lastWork = doctorLastWorkDay[doc.id];
-            let respectsMinIntervalFromLast = true;
-            if (lastWork) {
-                respectsMinIntervalFromLast = differenceInCalendarDays(currentDate, lastWork) > minIntervalBetweenWorkDays;
+            // Comprehensive minimum interval checking against ALL work commitments
+            let respectsMinInterval = true;
+            
+            // Get all existing work commitments for this doctor
+            const allWorkCommitments: Date[] = [];
+            
+            // Add pre-assigned work dates
+            allWorkCommitments.push(...doc.preAssignedWorkDates);
+            
+            // Add fixed work assignments
+            if (existingFixedEntries) {
+              const fixedWorkDates = existingFixedEntries
+                .filter(entry => entry.doctorId === doc.id && 
+                               (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned'))
+                .map(entry => new Date(entry.date));
+              allWorkCommitments.push(...fixedWorkDates);
             }
-
-            let respectsMinIntervalToNextPreAssigned = true;
-            const sortedPreAssignedDates = [...doc.preAssignedWorkDates].sort((a,b) => a.getTime() - b.getTime());
-            const nextPreAssignedDate = sortedPreAssignedDates.find(d => d > currentDate);
-
-            if (nextPreAssignedDate) {
-                respectsMinIntervalToNextPreAssigned = differenceInCalendarDays(nextPreAssignedDate, currentDate) > minIntervalBetweenWorkDays;
+            
+            // Add already assigned work entries from current generation (in mockEntries)
+            const currentlyAssignedWorkDates = mockEntries
+              .filter(entry => entry.doctorId === doc.id && 
+                             (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned'))
+              .map(entry => new Date(entry.date));
+            allWorkCommitments.push(...currentlyAssignedWorkDates);
+            
+            // Check minimum interval against all work commitments
+            for (const workDate of allWorkCommitments) {
+              const daysDifference = Math.abs(differenceInCalendarDays(currentDate, workDate));
+              if (daysDifference <= minIntervalBetweenWorkDays) {
+                respectsMinInterval = false;
+                break;
+              }
             }
 
             return !isDoctorOnVacation && 
                    !isDoctorExcludedOnDate && 
-                   respectsMinIntervalFromLast && 
-                   respectsMinIntervalToNextPreAssigned && 
+                   respectsMinInterval &&
                    !isFullyExcludedFromAuto;
         });
 

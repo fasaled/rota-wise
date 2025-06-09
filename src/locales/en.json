@@ -96,6 +96,16 @@
 
   "calendar.toast.vacationUneditable.title": "Vacation Uneditable",
   "calendar.toast.vacationUneditable.description": "Vacation entries are managed in the main form and cannot be edited directly on the calendar.",
+  "calendar.toast.doctorsSwapped.title": "Doctors swapped",
+  "calendar.toast.doctorsSwapped.description": "The doctors have been swapped between the two dates.",
+  "calendar.toast.doctorMoved.title": "Doctor moved",
+  "calendar.toast.doctorMoved.description": "The doctor has been moved to the new date.",
+  "calendar.toast.onlyWorkDraggable.title": "Cannot move assignment",
+  "calendar.toast.onlyWorkDraggable.description": "Only non-fixed work assignments can be moved.",
+  "calendar.toast.cannotMoveToFixed.title": "Cannot move to fixed date",
+  "calendar.toast.cannotMoveToFixed.description": "Cannot move to a date that has a fixed assignment.",
+  "calendar.toast.cannotSwapWithFixed.title": "Cannot swap with fixed assignment",
+  "calendar.toast.cannotSwapWithFixed.description": "Cannot swap with a fixed assignment.",
 
   "dialog.adjustTitle": "Adjust schedule for {date}",
   "dialog.modifyDescription": "Modify the assignment for this day.",

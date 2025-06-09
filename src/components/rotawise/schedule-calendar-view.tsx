@@ -56,7 +56,7 @@ const DraggableWorkEntry: React.FC<DraggableWorkEntryProps> = ({
   assignmentText,
   onEdit,
 }) => {
-  const isDraggable = entry.assignment === 'Work'; // Only allow dragging 'Work' assignments
+  const isDraggable = entry.assignment === 'Work' && !entry.isFixed; // Only allow dragging 'Work' assignments that are not fixed
   const dragId = isDraggable ? `work-${entry.doctorId}-${entry.date.getTime()}` : undefined;
   
   const {
@@ -206,11 +206,27 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
       return;
     }
 
-    // Check if the dragged entry is a 'Work' assignment (only these can be dragged)
-    if (draggedEntry.assignment !== 'Work') {
+    // Check if the dragged entry is a 'Work' assignment and not fixed (only these can be dragged)
+    if (draggedEntry.assignment !== 'Work' || draggedEntry.isFixed) {
       toast({
         title: t('calendar.toast.onlyWorkDraggable.title') || 'Cannot move assignment',
-        description: t('calendar.toast.onlyWorkDraggable.description') || 'Only generated work assignments can be moved.',
+        description: t('calendar.toast.onlyWorkDraggable.description') || 'Only non-fixed work assignments can be moved.',
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if target date has a fixed assignment that would conflict
+    const existingFixedEntryOnTarget = schedule.entries.find(entry =>
+      isSameDay(entry.date, targetDate) && 
+      entry.isFixed &&
+      (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned')
+    );
+
+    if (existingFixedEntryOnTarget) {
+      toast({
+        title: t('calendar.toast.cannotMoveToFixed.title') || 'Cannot move to fixed date',
+        description: t('calendar.toast.cannotMoveToFixed.description') || 'Cannot move to a date that has a fixed assignment.',
         variant: "destructive",
       });
       return;
@@ -224,6 +240,15 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     );
 
     if (existingEntryOnTarget) {
+      // Prevent swapping with fixed entries
+      if (existingEntryOnTarget.isFixed) {
+        toast({
+          title: t('calendar.toast.cannotSwapWithFixed.title') || 'Cannot swap with fixed assignment',
+          description: t('calendar.toast.cannotSwapWithFixed.description') || 'Cannot swap with a fixed assignment.',
+          variant: "destructive",
+        });
+        return;
+      }
       // Swap the doctors
       const updatedDraggedEntry: ScheduleEntry = {
         ...draggedEntry,
