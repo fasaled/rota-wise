@@ -308,21 +308,45 @@ export function generateSchedule(
         });
 
         if (eligibleDoctors.length > 0) {
+            // Helper function to calculate how underrepresented a doctor is for a specific day of week
+            const calculateDayOfWeekBalance = (doctorId: string, dayOfWeek: string) => {
+                // Get global statistics for this day of week across all doctors
+                const allDoctorCounts = doctorsWithIds.map(doc => doctorStats[doc.id].workloadByDayOfWeek[dayOfWeek] || 0);
+                const globalAverage = allDoctorCounts.reduce((sum, count) => sum + count, 0) / allDoctorCounts.length;
+                
+                // How much below average is this doctor for this day?
+                const doctorCount = doctorStats[doctorId].workloadByDayOfWeek[dayOfWeek] || 0;
+                const deficitFromAverage = globalAverage - doctorCount;
+                
+                // Higher deficit = more deserving of this day assignment
+                return deficitFromAverage;
+            };
+
             eligibleDoctors.sort((a, b) => {
                 const statsA = doctorStats[a.id];
                 const statsB = doctorStats[b.id];
                 const monthKeyForSort = currentMonthKey;
 
+                // 1. Prioritize doctors with fewer total workdays
                 if (statsA.totalWorkdays !== statsB.totalWorkdays) {
                     return statsA.totalWorkdays - statsB.totalWorkdays;
                 }
 
+                // 2. Prioritize day-of-week balance - prefer doctors who are most underrepresented for this day
+                const balanceScoreA = calculateDayOfWeekBalance(a.id, dayOfWeekKey);
+                const balanceScoreB = calculateDayOfWeekBalance(b.id, dayOfWeekKey);
+                if (Math.abs(balanceScoreA - balanceScoreB) > 0.001) {
+                    return balanceScoreB - balanceScoreA; // Higher score (more deficit) goes first
+                }
+
+                // 3. Consider current day assignment count (direct comparison)
                 const dayOfWeekCountA = statsA.workloadByDayOfWeek[dayOfWeekKey] || 0;
                 const dayOfWeekCountB = statsB.workloadByDayOfWeek[dayOfWeekKey] || 0;
                 if (dayOfWeekCountA !== dayOfWeekCountB) {
                     return dayOfWeekCountA - dayOfWeekCountB;
                 }
 
+                // 4. Consider monthly workload ratio
                 const workdaysInCurrentMonthA = statsA.monthlyWorkdays[monthKeyForSort] || 0;
                 const workdaysInCurrentMonthB = statsB.monthlyWorkdays[monthKeyForSort] || 0;
                 const availableDaysThisMonthA = availableDaysPerDoctorPerMonth.get(a.id)?.get(monthKeyForSort) ?? 0;
@@ -331,10 +355,11 @@ export function generateSchedule(
                 const ratioA = availableDaysThisMonthA > 0 ? workdaysInCurrentMonthA / availableDaysThisMonthA : (workdaysInCurrentMonthA > 0 ? Infinity : 0);
                 const ratioB = availableDaysThisMonthB > 0 ? workdaysInCurrentMonthB / availableDaysThisMonthB : (workdaysInCurrentMonthB > 0 ? Infinity : 0);
 
-                if (ratioA !== ratioB) {
+                if (Math.abs(ratioA - ratioB) > 0.01) {
                     return ratioA - ratioB;
                 }
                 
+                // 5. Weekend assignment fairness
                 if (isCurrentDayWeekend) {
                     const weekendDaysWorkedA = doctorWeekendDaysThisMonth[a.id]?.[monthKeyForSort] || 0;
                     const weekendDaysWorkedB = doctorWeekendDaysThisMonth[b.id]?.[monthKeyForSort] || 0;
@@ -350,6 +375,7 @@ export function generateSchedule(
                     }
                 }
 
+                // 6. Idle time (last work day)
                 const lastWorkA_Time = doctorLastWorkDay[a.id]?.getTime();
                 const lastWorkB_Time = doctorLastWorkDay[b.id]?.getTime();
 
@@ -360,6 +386,8 @@ export function generateSchedule(
                 if (idleTimeComparison !== 0) {
                     return idleTimeComparison;
                 }
+                
+                // 7. Random tie-breaker
                 return Math.random() - 0.5;
             });
 
