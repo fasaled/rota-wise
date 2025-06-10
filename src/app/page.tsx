@@ -1075,9 +1075,8 @@ export default function RotawisePage() {
                 const doctorNameOnDay = getDoctorForDay(dayIterator);
                 cellContent = dayNumber;
                 if (doctorNameOnDay) {
-                    // Split doctor names if too long for a cell, though autoTable handles overflow
-                    const doctorNamesSplit = pdf.splitTextToSize(doctorNameOnDay, (contentWidth / 7) - 4);
-                    cellContent += `\n${doctorNamesSplit.join('\n')}`;
+                    // Add spacing to center the doctor name vertically while keeping day number at top
+                    cellContent += `\n\n${doctorNameOnDay}`;
                 }
             } else if (isSameMonthDateFns(dayIterator, firstDayOfCurrentMonth)) {
                  cellContent = format(dayIterator, 'd'); // Day number for days in month but outside schedule range
@@ -1100,8 +1099,8 @@ export default function RotawisePage() {
                 theme: 'grid',
                 styles: {
                     font: BASE_FONT,
-                    fontSize: FONT_BODY -1, // Slightly smaller for calendar cells
-                    cellPadding: { top: 2, right: 1, bottom: 2, left: 1 },
+                    fontSize: FONT_BODY - 1, // Slightly smaller for calendar cells
+                    cellPadding: { top: 1, right: 1, bottom: 1, left: 1 },
                     valign: 'top',
                     halign: 'left',
                     minCellHeight: 15, // Ensure cells have enough height for day number + name
