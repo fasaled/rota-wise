@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle } from 'docx';
 import { format, startOfMonth, addMonths, isSameDay, differenceInCalendarDays, subDays, eachMonthOfInterval, isSameMonth as isSameMonthDateFns, eachDayOfInterval as eachDayOfIntervalFns, endOfMonth, isWithinInterval, startOfWeek, endOfWeek, addDays } from 'date-fns';
 import { enUS, es } from 'date-fns/locale';
 import { useLanguage } from '@/context/language-context';
@@ -70,6 +71,7 @@ export default function RotawisePage() {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingWord, setIsExportingWord] = useState(false);
   const [doctorsProfiles, setDoctorsProfiles] = useState<DoctorProfile[]>([]);
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
@@ -1345,6 +1347,567 @@ export default function RotawisePage() {
     }
   };
 
+  const handleExportWord = async () => {
+    if (!schedule || !doctorsProfiles.length) {
+      toast({
+        title: t('page.toast.noScheduleToExport.title'),
+        description: t('page.toast.noScheduleToExport.description'),
+        variant: "destructive"
+      });
+      return;
+    }
+    setIsExportingWord(true);
+
+    try {
+      const getDoctorNameById = (id: string): string => doctorsProfiles.find(doc => doc.id === id)?.name || id;
+
+      const getDoctorForDay = (day: Date): string => {
+        const workingEntries = schedule.entries.filter(entry =>
+          isSameDay(entry.date, day) &&
+          (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned') &&
+          entry.doctorId !== 'system'
+        );
+        if (workingEntries.length > 0) {
+          return workingEntries.map(we => getDoctorNameById(we.doctorId)).join(', ');
+        }
+        return "";
+      };
+
+      const allMonthsToExport = eachMonthOfInterval({
+        start: schedule.startDate,
+        end: schedule.endDate,
+      }).map(m => startOfMonth(m));
+
+      const children = [];
+
+      // Document title
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: t('pdf.reportTitle'),
+              bold: true,
+              size: 28,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 240 },
+        })
+      );
+
+      // Schedule period
+      const schedulePeriodText = t('pdf.schedulePeriod', {
+        startDate: format(schedule.startDate, 'PPP', { locale: currentDateFnsLocale }),
+        endDate: format(schedule.endDate, 'PPP', { locale: currentDateFnsLocale })
+      });
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: schedulePeriodText, size: 20 })],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 120 },
+        })
+      );
+
+      // Min interval info
+      const intervalToDisplay = schedule.minIntervalBetweenWorkDays ?? currentMinInterval;
+      const minIntervalText = t('pdf.minIntervalInfo', { interval: intervalToDisplay });
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: minIntervalText, size: 20 })],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 240 },
+        })
+      );
+
+      // Schedule warnings section
+      if (scheduleWarnings.length > 0) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: t('pdf.warningsTitle'),
+                bold: true,
+                size: 24,
+              }),
+            ],
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 240, after: 120 },
+          })
+        );
+
+        scheduleWarnings.forEach(warning => {
+          children.push(
+            new Paragraph({
+              children: [new TextRun({ text: `• ${warning}`, size: 18 })],
+              spacing: { after: 60 },
+            })
+          );
+        });
+      }
+
+      // Monthly calendar grids
+      for (const monthStartDate of allMonthsToExport) {
+        const monthTitle = format(monthStartDate, 'MMMM yyyy', { locale: currentDateFnsLocale });
+        
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: monthTitle,
+                bold: true,
+                size: 24,
+              }),
+            ],
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 480, after: 240 },
+          })
+        );
+
+        const firstDayOfCurrentMonth = monthStartDate;
+        const lastDayOfCurrentMonth = endOfMonth(firstDayOfCurrentMonth);
+        const calGridStartDate = startOfWeek(firstDayOfCurrentMonth, { locale: currentDateFnsLocale });
+        const calGridEndDate = endOfWeek(lastDayOfCurrentMonth, { locale: currentDateFnsLocale });
+
+        // Create weekday headers
+        const weekDayHeaders: string[] = [];
+        for (let i = 0; i < 7; i++) {
+          const dayInWeek = addDays(calGridStartDate, i);
+          const dayKey = format(dayInWeek, 'EEE', { locale: enUS }).toLowerCase();
+          weekDayHeaders.push(t(`pdf.workdaysSummary.${dayKey}Header` as any));
+        }
+
+        // Build calendar grid data
+        const monthMatrixBody: string[][] = [];
+        let currentWeekRow: string[] = [];
+        let dayIterator = new Date(calGridStartDate);
+        
+        while (dayIterator <= calGridEndDate) {
+          let cellContent = "";
+          if (isSameMonthDateFns(dayIterator, firstDayOfCurrentMonth) && 
+              isWithinInterval(dayIterator, { start: schedule.startDate, end: schedule.endDate })) {
+            const dayNumber = format(dayIterator, 'd');
+            const doctorNameOnDay = getDoctorForDay(dayIterator);
+            cellContent = dayNumber;
+            if (doctorNameOnDay) {
+              cellContent += `\n${doctorNameOnDay}`;
+            }
+          } else if (isSameMonthDateFns(dayIterator, firstDayOfCurrentMonth)) {
+            cellContent = format(dayIterator, 'd');
+          }
+          currentWeekRow.push(cellContent);
+
+          if (currentWeekRow.length === 7 || isSameDay(dayIterator, calGridEndDate)) {
+            monthMatrixBody.push([...currentWeekRow]);
+            currentWeekRow = [];
+          }
+          dayIterator = addDays(dayIterator, 1);
+        }
+
+        // Create table
+        const tableRows = [
+          new TableRow({
+            children: weekDayHeaders.map(header => 
+              new TableCell({
+                children: [new Paragraph({
+                  children: [new TextRun({ text: header, bold: true, size: 18 })],
+                  alignment: AlignmentType.CENTER,
+                })],
+                width: { size: 14.28, type: WidthType.PERCENTAGE },
+              })
+            ),
+          }),
+          ...monthMatrixBody.map(row => 
+            new TableRow({
+              children: row.map(cellContent => 
+                new TableCell({
+                  children: [new Paragraph({
+                    children: [new TextRun({ text: cellContent, size: 16 })],
+                    alignment: AlignmentType.LEFT,
+                  })],
+                  width: { size: 14.28, type: WidthType.PERCENTAGE },
+                })
+              ),
+            })
+          ),
+        ];
+
+        children.push(
+          new Table({
+            rows: tableRows,
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: BorderStyle.SINGLE, size: 1 },
+              bottom: { style: BorderStyle.SINGLE, size: 1 },
+              left: { style: BorderStyle.SINGLE, size: 1 },
+              right: { style: BorderStyle.SINGLE, size: 1 },
+              insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
+              insideVertical: { style: BorderStyle.SINGLE, size: 1 },
+            },
+          })
+        );
+             }
+
+       // Doctor Details Section
+       for (const doctor of doctorsProfiles) {
+         children.push(
+           new Paragraph({
+             children: [
+               new TextRun({
+                 text: t('pdf.doctorDetailsTitle', { doctorName: doctor.name }),
+                 bold: true,
+                 size: 24,
+               }),
+             ],
+             heading: HeadingLevel.HEADING_2,
+             spacing: { before: 480, after: 240 },
+           })
+         );
+
+         if (doctor.isExcludedFromAutomaticAssignment) {
+           children.push(
+             new Paragraph({
+               children: [
+                 new TextRun({
+                   text: t('pdf.doctorIsExcludedFromAuto'),
+                   italics: true,
+                   size: 16,
+                 }),
+               ],
+               spacing: { after: 120 },
+             })
+           );
+         }
+
+         const getFormattedDates = (dates: Date[]) => dates.length > 0 
+           ? dates.map(d => format(d, 'PPP', { locale: currentDateFnsLocale })).join('\n') 
+           : t('pdf.none');
+
+         const allWorkDatesSet = new Set<number>();
+         doctor.preAssignedWorkDates.forEach(date => allWorkDatesSet.add(date.getTime()));
+         schedule.entries.forEach(entry => {
+           if (entry.doctorId === doctor.id && entry.assignment === 'Work') {
+             allWorkDatesSet.add(entry.date.getTime());
+           }
+         });
+         const allWorkDates = Array.from(allWorkDatesSet)
+           .map(time => new Date(time))
+           .sort((a, b) => a.getTime() - b.getTime());
+
+         const doctorDetailsRows = [
+           new TableRow({
+             children: [
+               new TableCell({
+                 children: [new Paragraph({
+                   children: [new TextRun({ text: t('pdf.workDaysHeader'), bold: true, size: 18 })],
+                   alignment: AlignmentType.CENTER,
+                 })],
+                 width: { size: 25, type: WidthType.PERCENTAGE },
+               }),
+               new TableCell({
+                 children: [new Paragraph({
+                   children: [new TextRun({ text: t('pdf.datesHeader'), bold: true, size: 18 })],
+                   alignment: AlignmentType.CENTER,
+                 })],
+                 width: { size: 75, type: WidthType.PERCENTAGE },
+               }),
+             ],
+           }),
+           new TableRow({
+             children: [
+               new TableCell({
+                 children: [new Paragraph({
+                   children: [new TextRun({ text: t('pdf.workDays'), size: 16 })],
+                 })],
+               }),
+               new TableCell({
+                 children: [new Paragraph({
+                   children: [new TextRun({ text: getFormattedDates(allWorkDates), size: 16 })],
+                 })],
+               }),
+             ],
+           }),
+         ];
+
+         children.push(
+           new Table({
+             rows: doctorDetailsRows,
+             width: { size: 100, type: WidthType.PERCENTAGE },
+             borders: {
+               top: { style: BorderStyle.SINGLE, size: 1 },
+               bottom: { style: BorderStyle.SINGLE, size: 1 },
+               left: { style: BorderStyle.SINGLE, size: 1 },
+               right: { style: BorderStyle.SINGLE, size: 1 },
+               insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
+               insideVertical: { style: BorderStyle.SINGLE, size: 1 },
+             },
+           })
+         );
+       }
+
+       // Workdays summary table
+       children.push(
+         new Paragraph({
+           children: [
+             new TextRun({
+               text: t('pdf.workdaysSummary.title'),
+               bold: true,
+               size: 24,
+             }),
+           ],
+           heading: HeadingLevel.HEADING_2,
+           spacing: { before: 480, after: 240 },
+         })
+       );
+
+      const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const workdaySummaryData: any[] = [];
+
+      for (const doctor of doctorsProfiles) {
+        const doctorSummary: { [key: string]: string | number } = { doctorName: doctor.name };
+        dayKeys.forEach(key => doctorSummary[key] = 0);
+        doctorSummary['Total'] = 0;
+
+        const workEntries = schedule.entries.filter(
+          entry => entry.doctorId === doctor.id && (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned')
+        );
+
+        for (const entry of workEntries) {
+          const dayOfWeekKey = format(entry.date, 'EEE', { locale: enUS });
+          if (dayKeys.includes(dayOfWeekKey)) {
+            (doctorSummary[dayOfWeekKey] as number)++;
+            (doctorSummary['Total'] as number)++;
+          }
+        }
+        workdaySummaryData.push(doctorSummary);
+      }
+
+      const summaryTableRows = [
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({
+                children: [new TextRun({ text: t('pdf.workdaysSummary.doctorHeader'), bold: true, size: 18 })],
+                alignment: AlignmentType.CENTER,
+              })],
+            }),
+            ...dayKeys.map(key => 
+              new TableCell({
+                children: [new Paragraph({
+                  children: [new TextRun({ text: t(`pdf.workdaysSummary.${key.toLowerCase()}Header` as any), bold: true, size: 18 })],
+                  alignment: AlignmentType.CENTER,
+                })],
+              })
+            ),
+            new TableCell({
+              children: [new Paragraph({
+                children: [new TextRun({ text: t('pdf.workdaysSummary.totalHeader'), bold: true, size: 18 })],
+                alignment: AlignmentType.CENTER,
+              })],
+            }),
+          ],
+        }),
+        ...workdaySummaryData.map(summary => 
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [new Paragraph({
+                  children: [new TextRun({ text: summary.doctorName, size: 16 })],
+                })],
+              }),
+              ...dayKeys.map(key => 
+                new TableCell({
+                  children: [new Paragraph({
+                    children: [new TextRun({ text: summary[key].toString(), size: 16 })],
+                    alignment: AlignmentType.CENTER,
+                  })],
+                })
+              ),
+              new TableCell({
+                children: [new Paragraph({
+                  children: [new TextRun({ text: summary.Total.toString(), size: 16 })],
+                  alignment: AlignmentType.CENTER,
+                })],
+              }),
+            ],
+          })
+        ),
+      ];
+
+             children.push(
+         new Table({
+           rows: summaryTableRows,
+           width: { size: 100, type: WidthType.PERCENTAGE },
+           borders: {
+             top: { style: BorderStyle.SINGLE, size: 1 },
+             bottom: { style: BorderStyle.SINGLE, size: 1 },
+             left: { style: BorderStyle.SINGLE, size: 1 },
+             right: { style: BorderStyle.SINGLE, size: 1 },
+             insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
+             insideVertical: { style: BorderStyle.SINGLE, size: 1 },
+           },
+         })
+       );
+
+       // Monthly Workload Summary Table
+       children.push(
+         new Paragraph({
+           children: [
+             new TextRun({
+               text: t('pdf.monthlyWorkloadSummary.title'),
+               bold: true,
+               size: 24,
+             }),
+           ],
+           heading: HeadingLevel.HEADING_2,
+           spacing: { before: 480, after: 240 },
+         })
+       );
+
+       const scheduleMonthsForWord = eachMonthOfInterval({
+         start: schedule.startDate,
+         end: schedule.endDate,
+       }).map(monthDate => startOfMonth(monthDate));
+
+       const monthHeadersForWord = scheduleMonthsForWord.map(m => format(m, 'MMM yy', { locale: currentDateFnsLocale }));
+       const wordMonthlyTableBody: any[] = [];
+       const wordMonthlyTotalsRow: any[] = [t('pdf.monthlyWorkloadSummary.totalHeader')];
+       const monthTotalsMap = new Map<string, number>();
+       scheduleMonthsForWord.forEach(m => monthTotalsMap.set(format(m, 'yyyy-MM'), 0));
+       let grandTotalWorkdays = 0;
+
+       for (const doctor of doctorsProfiles) {
+         const doctorRow: any[] = [doctor.name];
+         let doctorTotalAcrossMonths = 0;
+         for (const monthDate of scheduleMonthsForWord) {
+           const monthKey = format(monthDate, 'yyyy-MM');
+           let workdaysInMonthForDoctor = 0;
+           schedule.entries.forEach(entry => {
+             if (entry.doctorId === doctor.id && (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned') && isSameMonthDateFns(entry.date, monthDate)) {
+               workdaysInMonthForDoctor++;
+             }
+           });
+           doctorRow.push(workdaysInMonthForDoctor);
+           doctorTotalAcrossMonths += workdaysInMonthForDoctor;
+           monthTotalsMap.set(monthKey, (monthTotalsMap.get(monthKey) || 0) + workdaysInMonthForDoctor);
+         }
+         doctorRow.push(doctorTotalAcrossMonths);
+         grandTotalWorkdays += doctorTotalAcrossMonths;
+         wordMonthlyTableBody.push(doctorRow);
+       }
+
+       scheduleMonthsForWord.forEach(monthDate => {
+         const monthKey = format(monthDate, 'yyyy-MM');
+         wordMonthlyTotalsRow.push(monthTotalsMap.get(monthKey) || 0);
+       });
+       wordMonthlyTotalsRow.push(grandTotalWorkdays);
+       wordMonthlyTableBody.push(wordMonthlyTotalsRow);
+
+       const monthlyTableRows = [
+         new TableRow({
+           children: [
+             new TableCell({
+               children: [new Paragraph({
+                 children: [new TextRun({ text: t('pdf.monthlyWorkloadSummary.doctorHeader'), bold: true, size: 18 })],
+                 alignment: AlignmentType.CENTER,
+               })],
+             }),
+             ...monthHeadersForWord.map(month => 
+               new TableCell({
+                 children: [new Paragraph({
+                   children: [new TextRun({ text: month, bold: true, size: 18 })],
+                   alignment: AlignmentType.CENTER,
+                 })],
+               })
+             ),
+             new TableCell({
+               children: [new Paragraph({
+                 children: [new TextRun({ text: t('pdf.monthlyWorkloadSummary.totalHeader'), bold: true, size: 18 })],
+                 alignment: AlignmentType.CENTER,
+               })],
+             }),
+           ],
+         }),
+         ...wordMonthlyTableBody.map(row => 
+           new TableRow({
+             children: row.map((cell: any, index: number) => 
+               new TableCell({
+                 children: [new Paragraph({
+                   children: [new TextRun({ text: cell.toString(), size: 16 })],
+                   alignment: index === 0 ? AlignmentType.LEFT : AlignmentType.CENTER,
+                 })],
+               })
+             ),
+           })
+         ),
+       ];
+
+       children.push(
+         new Table({
+           rows: monthlyTableRows,
+           width: { size: 100, type: WidthType.PERCENTAGE },
+           borders: {
+             top: { style: BorderStyle.SINGLE, size: 1 },
+             bottom: { style: BorderStyle.SINGLE, size: 1 },
+             left: { style: BorderStyle.SINGLE, size: 1 },
+             right: { style: BorderStyle.SINGLE, size: 1 },
+             insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
+             insideVertical: { style: BorderStyle.SINGLE, size: 1 },
+           },
+         })
+       );
+
+       // Footer
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: t('pdf.generatedOn', { date: format(new Date(), 'PPP p', { locale: currentDateFnsLocale }) }),
+              size: 16,
+              italics: true,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 480 },
+        })
+      );
+
+      // Create document
+      const doc = new Document({
+        sections: [{
+          children: children,
+        }],
+      });
+
+      // Generate and download
+      const buffer = await Packer.toBuffer(doc);
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${t('pdf.reportTitle')}_${format(new Date(), 'yyyy-MM-dd')}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: t('page.toast.wordExportSuccess.title'),
+        description: t('page.toast.wordExportSuccess.description'),
+      });
+
+    } catch (error) {
+      console.error("Error exporting Word document:", error);
+      toast({
+        title: t('page.toast.errorSavingWord.title'),
+        description: (error as Error).message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsExportingWord(false);
+    }
+  };
+
   const handleClearSchedule = () => {
     setSchedule(null);
     // setDoctorsProfiles([]); // Keep doctor profiles (form parameters)
@@ -1482,26 +2045,32 @@ export default function RotawisePage() {
             disabled={
               (!schedule && (!loadedFormValues || !loadedFormValues.doctors || loadedFormValues.doctors.length === 0 || loadedFormValues.doctors.every(doc => !doc.name))) || 
               isLoading || 
-              isExportingPdf
+              isExportingPdf || 
+              isExportingWord
             }
             className="w-full sm:w-auto"
           >
             <Save className="mr-2 h-4 w-4" /> {t('page.saveData')}
           </Button>
-          <Label htmlFor="load-schedule-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf) && "opacity-50 cursor-not-allowed")}>
+          <Label htmlFor="load-schedule-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf || isExportingWord) && "opacity-50 cursor-not-allowed")}>
             <Upload className="mr-2 h-4 w-4" /> {t('page.loadData')}
-            <input id="load-schedule-input" type="file" accept=".json" className="hidden" onChange={(e) => handleFileUpload(e, 'as-is')} disabled={isLoading || isExportingPdf}/>
+            <input id="load-schedule-input" type="file" accept=".json" className="hidden" onChange={(e) => handleFileUpload(e, 'as-is')} disabled={isLoading || isExportingPdf || isExportingWord}/>
           </Label>
-          <Label htmlFor="load-schedule-preassigned-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf) && "opacity-50 cursor-not-allowed")}>
+          <Label htmlFor="load-schedule-preassigned-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf || isExportingWord) && "opacity-50 cursor-not-allowed")}>
             <Layers className="mr-2 h-4 w-4" /> {t('page.loadScheduleAsPreassigned')}
-            <input id="load-schedule-preassigned-input" type="file" accept=".json" className="hidden" onChange={(e) => handleFileUpload(e, 'as-pre-assigned')} disabled={isLoading || isExportingPdf}/>
+            <input id="load-schedule-preassigned-input" type="file" accept=".json" className="hidden" onChange={(e) => handleFileUpload(e, 'as-pre-assigned')} disabled={isLoading || isExportingPdf || isExportingWord}/>
           </Label>
-           <Button onClick={handleExportPdf} variant="outline" disabled={!schedule || isLoading || isExportingPdf} className="w-full sm:w-auto">
+           <Button onClick={handleExportPdf} variant="outline" disabled={!schedule || isLoading || isExportingPdf || isExportingWord} className="w-full sm:w-auto">
             <FileDown className="mr-2 h-4 w-4" />
             {isExportingPdf ? t('page.exportingPdf') : t('page.exportPdf')}
             {isExportingPdf && <span className="animate-spin ml-2 h-4 w-4 border-t-2 border-b-2 border-primary rounded-full"></span>}
           </Button>
-          <Button onClick={handleClearSchedule} variant="destructive" disabled={!schedule || isLoading || isExportingPdf} className="w-full sm:w-auto">
+          <Button onClick={handleExportWord} variant="outline" disabled={!schedule || isLoading || isExportingPdf || isExportingWord} className="w-full sm:w-auto">
+            <FileDown className="mr-2 h-4 w-4" />
+            {isExportingWord ? t('page.exportingWord') : t('page.exportWord')}
+            {isExportingWord && <span className="animate-spin ml-2 h-4 w-4 border-t-2 border-b-2 border-primary rounded-full"></span>}
+          </Button>
+          <Button onClick={handleClearSchedule} variant="destructive" disabled={!schedule || isLoading || isExportingPdf || isExportingWord} className="w-full sm:w-auto">
             <Trash2 className="mr-2 h-4 w-4" /> {t('page.clearSchedule')}
           </Button>
           <Button 
