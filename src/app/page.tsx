@@ -1160,7 +1160,7 @@ export default function RotawisePage() {
         }
 
         const getFormattedDates = (dates: Date[]) => dates.length > 0 
-            ? dates.map(d => format(d, 'PPP', { locale: currentDateFnsLocale })).join('\n') 
+            ? dates.map(d => format(d, 'PPP', { locale: currentDateFnsLocale })).join(', ') 
             : t('pdf.none');
 
         const allWorkDatesSet = new Set<number>();
@@ -1579,7 +1579,7 @@ export default function RotawisePage() {
          }
 
          const getFormattedDates = (dates: Date[]) => dates.length > 0 
-           ? dates.map(d => format(d, 'PPP', { locale: currentDateFnsLocale })).join('\n') 
+           ? dates.map(d => format(d, 'PPP', { locale: currentDateFnsLocale })).join(', ') 
            : t('pdf.none');
 
          const allWorkDatesSet = new Set<number>();
