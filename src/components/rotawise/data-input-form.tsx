@@ -729,7 +729,15 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
           </div>
 
             <div className="flex flex-col sm:flex-row sm:justify-end gap-4 pt-6">
-              <Button type="submit" disabled={isLoading} className="w-full sm:w-auto sm:flex-grow-0 max-w-md">
+              <Button 
+                type="submit" 
+                disabled={
+                  isLoading || 
+                  fields.length === 0 || 
+                  fields.every(field => !form.getValues(`doctors.${fields.indexOf(field)}.name`)?.trim())
+                } 
+                className="w-full sm:w-auto sm:flex-grow-0 max-w-md"
+              >
               {isLoading ? (
                   <><span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>{t('form.generatingButton')}</>
                 ) : (

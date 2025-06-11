@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Image from 'next/image';
 import { Save, Upload, FileDown, Layers, AlertTriangle, Trash2, UserX } from 'lucide-react';
 import { Label } from '@/components/ui/label';
@@ -81,6 +82,10 @@ export default function RotawisePage() {
   const [loadedFormValues, setLoadedFormValues] = useState<Partial<ScheduleFormValues> | null>(null);
   const [dataInputFormKey, setDataInputFormKey] = useState(0);
   const [numDoctorsInForm, setNumDoctorsInForm] = useState<number>(0);
+  
+  // Confirmation dialog states
+  const [showClearScheduleDialog, setShowClearScheduleDialog] = useState(false);
+  const [showClearDoctorDetailsDialog, setShowClearDoctorDetailsDialog] = useState(false);
 
   const formRef = useRef<UseFormReturn<ScheduleFormValues> | null>(null);
 
@@ -1914,6 +1919,11 @@ export default function RotawisePage() {
     });
   };
 
+  const handleClearScheduleConfirm = () => {
+    handleClearSchedule();
+    setShowClearScheduleDialog(false);
+  };
+
   const handleClearDoctorDetails = () => {
     if (formRef.current) {
       const currentValues = formRef.current.getValues();
@@ -1931,6 +1941,11 @@ export default function RotawisePage() {
         description: t('page.toast.clearedDoctorItems.description'),
       });
     }
+  };
+
+  const handleClearDoctorDetailsConfirm = () => {
+    handleClearDoctorDetails();
+    setShowClearDoctorDetailsDialog(false);
   };
 
   const debouncedSaveFormInput = useDebouncedCallback(
@@ -2061,13 +2076,21 @@ export default function RotawisePage() {
             {isExportingWord ? t('page.exportingWord') : t('page.exportWord')}
             {isExportingWord && <span className="animate-spin ml-2 h-4 w-4 border-t-2 border-b-2 border-primary rounded-full"></span>}
           </Button>
-          <Button onClick={handleClearSchedule} variant="destructive" disabled={!schedule || isLoading || isExportingPdf || isExportingWord} className="w-full sm:w-auto">
+          <Button onClick={() => setShowClearScheduleDialog(true)} variant="destructive" disabled={!schedule || isLoading || isExportingPdf || isExportingWord} className="w-full sm:w-auto">
             <Trash2 className="mr-2 h-4 w-4" /> {t('page.clearSchedule')}
           </Button>
           <Button 
             variant="outline" 
-            onClick={handleClearDoctorDetails} 
-            disabled={numDoctorsInForm === 0}
+            onClick={() => setShowClearDoctorDetailsDialog(true)} 
+            disabled={
+              !loadedFormValues || 
+              !loadedFormValues.doctors || 
+              loadedFormValues.doctors.length === 0 || 
+              loadedFormValues.doctors.every(doc => !doc.name?.trim()) ||
+              isLoading || 
+              isExportingPdf || 
+              isExportingWord
+            }
             className="w-full sm:w-auto"
           >
             <UserX className="mr-2 h-4 w-4" />
@@ -2111,6 +2134,47 @@ export default function RotawisePage() {
         )}
       </main>
       <Toaster />
+      
+      {/* Clear Schedule Confirmation Dialog */}
+      <AlertDialog open={showClearScheduleDialog} onOpenChange={setShowClearScheduleDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('page.confirmClearSchedule.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('page.confirmClearSchedule.description')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowClearScheduleDialog(false)}>
+              {t('page.confirmClearSchedule.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearScheduleConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {t('page.confirmClearSchedule.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear Doctor Details Confirmation Dialog */}
+      <AlertDialog open={showClearDoctorDetailsDialog} onOpenChange={setShowClearDoctorDetailsDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('page.confirmClearDoctorDetails.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('page.confirmClearDoctorDetails.description')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowClearDoctorDetailsDialog(false)}>
+              {t('page.confirmClearDoctorDetails.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearDoctorDetailsConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {t('page.confirmClearDoctorDetails.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
       <footer className="py-6 text-center text-sm text-muted-foreground border-t mt-12">
         {t('footer.copyright', { year: new Date().getFullYear() })}
       </footer>
