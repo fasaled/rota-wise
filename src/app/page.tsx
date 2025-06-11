@@ -1331,10 +1331,6 @@ export default function RotawisePage() {
 
     try {
       pdf.save('rotawise-report.pdf');
-      toast({
-        title: t('page.toast.pdfReportExported.title'),
-        description: t('page.toast.pdfReportExported.description')
-      });
     } catch (error) {
       console.error("Error saving PDF:", error);
       toast({
@@ -1890,11 +1886,6 @@ export default function RotawisePage() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-
-      toast({
-        title: t('page.toast.wordExportSuccess.title'),
-        description: t('page.toast.wordExportSuccess.description'),
-      });
 
     } catch (error) {
       console.error("Error exporting Word document:", error);
