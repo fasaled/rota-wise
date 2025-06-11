@@ -2102,7 +2102,7 @@ export default function RotawisePage() {
           </Card>
         )}
 
-        {schedule ? (
+        {schedule && (
           <>
             <div>
               <ScheduleCalendarView
@@ -2117,24 +2117,6 @@ export default function RotawisePage() {
             <ScheduleSummaryTable schedule={schedule} doctors={doctorsProfiles} />
             <MonthlyWorkloadSummaryTable schedule={schedule} doctors={doctorsProfiles} />
           </>
-        ) : (
-          <Card className="mt-8 shadow-lg text-center">
-            <CardHeader>
-              <CardTitle>{t('page.noSchedule.title')}</CardTitle>
-              <CardDescription>{t('page.noSchedule.description')}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center p-6 min-h-[200px]">
-                <Image
-                    src="https://placehold.co/300x200.png"
-                    alt="Calendar illustration"
-                    width={300}
-                    height={200}
-                    className="rounded-md opacity-70"
-                    data-ai-hint="calendar schedule planning"
-                    priority
-                />
-            </CardContent>
-          </Card>
         )}
       </main>
       <Toaster />
