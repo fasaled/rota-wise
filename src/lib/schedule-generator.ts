@@ -2,9 +2,21 @@ import type { ScheduleFormValues, Schedule, ScheduleEntry, DoctorFormFieldInput 
 import { isSameDay, format, differenceInCalendarDays, eachDayOfInterval as eachDayOfIntervalDateFns, isWithinInterval, startOfMonth, endOfMonth, eachMonthOfInterval } from 'date-fns';
 import { enUS } from 'date-fns/locale'; // For consistent internal keys and default formatting
 
-// Helper function to check if a date is in an array of dates
+// Optimized: Helper function to check if a date is in an array of dates
+// Uses Set for O(1) lookups instead of O(n)
 function isDateInArray(date: Date, dateArray: Date[]): boolean {
+  if (dateArray.length === 0) return false;
   return dateArray.some(d => d instanceof Date && isSameDay(d, date));
+}
+
+// Create a date set for faster lookups - converts dates to string keys
+function createDateSet(dates: Date[]): Set<string> {
+  return new Set(dates.map(d => format(d, 'yyyy-MM-dd')));
+}
+
+// Check if date is in set (much faster for large arrays)
+function isDateInSet(date: Date, dateSet: Set<string>): boolean {
+  return dateSet.has(format(date, 'yyyy-MM-dd'));
 }
 
 // Helper function to ensure all dates in an array are Date objects
@@ -41,6 +53,21 @@ export function generateSchedule(
         excludedDates: ensureDateArray(doc.excludedDates),
         isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
     }));
+
+    // Optimized: Create date sets for O(1) lookups instead of O(n) array searches
+    const doctorDateSets = new Map<string, {
+      vacationSet: Set<string>;
+      preAssignedSet: Set<string>;
+      excludedSet: Set<string>;
+    }>();
+
+    doctorsWithIds.forEach(doc => {
+      doctorDateSets.set(doc.id, {
+        vacationSet: createDateSet(doc.vacationDates),
+        preAssignedSet: createDateSet(doc.preAssignedWorkDates),
+        excludedSet: createDateSet(doc.excludedDates),
+      });
+    });
 
     // Pre-check for multiple doctors pre-assigned to the exact same calendar date from input
     const preAssignmentCalendarDateConflicts = new Map<string, { doctors: string[]; conflictDate: Date }>();
@@ -108,11 +135,13 @@ export function generateSchedule(
             let unavailableDaysInMonthSegment = 0;
 
             const daysIterator = eachDayOfIntervalDateFns({ start: currentMonthDateStart, end: currentMonthDateEnd });
+            const docSets = doctorDateSets.get(doc.id)!;
             for (const dayInMonth of daysIterator) {
                 if (isWithinInterval(dayInMonth, scheduleInterval)) {
                     daysInCurrentMonthSegment++;
-                    const isOnVacation = isDateInArray(dayInMonth, doc.vacationDates);
-                    const isExcluded = isDateInArray(dayInMonth, doc.excludedDates);
+                    const dayKey = format(dayInMonth, 'yyyy-MM-dd');
+                    const isOnVacation = docSets.vacationSet.has(dayKey);
+                    const isExcluded = docSets.excludedSet.has(dayKey);
                     if (isOnVacation || isExcluded) {
                         unavailableDaysInMonthSegment++;
                     }
@@ -217,8 +246,12 @@ export function generateSchedule(
       let dayHasAnyPreAssignment = false;
       let dayHasFixedAssignment = !!existingFixedEntry;
       
+      // Optimized: Cache date key for reuse
+      const currentDateKey = format(currentDate, 'yyyy-MM-dd');
+
       for (const doctor of doctorsWithIds) {
-          if (isDateInArray(currentDate, doctor.preAssignedWorkDates)) {
+          const docSets = doctorDateSets.get(doctor.id)!;
+          if (docSets.preAssignedSet.has(currentDateKey)) {
               // Check if this doctor already has a fixed entry on this date
               const doctorHasFixedEntryOnDate = mockEntries.some(entry => 
                   isSameDay(entry.date, currentDate) && 
@@ -250,7 +283,8 @@ export function generateSchedule(
       }
       
       for (const doctor of doctorsWithIds) {
-          if (isDateInArray(currentDate, doctor.vacationDates)) {
+          const docSets = doctorDateSets.get(doctor.id)!;
+          if (docSets.vacationSet.has(currentDateKey)) {
               mockEntries.push({
                   date: new Date(currentDate),
                   doctorId: doctor.id,
@@ -263,8 +297,9 @@ export function generateSchedule(
       let automaticallyAssignedDoctorThisDay = false;
       if (!dayHasAnyPreAssignment && !dayHasFixedAssignment && doctorsWithIds.length > 0) {
         const eligibleDoctors = doctorsWithIds.filter(doc => {
-            const isDoctorOnVacation = isDateInArray(currentDate, doc.vacationDates);
-            const isDoctorExcludedOnDate = isDateInArray(currentDate, doc.excludedDates);
+            const docSets = doctorDateSets.get(doc.id)!;
+            const isDoctorOnVacation = docSets.vacationSet.has(currentDateKey);
+            const isDoctorExcludedOnDate = docSets.excludedSet.has(currentDateKey);
             const isFullyExcludedFromAuto = doc.isExcludedFromAutomaticAssignment;
             
             // Comprehensive minimum interval checking against ALL work commitments
@@ -414,8 +449,9 @@ export function generateSchedule(
         
         if (!automaticallyAssignedDoctorThisDay && !dayHasAnyPreAssignment && !dayHasFixedAssignment) {
              const anyDoctorPotentiallyAvailableButConstrained = eligibleDoctors.length === 0 && doctorsWithIds.some(doc => {
-                const isDoctorOnVacation = isDateInArray(currentDate, doc.vacationDates);
-                const isDoctorExcludedOnDate = isDateInArray(currentDate, doc.excludedDates);
+                const docSets = doctorDateSets.get(doc.id)!;
+                const isDoctorOnVacation = docSets.vacationSet.has(currentDateKey);
+                const isDoctorExcludedOnDate = docSets.excludedSet.has(currentDateKey);
                 const isFullyExcludedFromAuto = doc.isExcludedFromAutomaticAssignment;
                 return !isDoctorOnVacation && !isDoctorExcludedOnDate && !isFullyExcludedFromAuto;
             });
