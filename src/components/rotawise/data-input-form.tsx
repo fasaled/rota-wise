@@ -429,6 +429,10 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                       const val = parseInt(e.target.value, 10);
                       field.onChange(isNaN(val) ? 1 : val);
                     }}
+                    onFocus={(e) => {
+                      // Select all text on focus for easier editing
+                      e.target.select();
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
