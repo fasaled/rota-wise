@@ -782,11 +782,328 @@ describe('Schedule Generator', () => {
 
       // Check excluded dates
       const doc1WorkOnExcluded = entries.find(
-        e => e.doctorId === 'doc1' && 
+        e => e.doctorId === 'doc1' &&
              isSameDay(e.date, new Date('2024-01-20')) &&
              (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
       );
       expect(doc1WorkOnExcluded).toBeUndefined();
+    });
+  });
+
+  describe('Global Monthly Shift Limit', () => {
+    it('should NOT assign automatic shifts that would exceed limit when combined with pre-assigned', () => {
+      // CRITICAL TEST: Doctor has 6 pre-assigned shifts, limit is 8
+      // System should allow at most 2 automatic shifts, NOT more
+      const preAssignedDates = [
+        new Date('2024-01-03'),
+        new Date('2024-01-07'),
+        new Date('2024-01-11'),
+        new Date('2024-01-15'),
+        new Date('2024-01-19'),
+        new Date('2024-01-23'),
+      ];
+
+      const data = createBaseScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31'),
+        globalMonthlyShiftLimit: 8,
+        minIntervalBetweenWorkDays: 1,
+        doctors: [
+          {
+            id: 'doc1',
+            name: 'Dr. Smith',
+            vacationDates: [],
+            preAssignedWorkDates: preAssignedDates,
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+          {
+            id: 'doc2',
+            name: 'Dr. Johnson',
+            vacationDates: [],
+            preAssignedWorkDates: [],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+        ],
+      });
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+
+      // Verify 6 pre-assigned shifts
+      const doc1PreAssigned = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && e.assignment === 'Pre-assigned'
+      );
+      expect(doc1PreAssigned.length).toBe(6);
+
+      // CRITICAL: Total should NOT exceed 8
+      const doc1TotalWork = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+      );
+      expect(doc1TotalWork.length).toBeLessThanOrEqual(8);
+
+      // Should have at most 2 automatic assignments (8 limit - 6 pre-assigned = 2)
+      const doc1AutoAssignments = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && e.assignment === 'Work'
+      );
+      expect(doc1AutoAssignments.length).toBeLessThanOrEqual(2);
+    });
+
+    it('should respect pre-assigned shifts and not remove them when limit is exceeded', () => {
+      // Doctor has 10 pre-assigned shifts in January, limit is 8
+      // Expected: All 10 pre-assigned shifts should remain, no automatic assignments
+      const preAssignedDates = [
+        new Date('2024-01-02'),
+        new Date('2024-01-05'),
+        new Date('2024-01-08'),
+        new Date('2024-01-11'),
+        new Date('2024-01-14'),
+        new Date('2024-01-17'),
+        new Date('2024-01-20'),
+        new Date('2024-01-23'),
+        new Date('2024-01-26'),
+        new Date('2024-01-29'),
+      ];
+
+      const data = createBaseScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31'),
+        globalMonthlyShiftLimit: 8,
+        minIntervalBetweenWorkDays: 1,
+        doctors: [
+          {
+            id: 'doc1',
+            name: 'Dr. Smith',
+            vacationDates: [],
+            preAssignedWorkDates: preAssignedDates,
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+          {
+            id: 'doc2',
+            name: 'Dr. Johnson',
+            vacationDates: [],
+            preAssignedWorkDates: [],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+        ],
+      });
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+
+      // Verify all 10 pre-assigned shifts are present (not removed)
+      const doc1PreAssigned = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && e.assignment === 'Pre-assigned'
+      );
+      expect(doc1PreAssigned.length).toBe(10);
+
+      // Verify doc1 has NO automatic assignments (because limit was exceeded by pre-assignments)
+      const doc1AutoAssignments = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && e.assignment === 'Work'
+      );
+      expect(doc1AutoAssignments.length).toBe(0);
+
+      // Total work + pre-assigned for doc1 should be 10 (all pre-assigned, no automatic)
+      const doc1TotalWork = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+      );
+      expect(doc1TotalWork.length).toBe(10);
+    });
+
+    it('should not add automatic shifts when monthly limit is reached', () => {
+      // Doctor has 8 pre-assigned shifts, limit is 8
+      // Expected: All 8 pre-assigned shifts, no automatic assignments
+      const preAssignedDates = [
+        new Date('2024-01-02'),
+        new Date('2024-01-05'),
+        new Date('2024-01-08'),
+        new Date('2024-01-11'),
+        new Date('2024-01-14'),
+        new Date('2024-01-17'),
+        new Date('2024-01-20'),
+        new Date('2024-01-23'),
+      ];
+
+      const data = createBaseScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31'),
+        globalMonthlyShiftLimit: 8,
+        minIntervalBetweenWorkDays: 1,
+        doctors: [
+          {
+            id: 'doc1',
+            name: 'Dr. Smith',
+            vacationDates: [],
+            preAssignedWorkDates: preAssignedDates,
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+          {
+            id: 'doc2',
+            name: 'Dr. Johnson',
+            vacationDates: [],
+            preAssignedWorkDates: [],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+        ],
+      });
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+
+      // Verify all 8 pre-assigned shifts are present
+      const doc1PreAssigned = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && e.assignment === 'Pre-assigned'
+      );
+      expect(doc1PreAssigned.length).toBe(8);
+
+      // Verify doc1 has NO automatic assignments (limit reached)
+      const doc1AutoAssignments = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && e.assignment === 'Work'
+      );
+      expect(doc1AutoAssignments.length).toBe(0);
+
+      // Total should be exactly 8
+      const doc1TotalWork = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+      );
+      expect(doc1TotalWork.length).toBe(8);
+    });
+
+    it('should allow automatic assignments when pre-assigned shifts are below limit', () => {
+      // Doctor has 5 pre-assigned shifts, limit is 8
+      // Expected: 5 pre-assigned shifts + up to 3 automatic assignments (respecting interval)
+      const preAssignedDates = [
+        new Date('2024-01-02'),
+        new Date('2024-01-06'),
+        new Date('2024-01-10'),
+        new Date('2024-01-14'),
+        new Date('2024-01-18'),
+      ];
+
+      const data = createBaseScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31'),
+        globalMonthlyShiftLimit: 8,
+        minIntervalBetweenWorkDays: 2,
+        doctors: [
+          {
+            id: 'doc1',
+            name: 'Dr. Smith',
+            vacationDates: [],
+            preAssignedWorkDates: preAssignedDates,
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+          {
+            id: 'doc2',
+            name: 'Dr. Johnson',
+            vacationDates: [],
+            preAssignedWorkDates: [],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+        ],
+      });
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+
+      // Verify all 5 pre-assigned shifts are present
+      const doc1PreAssigned = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && e.assignment === 'Pre-assigned'
+      );
+      expect(doc1PreAssigned.length).toBe(5);
+
+      // Total work + pre-assigned should not exceed 8 (the limit)
+      const doc1TotalWork = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+      );
+      expect(doc1TotalWork.length).toBeLessThanOrEqual(8);
+      expect(doc1TotalWork.length).toBeGreaterThan(5); // Should have some automatic assignments
+    });
+
+    it('should handle multiple months with global monthly limit', () => {
+      // Doctor has 10 pre-assigned shifts in January, 3 in February
+      // Limit is 8 per month
+      // Expected: All 10 in Jan (exceeds limit, no auto assignments in Jan)
+      //           3 in Feb (below limit, can receive auto assignments in Feb)
+      const janPreAssigned = [
+        new Date('2024-01-02'),
+        new Date('2024-01-05'),
+        new Date('2024-01-08'),
+        new Date('2024-01-11'),
+        new Date('2024-01-14'),
+        new Date('2024-01-17'),
+        new Date('2024-01-20'),
+        new Date('2024-01-23'),
+        new Date('2024-01-26'),
+        new Date('2024-01-29'),
+      ];
+
+      const febPreAssigned = [
+        new Date('2024-02-02'),
+        new Date('2024-02-06'),
+        new Date('2024-02-10'),
+      ];
+
+      const data = createBaseScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-02-29'),
+        globalMonthlyShiftLimit: 8,
+        minIntervalBetweenWorkDays: 2,
+        doctors: [
+          {
+            id: 'doc1',
+            name: 'Dr. Smith',
+            vacationDates: [],
+            preAssignedWorkDates: [...janPreAssigned, ...febPreAssigned],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+          {
+            id: 'doc2',
+            name: 'Dr. Johnson',
+            vacationDates: [],
+            preAssignedWorkDates: [],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+        ],
+      });
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+
+      // January: should have all 10 pre-assigned, no automatic
+      const doc1JanWork = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' &&
+             (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+             e.date >= new Date('2024-01-01') && e.date <= new Date('2024-01-31')
+      );
+
+      const doc1JanPreAssigned = doc1JanWork.filter(e => e.assignment === 'Pre-assigned');
+      const doc1JanAuto = doc1JanWork.filter(e => e.assignment === 'Work');
+
+      expect(doc1JanPreAssigned.length).toBe(10);
+      expect(doc1JanAuto.length).toBe(0); // No automatic because limit exceeded
+
+      // February: should have 3 pre-assigned + potential automatic assignments (up to 5 more)
+      const doc1FebWork = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' &&
+             (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+             e.date >= new Date('2024-02-01') && e.date <= new Date('2024-02-29')
+      );
+
+      const doc1FebPreAssigned = doc1FebWork.filter(e => e.assignment === 'Pre-assigned');
+
+      expect(doc1FebPreAssigned.length).toBe(3);
+      expect(doc1FebWork.length).toBeLessThanOrEqual(8); // Should not exceed monthly limit
+      expect(doc1FebWork.length).toBeGreaterThan(3); // Should have some automatic assignments
     });
   });
 }); 
