@@ -76,6 +76,8 @@
   "form.endDate": "Fecha de fin del horario",
   "form.pickDate": "Elija una fecha",
   "form.minInterval": "Intervalo mín. (días laborables)",
+  "form.globalMonthlyLimit": "Límite global de guardias mensual",
+  "form.globalMonthlyLimitPlaceholder": "Opcional",
   "form.doctorDetails": "Detalles del médico",
   "form.doctorNum": "Médico {index}",
   "form.doctorNameLabel": "Nombre",

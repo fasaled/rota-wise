@@ -79,6 +79,8 @@
   "form.endDate": "Schedule end date",
   "form.pickDate": "Pick a date",
   "form.minInterval": "Min. interval (work days)",
+  "form.globalMonthlyLimit": "Global monthly shift limit",
+  "form.globalMonthlyLimitPlaceholder": "Optional",
   "form.doctorDetails": "Doctor details",
   "form.doctorNum": "Doctor {index}",
   "form.doctorNameLabel": "Name",

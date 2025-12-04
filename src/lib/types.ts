@@ -42,6 +42,7 @@ export interface Schedule {
   startDate: Date;
   endDate: Date;
   minIntervalBetweenWorkDays?: number; // Added to carry context
+  globalMonthlyShiftLimit?: number; // Global monthly shift limit for all doctors
 }
 
 export interface DayDetails {
@@ -57,11 +58,12 @@ export interface SerializedScheduleEntry extends Omit<ScheduleEntry, 'date'> {
   date: string; // ISO date string
 }
 
-export interface SerializedSchedule extends Omit<Schedule, 'startDate' | 'endDate' | 'entries' | 'minIntervalBetweenWorkDays'> {
+export interface SerializedSchedule extends Omit<Schedule, 'startDate' | 'endDate' | 'entries' | 'minIntervalBetweenWorkDays' | 'globalMonthlyShiftLimit'> {
   startDate: string; // ISO date string
   endDate: string; // ISO date string
   entries: SerializedScheduleEntry[];
   minIntervalBetweenWorkDays?: number;
+  globalMonthlyShiftLimit?: number;
 }
 
 export interface SerializedDoctorProfile extends Omit<DoctorProfile, 'vacationDates' | 'preAssignedWorkDates' | 'excludedDates'> {
@@ -78,11 +80,12 @@ export interface SerializedDoctorFormFieldInput extends Omit<DoctorFormFieldInpu
   isExcludedFromAutomaticAssignment: boolean;
 }
 
-export interface SerializedScheduleFormValues extends Omit<ScheduleFormValues, 'startDate' | 'endDate' | 'doctors' | 'minIntervalBetweenWorkDays'> {
+export interface SerializedScheduleFormValues extends Omit<ScheduleFormValues, 'startDate' | 'endDate' | 'doctors' | 'minIntervalBetweenWorkDays' | 'globalMonthlyShiftLimit'> {
   startDate: string; // ISO date string
   endDate: string; // ISO date string
   doctors: SerializedDoctorFormFieldInput[];
   minIntervalBetweenWorkDays?: number;
+  globalMonthlyShiftLimit?: number;
 }
 
 export interface PersistedScheduleData {
