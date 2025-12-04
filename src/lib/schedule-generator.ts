@@ -30,7 +30,7 @@ export function generateSchedule(
   existingFixedEntries?: ScheduleEntry[]
 ): { schedule?: Schedule; error?: string; warnings?: ScheduleWarning[] } {
   try {
-    const { doctors: doctorInputs, startDate, endDate, minIntervalBetweenWorkDays = 1 } = data;
+    const { doctors: doctorInputs, startDate, endDate, minIntervalBetweenWorkDays = 1, globalMonthlyShiftLimit } = data;
     const warnings: ScheduleWarning[] = [];
     
     const doctorsWithIds: DoctorFormFieldInput[] = doctorInputs.map(doc => ({
@@ -266,32 +266,41 @@ export function generateSchedule(
             const isDoctorOnVacation = isDateInArray(currentDate, doc.vacationDates);
             const isDoctorExcludedOnDate = isDateInArray(currentDate, doc.excludedDates);
             const isFullyExcludedFromAuto = doc.isExcludedFromAutomaticAssignment;
-            
+
+            // HARD CONSTRAINT: Check global monthly shift limit (takes precedence over other constraints)
+            let respectsGlobalMonthlyLimit = true;
+            if (globalMonthlyShiftLimit !== undefined && globalMonthlyShiftLimit > 0) {
+              const doctorWorkdaysThisMonth = doctorStats[doc.id]?.monthlyWorkdays[currentMonthKey] || 0;
+              if (doctorWorkdaysThisMonth >= globalMonthlyShiftLimit) {
+                respectsGlobalMonthlyLimit = false;
+              }
+            }
+
             // Comprehensive minimum interval checking against ALL work commitments
             let respectsMinInterval = true;
-            
+
             // Get all existing work commitments for this doctor
             const allWorkCommitments: Date[] = [];
-            
+
             // Add pre-assigned work dates
             allWorkCommitments.push(...doc.preAssignedWorkDates);
-            
+
             // Add fixed work assignments
             if (existingFixedEntries) {
               const fixedWorkDates = existingFixedEntries
-                .filter(entry => entry.doctorId === doc.id && 
+                .filter(entry => entry.doctorId === doc.id &&
                                (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned'))
                 .map(entry => new Date(entry.date));
               allWorkCommitments.push(...fixedWorkDates);
             }
-            
+
             // Add already assigned work entries from current generation (in mockEntries)
             const currentlyAssignedWorkDates = mockEntries
-              .filter(entry => entry.doctorId === doc.id && 
+              .filter(entry => entry.doctorId === doc.id &&
                              (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned'))
               .map(entry => new Date(entry.date));
             allWorkCommitments.push(...currentlyAssignedWorkDates);
-            
+
             // Check minimum interval against all work commitments
             for (const workDate of allWorkCommitments) {
               const daysDifference = Math.abs(differenceInCalendarDays(currentDate, workDate));
@@ -301,8 +310,9 @@ export function generateSchedule(
               }
             }
 
-            return !isDoctorOnVacation && 
-                   !isDoctorExcludedOnDate && 
+            return !isDoctorOnVacation &&
+                   !isDoctorExcludedOnDate &&
+                   respectsGlobalMonthlyLimit &&
                    respectsMinInterval &&
                    !isFullyExcludedFromAuto;
         });
@@ -459,6 +469,7 @@ export function generateSchedule(
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         minIntervalBetweenWorkDays: minIntervalBetweenWorkDays,
+        globalMonthlyShiftLimit: globalMonthlyShiftLimit,
       },
       warnings: warnings.length > 0 ? warnings : undefined,
     };

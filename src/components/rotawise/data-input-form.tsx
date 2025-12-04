@@ -64,6 +64,7 @@ export const scheduleFormSchema = z.object({
       message: "End date must be today or a future date.",
     }),
   minIntervalBetweenWorkDays: z.coerce.number().int().min(0, "Minimum interval cannot be negative.").max(30, "Interval cannot exceed 30 days.").optional().default(1),
+  globalMonthlyShiftLimit: z.coerce.number().int().min(0, "Monthly shift limit cannot be negative.").max(31, "Limit cannot exceed 31 days.").optional(),
   doctors: z.array(doctorSchema).min(0, "Doctor details array cannot be negative."),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
@@ -137,6 +138,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
       startDate: initialValues?.startDate,
       endDate: initialValues?.endDate,
       minIntervalBetweenWorkDays: initialValues?.minIntervalBetweenWorkDays || 1,
+      globalMonthlyShiftLimit: initialValues?.globalMonthlyShiftLimit,
       doctors: initialValues?.doctors && initialValues.doctors.length > 0
                  ? initialValues.doctors.map(doc => ({
                      id: doc.id || crypto.randomUUID(),
@@ -291,7 +293,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
             }
           }}
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             <div>
               <Label htmlFor="numberOfDoctors" className="font-semibold min-h-7 block">{t('form.numDoctors')}</Label>
               <Controller
@@ -322,12 +324,12 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                       field.onBlur(); // Call react-hook-form's onBlur
                       const currentValue = form.getValues('numberOfDoctors');
                       const sanitizedValue = Math.max(0, isNaN(currentValue) ? 0 : currentValue);
-                      
+
                       // Capture where the user was trying to go (for tab or click)
                       const targetElement = e.relatedTarget as HTMLElement;
-                      
+
                       synchronizeDoctorFields(sanitizedValue);
-                      
+
                       // Restore focus to the intended target if it exists
                       if (targetElement) {
                         // Use requestAnimationFrame to ensure DOM is updated first
@@ -356,8 +358,8 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                 render={({ field }) => (
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         tabIndex={2}
                         className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}
                       >
@@ -387,8 +389,8 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                 render={({ field }) => (
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         tabIndex={3}
                         className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}
                       >
@@ -440,6 +442,41 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                 )}
               />
               {form.formState.errors.minIntervalBetweenWorkDays && <p className="text-sm text-destructive mt-1">{form.formState.errors.minIntervalBetweenWorkDays.message}</p>}
+            </div>
+            <div>
+              <Label htmlFor="globalMonthlyShiftLimit" className="font-semibold min-h-7 block">{t('form.globalMonthlyLimit')}</Label>
+              <Controller
+                name="globalMonthlyShiftLimit"
+                control={form.control}
+                render={({ field }) => (
+                  <Input
+                    id="globalMonthlyShiftLimit"
+                    type="number"
+                    min="0" max="31"
+                    tabIndex={5}
+                    {...field}
+                    value={field.value ?? ""}
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val === "") {
+                        field.onChange(undefined);
+                      } else {
+                        const numVal = parseInt(val, 10);
+                        field.onChange(isNaN(numVal) ? undefined : numVal);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }}
+                    className="mt-1"
+                    placeholder={t('form.globalMonthlyLimitPlaceholder')}
+                  />
+                )}
+              />
+              {form.formState.errors.globalMonthlyShiftLimit && <p className="text-sm text-destructive mt-1">{form.formState.errors.globalMonthlyShiftLimit.message}</p>}
             </div>
           </div>
 
