@@ -791,6 +791,65 @@ describe('Schedule Generator', () => {
   });
 
   describe('Global Monthly Shift Limit', () => {
+    it('should NOT assign automatic shifts that would exceed limit when combined with pre-assigned', () => {
+      // CRITICAL TEST: Doctor has 6 pre-assigned shifts, limit is 8
+      // System should allow at most 2 automatic shifts, NOT more
+      const preAssignedDates = [
+        new Date('2024-01-03'),
+        new Date('2024-01-07'),
+        new Date('2024-01-11'),
+        new Date('2024-01-15'),
+        new Date('2024-01-19'),
+        new Date('2024-01-23'),
+      ];
+
+      const data = createBaseScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31'),
+        globalMonthlyShiftLimit: 8,
+        minIntervalBetweenWorkDays: 1,
+        doctors: [
+          {
+            id: 'doc1',
+            name: 'Dr. Smith',
+            vacationDates: [],
+            preAssignedWorkDates: preAssignedDates,
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+          {
+            id: 'doc2',
+            name: 'Dr. Johnson',
+            vacationDates: [],
+            preAssignedWorkDates: [],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+        ],
+      });
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+
+      // Verify 6 pre-assigned shifts
+      const doc1PreAssigned = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && e.assignment === 'Pre-assigned'
+      );
+      expect(doc1PreAssigned.length).toBe(6);
+
+      // CRITICAL: Total should NOT exceed 8
+      const doc1TotalWork = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+      );
+      expect(doc1TotalWork.length).toBeLessThanOrEqual(8);
+
+      // Should have at most 2 automatic assignments (8 limit - 6 pre-assigned = 2)
+      const doc1AutoAssignments = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && e.assignment === 'Work'
+      );
+      expect(doc1AutoAssignments.length).toBeLessThanOrEqual(2);
+    });
+
     it('should respect pre-assigned shifts and not remove them when limit is exceeded', () => {
       // Doctor has 10 pre-assigned shifts in January, limit is 8
       // Expected: All 10 pre-assigned shifts should remain, no automatic assignments

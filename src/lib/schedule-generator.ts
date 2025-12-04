@@ -270,8 +270,37 @@ export function generateSchedule(
             // HARD CONSTRAINT: Check global monthly shift limit (takes precedence over other constraints)
             let respectsGlobalMonthlyLimit = true;
             if (globalMonthlyShiftLimit !== undefined && globalMonthlyShiftLimit > 0) {
+              // Count workdays already in the schedule for this month
               const doctorWorkdaysThisMonth = doctorStats[doc.id]?.monthlyWorkdays[currentMonthKey] || 0;
-              if (doctorWorkdaysThisMonth >= globalMonthlyShiftLimit) {
+
+              // CRITICAL: Also count ALL pre-assigned work dates for this doctor in the current month
+              // (including future dates not yet processed in the loop)
+              const currentMonthStart = startOfMonth(currentDate);
+              const currentMonthEnd = endOfMonth(currentDate);
+              const preAssignedInCurrentMonth = doc.preAssignedWorkDates.filter(paDate =>
+                paDate >= currentMonthStart && paDate <= currentMonthEnd
+              ).length;
+
+              // Total includes: already processed work + all pre-assigned in this month
+              // (pre-assigned are counted in both, so we need to avoid double-counting)
+              // Instead, let's count: processed work that are NOT pre-assigned + all pre-assigned
+              const alreadyProcessedPreAssignedInMonth = mockEntries.filter(entry =>
+                entry.doctorId === doc.id &&
+                entry.assignment === 'Pre-assigned' &&
+                entry.date >= currentMonthStart &&
+                entry.date <= currentMonthEnd
+              ).length;
+
+              const alreadyProcessedAutoWorkInMonth = mockEntries.filter(entry =>
+                entry.doctorId === doc.id &&
+                entry.assignment === 'Work' &&
+                entry.date >= currentMonthStart &&
+                entry.date <= currentMonthEnd
+              ).length;
+
+              const totalCommittedWorkInMonth = preAssignedInCurrentMonth + alreadyProcessedAutoWorkInMonth;
+
+              if (totalCommittedWorkInMonth >= globalMonthlyShiftLimit) {
                 respectsGlobalMonthlyLimit = false;
               }
             }
