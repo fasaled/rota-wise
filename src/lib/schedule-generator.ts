@@ -378,14 +378,26 @@ export function generateSchedule(
                     return balanceScoreB - balanceScoreA; // Higher score (more deficit) goes first
                 }
 
-                // 3. Consider current day assignment count (direct comparison)
+                // 3. Weekend assignment fairness (MOVED UP for higher priority)
+                // This ensures fair distribution of weekend shifts per month
+                if (isCurrentDayWeekend) {
+                    const weekendDaysWorkedA = doctorWeekendDaysThisMonth[a.id]?.[monthKeyForSort] || 0;
+                    const weekendDaysWorkedB = doctorWeekendDaysThisMonth[b.id]?.[monthKeyForSort] || 0;
+
+                    // Directly compare weekend days worked - doctors with fewer weekend days get priority
+                    if (weekendDaysWorkedA !== weekendDaysWorkedB) {
+                        return weekendDaysWorkedA - weekendDaysWorkedB;
+                    }
+                }
+
+                // 4. Consider current day assignment count (direct comparison)
                 const dayOfWeekCountA = statsA.workloadByDayOfWeek[dayOfWeekKey] || 0;
                 const dayOfWeekCountB = statsB.workloadByDayOfWeek[dayOfWeekKey] || 0;
                 if (dayOfWeekCountA !== dayOfWeekCountB) {
                     return dayOfWeekCountA - dayOfWeekCountB;
                 }
 
-                // 4. Consider monthly workload ratio
+                // 5. Consider monthly workload ratio
                 const workdaysInCurrentMonthA = statsA.monthlyWorkdays[monthKeyForSort] || 0;
                 const workdaysInCurrentMonthB = statsB.monthlyWorkdays[monthKeyForSort] || 0;
                 const availableDaysThisMonthA = availableDaysPerDoctorPerMonth.get(a.id)?.get(monthKeyForSort) ?? 0;
@@ -397,35 +409,19 @@ export function generateSchedule(
                 if (Math.abs(ratioA - ratioB) > 0.01) {
                     return ratioA - ratioB;
                 }
-                
-                // 5. Weekend assignment fairness
-                if (isCurrentDayWeekend) {
-                    const weekendDaysWorkedA = doctorWeekendDaysThisMonth[a.id]?.[monthKeyForSort] || 0;
-                    const weekendDaysWorkedB = doctorWeekendDaysThisMonth[b.id]?.[monthKeyForSort] || 0;
-
-                    const canAWorkWeekendPreferably = weekendDaysWorkedA < 1;
-                    const canBWorkWeekendPreferably = weekendDaysWorkedB < 1;
-
-                    if (canAWorkWeekendPreferably && !canBWorkWeekendPreferably) return -1;
-                    if (!canAWorkWeekendPreferably && canBWorkWeekendPreferably) return 1;
-                    
-                    if (weekendDaysWorkedA !== weekendDaysWorkedB) {
-                        return weekendDaysWorkedA - weekendDaysWorkedB;
-                    }
-                }
 
                 // 6. Idle time (last work day)
                 const lastWorkA_Time = doctorLastWorkDay[a.id]?.getTime();
                 const lastWorkB_Time = doctorLastWorkDay[b.id]?.getTime();
 
-                if (lastWorkA_Time === undefined && lastWorkB_Time !== undefined) return -1; 
-                if (lastWorkA_Time !== undefined && lastWorkB_Time === undefined) return 1;  
-                
+                if (lastWorkA_Time === undefined && lastWorkB_Time !== undefined) return -1;
+                if (lastWorkA_Time !== undefined && lastWorkB_Time === undefined) return 1;
+
                 const idleTimeComparison = (lastWorkA_Time || 0) - (lastWorkB_Time || 0);
                 if (idleTimeComparison !== 0) {
                     return idleTimeComparison;
                 }
-                
+
                 // 7. Random tie-breaker
                 return Math.random() - 0.5;
             });
