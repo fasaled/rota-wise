@@ -7,9 +7,6 @@ const baseNextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   images: {
     remotePatterns: [
       {
@@ -20,6 +17,8 @@ const baseNextConfig: NextConfig = {
       },
     ],
   },
+  // Empty turbopack config to silence webpack compatibility warnings
+  turbopack: {},
 };
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
