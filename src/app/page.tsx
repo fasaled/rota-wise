@@ -115,6 +115,7 @@ export default function RotawisePage() {
             startDate: new Date(loadedData.schedule.startDate),
             endDate: new Date(loadedData.schedule.endDate),
             minIntervalBetweenWorkDays: loadedData.schedule.minIntervalBetweenWorkDays || 1,
+            globalMonthlyShiftLimit: loadedData.schedule.globalMonthlyShiftLimit,
             entries: deserializedScheduleEntries,
           };
           setSchedule(finalSchedule);
@@ -142,6 +143,7 @@ export default function RotawisePage() {
             startDate: new Date(loadedData.formValues.startDate),
             endDate: new Date(loadedData.formValues.endDate),
             minIntervalBetweenWorkDays: loadedData.formValues.minIntervalBetweenWorkDays || 1,
+            globalMonthlyShiftLimit: loadedData.formValues.globalMonthlyShiftLimit,
             doctors: deserializedFormValuesDoctors
           };
           setLoadedFormValues(finalFormValues);
@@ -201,6 +203,7 @@ export default function RotawisePage() {
               startDate: loadedFormInput.startDate ? new Date(loadedFormInput.startDate) : undefined,
               endDate: loadedFormInput.endDate ? new Date(loadedFormInput.endDate) : undefined,
               minIntervalBetweenWorkDays: loadedFormInput.minIntervalBetweenWorkDays || 1,
+              globalMonthlyShiftLimit: loadedFormInput.globalMonthlyShiftLimit,
               doctors: loadedFormInput.doctors.map((doc: SerializedDoctorFormFieldInput) => ({
                   id: doc.id || crypto.randomUUID(),
                   name: doc.name || '',
@@ -756,6 +759,7 @@ export default function RotawisePage() {
           startDate: new Date(loadedData.schedule.startDate),
           endDate: new Date(loadedData.schedule.endDate),
           minIntervalBetweenWorkDays: loadedData.schedule.minIntervalBetweenWorkDays || 1,
+          globalMonthlyShiftLimit: loadedData.schedule.globalMonthlyShiftLimit,
           entries: finalScheduleEntries,
         };
         
@@ -764,6 +768,7 @@ export default function RotawisePage() {
            startDate: new Date(loadedData.formValues.startDate),
            endDate: new Date(loadedData.formValues.endDate),
            minIntervalBetweenWorkDays: loadedData.formValues.minIntervalBetweenWorkDays || 1,
+           globalMonthlyShiftLimit: loadedData.formValues.globalMonthlyShiftLimit,
            doctors: finalFormValuesDoctors
         };
 
