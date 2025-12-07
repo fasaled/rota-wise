@@ -2050,18 +2050,18 @@ export default function RotawisePage() {
         />
 
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 mt-6 mb-8 justify-center items-center">
-          <Button 
-            onClick={handleSaveSchedule} 
-            variant="outline" 
+          <Button
+            onClick={handleSaveSchedule}
+            variant="outline"
             disabled={
-              (!schedule && (!loadedFormValues || !loadedFormValues.doctors || loadedFormValues.doctors.length === 0 || loadedFormValues.doctors.every(doc => !doc.name))) || 
-              isLoading || 
-              isExportingPdf || 
+              (!schedule && (!loadedFormValues || !loadedFormValues.doctors || loadedFormValues.doctors.length === 0 || loadedFormValues.doctors.every(doc => !doc.name))) ||
+              isLoading ||
+              isExportingPdf ||
               isExportingWord
             }
             className="w-full sm:w-auto"
           >
-            <Save className="mr-2 h-4 w-4" /> {t('page.saveData')}
+            <FileDown className="mr-2 h-4 w-4" /> {t('page.saveData')}
           </Button>
           <Label htmlFor="load-schedule-input" className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-full sm:w-auto flex items-center justify-center", (isLoading || isExportingPdf || isExportingWord) && "opacity-50 cursor-not-allowed")}>
             <Upload className="mr-2 h-4 w-4" /> {t('page.loadData')}
