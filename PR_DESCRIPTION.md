@@ -120,6 +120,29 @@ The button text "Save data" was misleading as it actually downloads a JSON file 
 - `package-lock.json`
 - `tsconfig.json`
 
+### Vercel Build Compatibility Fix
+
+After upgrading to React 19, a Vercel build issue was discovered and fixed:
+
+**Problem:**
+- `next-themes@0.3.0` only supported React `^16.8 || ^17 || ^18`
+- `react-day-picker` and other deps had similar peer dependency conflicts
+- Vercel builds failed with `ERESOLVE` errors
+
+**Solution:**
+1. **Updated next-themes:** 0.3.0 → 0.4.6 (officially supports React 19)
+2. **Added `.npmrc`** with `legacy-peer-deps=true` for remaining peer dep conflicts
+
+**Why legacy-peer-deps:**
+- Some dependencies work fine with React 19 but haven't updated peer deps declarations yet
+- Temporary solution until all dependencies officially declare React 19 support
+- Safe approach as these packages are compatible with React 19
+
+**Files added/modified:**
+- `.npmrc` (new)
+- `package.json` (next-themes version bump)
+- `package-lock.json` (dependency tree update)
+
 ---
 
 ## ✅ Testing & Verification
@@ -128,6 +151,7 @@ All changes have been thoroughly tested:
 
 - ✅ **36/36 unit tests passing**
 - ✅ **Build succeeds** with Next.js 16 and Turbopack
+- ✅ **Vercel deployment fixed** - build completes successfully
 - ✅ **No TypeScript errors**
 - ✅ **All existing functionality preserved**
 
@@ -140,6 +164,8 @@ All changes have been thoroughly tested:
 3. `7ca4203` - Update service worker after build
 4. `19523d1` - Change 'Save data' button to 'Download data'
 5. `57ef6cd` - Update Next.js to 16.0.7 and React to 19.2.1
+6. `03deda7` - Add comprehensive PR description
+7. `9bf688d` - Fix Vercel build: Update next-themes and add .npmrc for React 19 compatibility
 
 ---
 
@@ -165,14 +191,22 @@ This PR addresses:
 
 ## 📊 Statistics
 
-**Lines Changed:**
-- 5 commits
-- 8 files modified
+**Commits:**
+- 7 commits total
+- 10 files modified/added
 - Weekend fairness algorithm improved
 - 1 persistence bug fixed
-- Framework upgraded to latest stable versions
+- Framework upgraded to latest stable versions (Next.js 16, React 19)
+- Vercel deployment compatibility ensured
 
 **Testing Coverage:**
 - All 36 unit tests passing
-- Build verification completed
+- Local build verification completed
+- Vercel deployment verified
 - No regressions detected
+
+**Dependencies Updated:**
+- Next.js: 15.2.3 → 16.0.7
+- React: 18.x → 19.2.1
+- React DOM: 18.x → 19.2.1
+- next-themes: 0.3.0 → 0.4.6
