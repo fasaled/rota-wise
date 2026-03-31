@@ -1,78 +1,90 @@
-# Rotawise - Doctor scheduling application
+# Rota-Wise
 
-This is a Next.js application for fair and balanced doctor scheduling, built in Firebase Studio.
+A web application for fair and balanced doctor shift scheduling. Rota-Wise solves the complex problem of generating equitable work schedules while respecting vacations, rest intervals, pre-assignments, and workload distribution across days and months.
 
-To get started with development, take a look at `src/app/page.tsx`.
+## Features
 
-## Development
+- **Smart scheduling algorithm** — automatically generates optimal schedules with configurable constraints
+- **Interactive calendar** — color-coded monthly view with click-to-edit and entry locking
+- **Fairness guarantees** — balanced distribution by weekday, month, and weekend shifts
+- **Global monthly shift limit** — configurable cap on shifts per doctor per month
+- **Summary tables** — workdays by day-of-week and by month for each doctor
+- **Export** — professional PDF and Word (.docx) reports
+- **Save/load** — persist full schedules as JSON; reload as-is or convert to pre-assigned
+- **Internationalization** — English and Spanish support
+- **Dark/light theme**
 
-To set up and run Rotawise for development, follow these steps:
+## Tech Stack
 
-**Prerequisites:**
-*   Node.js (v18.x or later recommended)
-*   npm (comes with Node.js) or Yarn
+- **Next.js 16** / **React 19** / **TypeScript**
+- **Tailwind CSS** + **Radix UI** components
+- **date-fns**, **react-hook-form** + **Zod**, **@tanstack/react-query**
+- **jspdf** + **jspdf-autotable** for PDF export
+- **docx** for Word export
+- **PWA** support via `@ducanh2912/next-pwa`
 
-**Steps:**
+## Getting Started
 
-1.  **Clone the repository (if you haven't already):**
-    ```bash
-    git clone <your-repository-url>
-    cd rotawise-app 
-    ```
-    *(Replace `<your-repository-url>` with the actual URL and adjust `rotawise-app` if your project directory has a different name)*
-
-2.  **Install dependencies:**
-    This command will install all the necessary packages defined in `package.json`.
-    ```bash
-    npm install
-    ```
-    *(If you prefer Yarn: `yarn install`)*
-
-3.  **Run the development server:**
-    This command starts the Next.js development server, usually with hot reloading enabled.
-    ```bash
-    npm run dev
-    ```
-    *(If you prefer Yarn: `yarn dev`)*
-
-4.  **Access the application:**
-    Once the server is running, open your web browser and navigate to:
-    `http://localhost:3000`
-
-## Building for Production
-
-To build the application for production, run:
+**Prerequisites:** Node.js v18+
 
 ```bash
-npm run build
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
 ```
 
-This will create an optimized production build in the `.next` folder.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Preparing for Deployment (Outside Firebase)
+## Available Scripts
 
-If you plan to deploy this Next.js application to a platform other than Firebase App Hosting, follow these general guidelines:
+| Command | Description |
+|---|---|
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm run start` | Production server |
+| `npm run lint` | Lint code |
+| `npm run typecheck` | TypeScript validation |
+| `npm run test` | Run tests |
+| `npm run test:watch` | Tests in watch mode |
+| `npm run test:coverage` | Tests with coverage report |
 
-1.  **Build the project:**
-    First, ensure you have a production build by running `npm run build`.
+## Project Structure
 
-2.  **Environment variables:**
-    *   Next.js has built-in support for environment variables. You might use `.env.production` or configure them directly on your hosting platform if your application requires them for any specific configuration.
+```
+src/
+├── app/                  # Next.js pages and layout
+├── components/
+│   ├── rotawise/         # Schedule-specific components
+│   └── ui/               # Reusable UI primitives
+├── context/              # React contexts
+├── hooks/                # Custom hooks
+├── lib/
+│   ├── schedule-generator.ts  # Core scheduling algorithm
+│   ├── types.ts               # TypeScript types
+│   └── utils.ts               # Utilities
+├── locales/              # i18n translations (EN/ES)
+└── __tests__/            # Test suites
+```
 
-3.  **Hosting provider configuration:**
-    *   Choose a hosting provider that supports Node.js and Next.js applications (e.g., Vercel, Netlify, AWS Amplify, DigitalOcean App Platform, or your own server).
-    *   Follow your hosting provider's specific instructions for deploying Next.js applications. This usually involves:
-        *   Pointing the provider to your Git repository.
-        *   Setting the build command (typically `npm run build` or `next build`).
-        *   Setting the start command (typically `npm run start` or `next start -p $PORT`).
-        *   Configuring any necessary environment variables (if applicable).
+## Algorithm Overview
 
-4.  **Firebase-specific files:**
-    *   The `apphosting.yaml` file is specific to Firebase App Hosting and will not be used by other hosting providers. You can safely ignore it or remove it if you are not deploying to Firebase.
+The scheduling algorithm scores eligible doctors for each day based on:
 
-5.  **Server configuration:**
-    *   Most modern PaaS (Platform as a Service) providers for Next.js handle server configuration automatically.
-    *   If deploying to your own server (e.g., using Docker or a bare metal server), you'll need to ensure Node.js is installed and configure a process manager (like PM2) to run the Next.js application using `npm run start`. You'll also likely need a reverse proxy (like Nginx or Apache) to handle incoming traffic and SSL termination.
+- **Hard constraints**: minimum rest interval, vacation dates, excluded dates, pre-assigned dates, fixed entries, global monthly shift limit
+- **Soft constraints**: total workdays balance, day-of-week distribution, monthly workload, weekend fairness, idle time since last shift
 
-Refer to the official Next.js deployment documentation and your chosen hosting provider's documentation for detailed instructions.
+## Test Coverage
 
+- Statement: ~95% | Branch: ~87% | Function: ~94% | Line: ~96%
+
+## Deployment
+
+The app can be deployed to any Node.js-compatible platform:
+
+- **Vercel** — recommended for Next.js
+- **Netlify**, **AWS Amplify**, **DigitalOcean App Platform**
+- **Custom server** — Node.js + a process manager (e.g. PM2) and a reverse proxy (e.g. Nginx)
+
+For all providers, set build command to `npm run build` and start command to `npm run start`.
