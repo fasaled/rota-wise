@@ -1,6 +1,6 @@
 "use client";
 
-import React, { forwardRef, useImperativeHandle, useEffect } from 'react';
+import React, { forwardRef, useImperativeHandle } from 'react';
 import { useForm, useFieldArray, Controller, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,9 +14,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { CalendarIcon, DoctorsIcon, PreferencesIcon, VacationIcon, PreAssignedIcon, CalendarXIcon, Clock3Icon } from '@/components/icons';
 import { format, eachDayOfInterval } from 'date-fns';
+import type { DateRange } from 'react-day-picker';
 import type { ScheduleFormValues } from '@/lib/types';
-import { cn } from '@/lib/utils';
-import { Trash2 } from 'lucide-react';
+import { cn, generateId } from '@/lib/utils';
+import { Trash2, Plus } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 
 import {
@@ -29,7 +30,6 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
@@ -39,10 +39,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Schema for a single doctor
-const dateArraySchema = z.array(z.date()).optional();
-
 const doctorSchema = z.object({
-  id: z.string().default(() => crypto.randomUUID()),
+  id: z.string().default(() => generateId()),
   name: z.string().min(1, { message: "Name is required." }),
   vacationDates: z.array(z.date()).default([]),
   preAssignedWorkDates: z.array(z.date()).default([]),
@@ -128,7 +126,6 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
   const { t, currentDateFnsLocale } = useLanguage();
   const [anchorDates, setAnchorDates] = React.useState<Record<string, Date | null>>({});
     const [openPopoverKey, setOpenPopoverKey] = React.useState<string | null>(null);
-    const [numberOfDoctorsInputElement, setNumberOfDoctorsInputElement] = React.useState<HTMLInputElement | null>(null);
 
 
   const form = useForm<ScheduleFormValues>({
@@ -141,7 +138,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
       globalMonthlyShiftLimit: initialValues?.globalMonthlyShiftLimit,
       doctors: initialValues?.doctors && initialValues.doctors.length > 0
                  ? initialValues.doctors.map(doc => ({
-                     id: doc.id || crypto.randomUUID(),
+                     id: doc.id || generateId(),
                      name: doc.name || '',
                      vacationDates: doc.vacationDates || [],
                      preAssignedWorkDates: doc.preAssignedWorkDates || [],
@@ -156,12 +153,10 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
 
     useImperativeHandle(ref, () => form, [form]);
 
-    const { fields, append, remove, update, move } = useFieldArray({
+    const { fields, append, remove, move } = useFieldArray({
     control: form.control,
     name: "doctors",
   });
-
-  const numberOfDoctorsWatched = form.watch('numberOfDoctors');
 
     const sensors = useSensors(
       useSensor(PointerSensor, {
@@ -184,37 +179,6 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
         }
       }
     };
-
-    // Function to synchronize doctor fields based on committed number
-    const synchronizeDoctorFields = React.useCallback((targetCount: number) => {
-      const currentDoctorCount = fields.length;
-      const sanitizedTargetCount = Math.max(0, isNaN(targetCount) ? 0 : targetCount);
-
-      // Only synchronize if there's actually a difference
-      if (sanitizedTargetCount === currentDoctorCount) {
-        return; // No change needed
-      }
-
-      if (sanitizedTargetCount > currentDoctorCount) {
-        for (let i = 0; i < sanitizedTargetCount - currentDoctorCount; i++) {
-          append({ id: crypto.randomUUID(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false });
-        }
-      } else if (sanitizedTargetCount < currentDoctorCount) {
-        for (let i = 0; i < currentDoctorCount - sanitizedTargetCount; i++) {
-          remove(currentDoctorCount - 1 - i);
-        }
-      }
-    }, [fields.length, append, remove]);
-
-    // Doctor fields will be synchronized on blur, not on every change
-
-    // Effect for form validation (but not field synchronization)
-    React.useEffect(() => {
-      const currentFormValue = form.getValues('numberOfDoctors');
-      if (currentFormValue < 0 || isNaN(currentFormValue) || currentFormValue == null) {
-        form.setValue('numberOfDoctors', 0, { shouldValidate: true });
-      }
-    }, [numberOfDoctorsWatched, form]);
 
     // Effect to call onValuesChange when committed values change (debounced)
     const debouncedOnValuesChange = React.useMemo(() => {
@@ -282,8 +246,10 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
         <CardDescription>{t('form.description')}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form 
-          onSubmit={form.handleSubmit(onSubmit)} 
+        <form
+          onSubmit={form.handleSubmit((data) => {
+            onSubmit({ ...data, numberOfDoctors: fields.length });
+          })}
           className="space-y-8"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && e.target !== e.currentTarget) {
@@ -293,125 +259,58 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
             }
           }}
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-            <div>
-              <Label htmlFor="numberOfDoctors" className="font-semibold min-h-7 block">{t('form.numDoctors')}</Label>
-              <Controller
-                name="numberOfDoctors"
-                control={form.control}
-                render={({ field }) => (
-                  <Input
-                    id="numberOfDoctors"
-                    type="number"
-                    min="0" max="20"
-                    tabIndex={1}
-                    {...field}
-                    ref={(el) => {
-                      field.ref(el);
-                      setNumberOfDoctorsInputElement(el);
-                    }}
-                    value={field.value === 0 ? "" : String(field.value)}
-                    onChange={e => {
-                      const val = e.target.value;
-                      if (val === "") {
-                        field.onChange(0); // Treat empty as 0
-                      } else {
-                        const numVal = parseInt(val, 10);
-                        field.onChange(isNaN(numVal) ? 0 : numVal);
-                      }
-                    }}
-                    onBlur={(e) => {
-                      field.onBlur(); // Call react-hook-form's onBlur
-                      const currentValue = form.getValues('numberOfDoctors');
-                      const sanitizedValue = Math.max(0, isNaN(currentValue) ? 0 : currentValue);
-
-                      // Capture where the user was trying to go (for tab or click)
-                      const targetElement = e.relatedTarget as HTMLElement;
-
-                      synchronizeDoctorFields(sanitizedValue);
-
-                      // Restore focus to the intended target if it exists
-                      if (targetElement) {
-                        // Use requestAnimationFrame to ensure DOM is updated first
-                        requestAnimationFrame(() => {
-                          targetElement.focus();
-                        });
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }
-                    }}
-                    className="mt-1"
-                  />
-                )}
-              />
-              {form.formState.errors.numberOfDoctors && <p className="text-sm text-destructive mt-1">{form.formState.errors.numberOfDoctors.message}</p>}
-            </div>
-            <div>
-              <Label htmlFor="startDate" className="font-semibold min-h-7 block">{t('form.startDate')}</Label>
-              <Controller
-                name="startDate"
-                control={form.control}
-                render={({ field }) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Date range — single calendar, spans 2 columns */}
+            {(() => {
+              const startDate = form.watch('startDate');
+              const endDate = form.watch('endDate');
+              const range: DateRange = { from: startDate, to: endDate };
+              const hasRange = startDate || endDate;
+              return (
+                <div className="lg:col-span-2">
+                  <Label className="font-semibold min-h-7 block">{t('form.dateRange')}</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         tabIndex={2}
-                        className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}
+                        className={cn("w-full justify-start text-left font-normal mt-1", !hasRange && "text-muted-foreground")}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {field.value ? format(field.value, 'PPP', { locale: currentDateFnsLocale }) : <span>{t('form.pickDate')}</span>}
+                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                        {hasRange ? (
+                          <span>
+                            {startDate ? format(startDate, 'PP', { locale: currentDateFnsLocale }) : '…'}
+                            {' → '}
+                            {endDate ? format(endDate, 'PP', { locale: currentDateFnsLocale }) : '…'}
+                          </span>
+                        ) : (
+                          <span>{t('form.pickDateRange')}</span>
+                        )}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
                       <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
+                        mode="range"
+                        selected={range}
+                        onSelect={(r: DateRange | undefined) => {
+                          form.setValue('startDate', r?.from as Date, { shouldValidate: true });
+                          form.setValue('endDate', r?.to as Date, { shouldValidate: true });
+                        }}
                         locale={currentDateFnsLocale}
+                        numberOfMonths={2}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
-                )}
-              />
-              {form.formState.errors.startDate && <p className="text-sm text-destructive mt-1">{form.formState.errors.startDate.message}</p>}
-            </div>
-            <div>
-              <Label htmlFor="endDate" className="font-semibold min-h-7 block">{t('form.endDate')}</Label>
-              <Controller
-                name="endDate"
-                control={form.control}
-                render={({ field }) => (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        tabIndex={3}
-                        className={cn("w-full justify-start text-left font-normal mt-1", !field.value && "text-muted-foreground")}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {field.value ? format(field.value, 'PPP', { locale: currentDateFnsLocale }) : <span>{t('form.pickDate')}</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
-                       <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        locale={currentDateFnsLocale}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                )}
-              />
-              {form.formState.errors.endDate && <p className="text-sm text-destructive mt-1">{form.formState.errors.endDate.message}</p>}
-            </div>
+                  {form.formState.errors.startDate && (
+                    <p className="text-sm text-destructive mt-1">{form.formState.errors.startDate.message}</p>
+                  )}
+                  {form.formState.errors.endDate && (
+                    <p className="text-sm text-destructive mt-1">{form.formState.errors.endDate.message}</p>
+                  )}
+                </div>
+              );
+            })()}
             <div>
               <Label htmlFor="minIntervalBetweenWorkDays" className="font-semibold flex items-center gap-1 min-h-7">
                 <Clock3Icon className="w-4 h-4 text-primary"/>
@@ -499,55 +398,41 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                     {fields.map((docField, index) => (
                       <SortableDoctorItem key={docField.id} id={docField.id}>
                         <Card className="relative shadow-md">
-                          <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-lg">
-                              {t('form.doctorNum', { index: index + 1 })}
-                            </CardTitle>
-                    {fields.length > 0 && (
-                       <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                                onPointerDown={(e) => e.stopPropagation()}
-                        onClick={() => {
-                          const currentNumDoctors = form.getValues('numberOfDoctors');
-                          if (currentNumDoctors > 0) {
-                            form.setValue('numberOfDoctors', currentNumDoctors - 1, { shouldValidate: true });
-                          } else {
-                             form.setValue('numberOfDoctors', 0, { shouldValidate: true }); 
-                          }
-                          remove(index);
-                        }}
-                        className="text-destructive hover:text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                </CardHeader>
-                <CardContent className="space-y-4 p-2 md:p-4">
+                <CardContent className="space-y-4 p-3 md:p-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                     <div>
                       <Label htmlFor={`doctors.${index}.name`} className="font-medium">{t('form.doctorNameLabel')}</Label>
-                      <Controller
-                        name={`doctors.${index}.name`}
-                        control={form.control}
-                                  render={({ field }) => (
-                                    <Input 
-                                      {...field} 
-                                      id={`doctors.${index}.name`} 
-                                      placeholder={t('form.doctorNamePlaceholder')} 
-                                                                                                                  className="mt-1 bg-background" 
-                                      onPointerDown={(e) => e.stopPropagation()}
-
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                        }
-                                      }}
-                                    />
-                                  )}
-                      />
+                      <div className="flex gap-2 items-center mt-1">
+                        <Controller
+                          name={`doctors.${index}.name`}
+                          control={form.control}
+                          render={({ field }) => (
+                            <Input
+                              {...field}
+                              id={`doctors.${index}.name`}
+                              placeholder={t('form.doctorNamePlaceholder')}
+                              className="bg-background"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }
+                              }}
+                            />
+                          )}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => remove(index)}
+                          className="shrink-0 text-destructive hover:text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                       {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors[index]?.name?.message}</p>}
                     </div>
                     <div>
@@ -600,7 +485,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                 <Calendar
                                   mode="multiple"
                                   selected={controllerDateField.value}
-                                  onSelect={(newDays, dayClicked, modifiers, event) => {
+                                  onSelect={(newDays, dayClicked, _modifiers, event) => {
                                     handleDateSelectionWithShiftSupport(
                                       controllerDateField.value,
                                       newDays,
@@ -659,7 +544,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                  <Calendar
                                   mode="multiple"
                                   selected={controllerDateField.value}
-                                  onSelect={(newDays, dayClicked, modifiers, event) => {
+                                  onSelect={(newDays, dayClicked, _modifiers, event) => {
                                     handleDateSelectionWithShiftSupport(
                                       controllerDateField.value,
                                       newDays,
@@ -718,7 +603,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                  <Calendar
                                   mode="multiple"
                                   selected={controllerDateField.value}
-                                  onSelect={(newDays, dayClicked, modifiers, event) => {
+                                  onSelect={(newDays, dayClicked, _modifiers, event) => {
                                     handleDateSelectionWithShiftSupport(
                                       controllerDateField.value,
                                       newDays,
@@ -763,6 +648,16 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
              {form.formState.errors.doctors?.root && (
                 <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors.root.message}</p>
             )}
+
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4 w-full"
+              onClick={() => append({ id: generateId(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false })}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {t('form.addDoctor')}
+            </Button>
           </div>
 
             <div className="flex flex-col sm:flex-row sm:justify-end gap-4 pt-6">

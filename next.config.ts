@@ -1,23 +1,14 @@
 import type {NextConfig} from 'next';
 
-const isDev = process.env.NODE_ENV === 'development';
-
 const baseNextConfig: NextConfig = {
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
   images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'placehold.co',
-        port: '',
-        pathname: '/**',
-      },
-    ],
+    unoptimized: true,
   },
-  // Empty turbopack config to silence webpack compatibility warnings
+  // Turbopack used in dev (fast HMR); webpack used in `next build --webpack` (required by next-pwa)
   turbopack: {},
 };
 
@@ -26,16 +17,14 @@ const withPWA = require('@ducanh2912/next-pwa').default({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: isDev, // Let the PWA plugin itself handle disabling in dev mode
+  // Always enable PWA — app is fully client-side and must be installable/offline-capable
   workboxOptions: {
     maximumFileSizeToCacheInBytes: 10_000_000,
-    exclude: [], 
   },
   fallbacks: {
-    document: '/_offline.html', // Example: Custom offline page in public/_offline.html
+    document: '/_offline.html',
   },
   cacheStartUrl: true,
-  dynamicStartUrl: true,
   reloadOnOnline: true,
 });
 

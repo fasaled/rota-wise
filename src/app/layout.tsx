@@ -3,9 +3,9 @@ import type { Metadata, Viewport } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import './globals.css';
-import { Toaster } from "@/components/ui/toaster";
 import { LanguageProvider } from '@/context/language-context';
 import { ThemeProvider } from "@/components/theme-provider";
+import { FileSystemProvider } from '@/context/file-system-context';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://fasl.dev';
 
@@ -125,8 +125,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <LanguageProvider>
-            {children}
-            <Toaster />
+            <FileSystemProvider>
+              {children}
+            </FileSystemProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>

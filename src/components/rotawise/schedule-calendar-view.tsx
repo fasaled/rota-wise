@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { VacationIcon, PreAssignedIcon, WorkIcon } from '@/components/icons';
 import ManualAdjustmentDialog from './manual-adjustment-dialog';
 import { useLanguage } from '@/context/language-context';
-import { useToast } from "@/hooks/use-toast";
+import type { InfoBarMessage } from '@/hooks/use-info-bar';
 import {
   DndContext,
   closestCenter,
@@ -34,14 +34,39 @@ interface ScheduleCalendarViewProps {
   minIntervalBetweenWorkDays: number;
   allScheduleEntries: ScheduleEntry[];
   onToggleMonthFixed?: (month: Date, isFixed: boolean) => void;
+  onNotify?: (msg: Omit<InfoBarMessage, 'id'>) => void;
+}
+
+function getChipStyle(assignment: ScheduleEntry['assignment']): React.CSSProperties {
+  switch (assignment) {
+    case 'Work':
+      return {
+        backgroundColor: 'var(--chip-work-bg)',
+        color: 'var(--chip-work-text)',
+        border: 'none',
+      };
+    case 'Pre-assigned':
+      return {
+        backgroundColor: 'var(--chip-preassigned-bg)',
+        color: 'var(--chip-preassigned-text)',
+        border: 'none',
+      };
+    case 'Vacation':
+      return {
+        backgroundColor: 'var(--chip-vacation-bg)',
+        color: 'var(--chip-vacation-text)',
+        border: 'none',
+      };
+    default:
+      return {};
+  }
 }
 
 interface DraggableWorkEntryProps {
   entry: ScheduleEntry;
   doctor: DoctorProfile | undefined;
   IconComponent: React.ComponentType<{ className?: string }>;
-  bgColor: string;
-  textColor: string;
+  chipStyle: React.CSSProperties;
   assignmentText: string;
   onEdit: (e: React.MouseEvent) => void;
   children?: React.ReactNode;
@@ -51,14 +76,14 @@ const DraggableWorkEntry: React.FC<DraggableWorkEntryProps> = ({
   entry,
   doctor,
   IconComponent,
-  bgColor,
-  textColor,
+  chipStyle,
   assignmentText,
   onEdit,
 }) => {
   const isDraggable = entry.assignment === 'Work' && !entry.isFixed; // Only allow dragging 'Work' assignments that are not fixed
-  const dragId = isDraggable ? `work-${entry.doctorId}-${entry.date.getTime()}` : undefined;
-  
+  // Every chip needs a unique id — sharing 'non-draggable' across chips confuses dnd-kit
+  const dragId = `chip-${entry.doctorId}-${entry.date.getTime()}-${entry.assignment}`;
+
   const {
     attributes,
     listeners,
@@ -66,7 +91,7 @@ const DraggableWorkEntry: React.FC<DraggableWorkEntryProps> = ({
     transform,
     isDragging,
   } = useDraggable({
-    id: dragId || 'non-draggable',
+    id: dragId,
     disabled: !isDraggable,
     data: {
       type: 'work-entry',
@@ -89,16 +114,16 @@ const DraggableWorkEntry: React.FC<DraggableWorkEntryProps> = ({
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        ...chipStyle,
+      }}
       className={cn(
-        "rounded-md flex items-center",
+        "w-full rounded-sm flex items-center",
         itemGap,
         assignmentPadding,
         assignmentTextClasses,
-        bgColor,
-        textColor,
         isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-        entry.isFixed && "ring-2 ring-orange-500 ring-opacity-75", // Visual indicator for fixed entries
         isDragging && "shadow-lg"
       )}
       onClick={onEdit}
@@ -158,12 +183,12 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     minIntervalBetweenWorkDays,
     allScheduleEntries,
     onToggleMonthFixed,
+    onNotify,
 }) => {
   const { t, currentDateFnsLocale } = useLanguage();
   const [currentMonth, setCurrentMonth] = useState(schedule.startDate || new Date());
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | 'all'>('all');
   const [assignmentFilter, setAssignmentFilter] = useState<string>('all');
-  const { toast } = useToast();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draggedEntry, setDraggedEntry] = useState<ScheduleEntry | null>(null);
 
@@ -208,27 +233,19 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 
     // Check if the dragged entry is a 'Work' assignment and not fixed (only these can be dragged)
     if (draggedEntry.assignment !== 'Work' || draggedEntry.isFixed) {
-      toast({
-        title: t('calendar.toast.onlyWorkDraggable.title') || 'Cannot move assignment',
-        description: t('calendar.toast.onlyWorkDraggable.description') || 'Only non-fixed work assignments can be moved.',
-        variant: "destructive",
-      });
+      onNotify?.({ severity: 'error', title: t('calendar.toast.onlyWorkDraggable.title'), description: t('calendar.toast.onlyWorkDraggable.description'), autoDismissMs: 4000 });
       return;
     }
 
     // Check if target date has a fixed assignment that would conflict
     const existingFixedEntryOnTarget = schedule.entries.find(entry =>
-      isSameDay(entry.date, targetDate) && 
+      isSameDay(entry.date, targetDate) &&
       entry.isFixed &&
       (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned')
     );
 
     if (existingFixedEntryOnTarget) {
-      toast({
-        title: t('calendar.toast.cannotMoveToFixed.title') || 'Cannot move to fixed date',
-        description: t('calendar.toast.cannotMoveToFixed.description') || 'Cannot move to a date that has a fixed assignment.',
-        variant: "destructive",
-      });
+      onNotify?.({ severity: 'error', title: t('calendar.toast.cannotMoveToFixed.title'), description: t('calendar.toast.cannotMoveToFixed.description'), autoDismissMs: 4000 });
       return;
     }
 
@@ -242,11 +259,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     if (existingEntryOnTarget) {
       // Prevent swapping with fixed entries
       if (existingEntryOnTarget.isFixed) {
-        toast({
-          title: t('calendar.toast.cannotSwapWithFixed.title') || 'Cannot swap with fixed assignment',
-          description: t('calendar.toast.cannotSwapWithFixed.description') || 'Cannot swap with a fixed assignment.',
-          variant: "destructive",
-        });
+        onNotify?.({ severity: 'error', title: t('calendar.toast.cannotSwapWithFixed.title'), description: t('calendar.toast.cannotSwapWithFixed.description'), autoDismissMs: 4000 });
         return;
       }
       // Swap the doctors
@@ -266,11 +279,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
       onUpdateScheduleEntry(updatedDraggedEntry);
       onUpdateScheduleEntry(updatedExistingEntry);
 
-      toast({
-        title: t('calendar.toast.doctorsSwapped.title') || 'Doctors swapped',
-        description: t('calendar.toast.doctorsSwapped.description') || 'The doctors have been swapped between the two dates.',
-        variant: "default",
-      });
+      onNotify?.({ severity: 'success', title: t('calendar.toast.doctorsSwapped.title'), description: t('calendar.toast.doctorsSwapped.description'), autoDismissMs: 3000 });
     } else {
       // Just move the doctor to the new date
       const updatedEntry: ScheduleEntry = {
@@ -281,22 +290,14 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 
       onUpdateScheduleEntry(updatedEntry);
 
-      toast({
-        title: t('calendar.toast.doctorMoved.title') || 'Doctor moved',
-        description: t('calendar.toast.doctorMoved.description') || 'The doctor has been moved to the new date.',
-        variant: "default",
-      });
+      onNotify?.({ severity: 'success', title: t('calendar.toast.doctorMoved.title'), description: t('calendar.toast.doctorMoved.description'), autoDismissMs: 3000 });
     }
   };
 
   const handleOpenAdjustmentDialog = (entry: ScheduleEntry | null, date: Date) => {
     if (entry && entry.assignment === 'Vacation') {
-      toast({
-        title: t('calendar.toast.vacationUneditable.title'),
-        description: t('calendar.toast.vacationUneditable.description'),
-        variant: "default",
-      });
-      return; 
+      onNotify?.({ severity: 'info', title: t('calendar.toast.vacationUneditable.title'), description: t('calendar.toast.vacationUneditable.description'), autoDismissMs: 4000 });
+      return;
     }
     setSelectedEntryForAdjustment(entry);
     setSelectedDateForAdjustment(date);
@@ -362,30 +363,23 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 
             const doctor = doctorMap.get(entry.doctorId);
             let IconComponent;
-            let bgColor = 'bg-opacity-20';
-            let textColor = '';
-            let assignmentText = t(`assignmentType.${entry.assignment}` as any);
+            const assignmentText = t(`assignmentType.${entry.assignment}` as any);
+            const chipStyle = getChipStyle(entry.assignment);
 
             switch (entry.assignment) {
-              case 'Vacation': 
+              case 'Vacation':
                 IconComponent = VacationIcon;
-                bgColor = 'bg-emerald-200 dark:bg-emerald-800';
-                textColor = 'text-emerald-700 dark:text-emerald-300';
                 break;
               case 'Pre-assigned':
                 IconComponent = PreAssignedIcon;
-                bgColor = 'bg-orange-200 dark:bg-orange-800';
-                textColor = 'text-orange-700 dark:text-orange-300';
                 break;
               case 'Work':
                 IconComponent = WorkIcon;
-                bgColor = 'bg-blue-200 dark:bg-blue-800';
-                textColor = 'text-blue-700 dark:text-blue-300';
                 break;
-              case 'Off': 
+              case 'Off':
                 return null;
-              default: 
-                return null; 
+              default:
+                return null;
             }
 
             // Use DraggableWorkEntry for Work assignments, regular div for others
@@ -396,29 +390,22 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                   entry={entry}
                   doctor={doctor}
                   IconComponent={IconComponent}
-                  bgColor={bgColor}
-                  textColor={textColor}
+                  chipStyle={chipStyle}
                   assignmentText={assignmentText}
                   onEdit={(e) => { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date); }}
                 />
               );
             } else {
               // Non-draggable entries (Vacation, Pre-assigned)
-              const iconClasses = cn("shrink-0", "w-3 h-3");
               return (
                 <div
                   key={`${entry.doctorId}-${entry.assignment}-${index}`}
-                  className={cn(
-                    "rounded-md flex items-center gap-1 p-1.5 text-xs",
-                    bgColor,
-                    textColor,
-                    "cursor-pointer",
-                    entry.isFixed && "ring-2 ring-orange-500 ring-opacity-75"
-                  )}
+                  style={chipStyle}
+                  className="w-full rounded-sm flex items-center gap-1 p-1.5 text-xs cursor-pointer"
                   onClick={(e) => { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date); }}
                   title={`${doctor?.name || entry.doctorId}: ${assignmentText}${entry.isFixed ? ' (Fixed)' : ''}`}
                 >
-                  {IconComponent && <IconComponent className={iconClasses} />}
+                  {IconComponent && <IconComponent className="shrink-0 w-3 h-3" />}
                   <span className="truncate">{doctor?.name || entry.doctorId}</span>
                   {entry.isFixed && <span className="text-xs ml-1">🔒</span>}
                 </div>
@@ -524,7 +511,10 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
           </div>
           <DragOverlay>
             {activeId && draggedEntry ? (
-              <div className="rounded-md flex items-center gap-1 p-1.5 text-xs bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-300 shadow-lg opacity-90 transform rotate-3">
+              <div
+                style={getChipStyle('Work')}
+                className="rounded-md flex items-center gap-1 p-1.5 text-xs shadow-lg opacity-90 rotate-3"
+              >
                 <WorkIcon className="w-3 h-3 shrink-0" />
                 <span className="truncate">
                   {doctorMap.get(draggedEntry.doctorId)?.name || draggedEntry.doctorId}
@@ -534,9 +524,18 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
           </DragOverlay>
         </DndContext>
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
-            <div className="flex items-center gap-1"><WorkIcon className="w-3 h-3 text-blue-700 dark:text-blue-300"/> <span className="p-0.5 rounded-sm bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-300">{t('calendar.legend.work')} (Draggable)</span></div>
-            <div className="flex items-center gap-1"><PreAssignedIcon className="w-3 h-3 text-orange-700 dark:text-orange-300"/> <span className="p-0.5 rounded-sm bg-orange-200 dark:bg-orange-800 text-orange-700 dark:text-orange-300">{t('calendar.legend.preAssigned')}</span></div>
-            <div className="flex items-center gap-1"><VacationIcon className="w-3 h-3 text-emerald-700 dark:text-emerald-300"/> <span className="p-0.5 rounded-sm bg-emerald-200 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300">{t('calendar.legend.vacation')}</span></div>
+          <div className="flex items-center gap-1">
+            <WorkIcon className="w-3 h-3" style={{ color: 'var(--chip-work-text)' }} />
+            <span className="p-0.5 rounded-sm" style={getChipStyle('Work')}>{t('calendar.legend.work')}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <PreAssignedIcon className="w-3 h-3" style={{ color: 'var(--chip-preassigned-text)' }} />
+            <span className="p-0.5 rounded-sm" style={getChipStyle('Pre-assigned')}>{t('calendar.legend.preAssigned')}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <VacationIcon className="w-3 h-3" style={{ color: 'var(--chip-vacation-text)' }} />
+            <span className="p-0.5 rounded-sm" style={getChipStyle('Vacation')}>{t('calendar.legend.vacation')}</span>
+          </div>
         </div>
       </CardContent>
        {selectedDateForAdjustment && (

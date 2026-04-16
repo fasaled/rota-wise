@@ -95,3 +95,19 @@ export interface PersistedScheduleData {
   scheduleWarnings?: string[]; // Optional: Added for persisting warnings
   currentMinInterval?: number; // Optional: Added for persisting min interval context
 }
+
+export interface ScheduleVersion {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;         // ISO date string
+  lastModified: string;      // ISO date string
+  parameters: SerializedScheduleFormValues;
+  generatedSchedule?: SerializedSchedule;
+  warnings?: string[];
+}
+
+export interface AppFileData extends PersistedScheduleData {
+  fileVersion: number;
+  versions: ScheduleVersion[];
+}

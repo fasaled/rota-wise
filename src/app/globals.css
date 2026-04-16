@@ -111,3 +111,129 @@ body {
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+/* -------------------------------------------------------------------------
+   Calendar assignment chip tokens
+   ------------------------------------------------------------------------- */
+:root {
+  --chip-work-bg:            #dbeafe;
+  --chip-work-text:          #1e3a5f;
+  --chip-work-border:        #93c5fd;
+
+  --chip-preassigned-bg:     #fed7aa;
+  --chip-preassigned-text:   #7c2d12;
+  --chip-preassigned-border: #fdba74;
+
+  --chip-vacation-bg:        #d1fae5;
+  --chip-vacation-text:      #064e3b;
+  --chip-vacation-border:    #6ee7b7;
+}
+
+.dark {
+  --chip-work-bg:            #1e3a5f;
+  --chip-work-text:          #bfdbfe;
+  --chip-work-border:        #2563eb;
+
+  --chip-preassigned-bg:     #451a03;
+  --chip-preassigned-text:   #fed7aa;
+  --chip-preassigned-border: #c2410c;
+
+  --chip-vacation-bg:        #022c22;
+  --chip-vacation-text:      #d1fae5;
+  --chip-vacation-border:    #059669;
+}
+
+/* -------------------------------------------------------------------------
+   App shell layout helpers
+   ------------------------------------------------------------------------- */
+.app-shell {
+  display: flex;
+  flex-direction: row;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.app-sidebar {
+  flex-shrink: 0;
+  width: 4rem; /* icon-only on small screens */
+  border-right: 1px solid hsl(var(--border));
+  display: flex;
+  flex-direction: column;
+  background: hsl(var(--card));
+  transition: width 0.2s ease;
+}
+
+@media (min-width: 768px) {
+  .app-sidebar {
+    width: 14rem;
+  }
+}
+
+.app-main {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* -------------------------------------------------------------------------
+   Responsive — mobile bottom navigation
+   ------------------------------------------------------------------------- */
+@media (max-width: 639px) {
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    width: 100%;
+    height: 3.5rem;
+    min-height: 3.5rem;
+    flex-direction: row;
+    align-items: center;
+    border-right: none;
+    border-top: 1px solid hsl(var(--border));
+    order: 1; /* push sidebar below main content */
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 0.5rem;
+  }
+
+  .app-sidebar .sidebar-logo {
+    display: none;
+  }
+
+  .app-sidebar nav {
+    flex-direction: row;
+    gap: 0;
+    padding: 0;
+    flex: 1;
+  }
+
+  .app-sidebar nav > button {
+    flex: 1;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65rem;
+    justify-content: center;
+    border-radius: 0;
+  }
+
+  .app-sidebar .sidebar-bottom-controls {
+    display: none;
+  }
+
+  .app-body {
+    order: 0;
+    flex: 1;
+    min-height: 0;
+  }
+}

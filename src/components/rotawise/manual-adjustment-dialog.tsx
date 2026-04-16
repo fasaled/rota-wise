@@ -17,18 +17,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import type { ScheduleEntry, DoctorProfile } from '@/lib/types';
 import { format, isSameDay, differenceInCalendarDays } from 'date-fns';
-import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from '@/context/language-context';
+import type { InfoBarMessage } from '@/hooks/use-info-bar';
 
 interface ManualAdjustmentDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  entry: ScheduleEntry | null; 
-  date: Date; 
+  entry: ScheduleEntry | null;
+  date: Date;
   doctors: DoctorProfile[];
   onSave: (updatedEntry: ScheduleEntry) => void;
   minIntervalBetweenWorkDays: number;
-  allScheduleEntries: ScheduleEntry[]; // All entries to check interval against
+  allScheduleEntries: ScheduleEntry[];
+  onNotify?: (msg: Omit<InfoBarMessage, 'id'>) => void;
 }
 
 const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
@@ -40,12 +41,12 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
   onSave,
   minIntervalBetweenWorkDays,
   allScheduleEntries,
+  onNotify,
 }) => {
   const { t, currentDateFnsLocale } = useLanguage();
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(entry?.doctorId || '');
   const [assignmentType, setAssignmentType] = useState<ScheduleEntry['assignment']>(entry?.assignment || 'Work');
   const [isFixed, setIsFixed] = useState<boolean>(entry?.isFixed || false);
-  const { toast } = useToast();
 
   useEffect(() => {
     if (isOpen) { // Reset state when dialog opens
@@ -71,12 +72,8 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
   const handleSave = () => {
     // Updated validation: doctor required only if assignment is 'Work'
     if (assignmentType === 'Work' && !selectedDoctorId) {
-        toast({
-            title: t('dialog.toast.validationError.title'),
-            description: t('dialog.toast.validationError.description'),
-            variant: "destructive",
-        });
-        return; 
+        onNotify?.({ severity: 'error', title: t('dialog.toast.validationError.title'), description: t('dialog.toast.validationError.description'), autoDismissMs: 5000 });
+        return;
     }
     
     const updatedEntryData: ScheduleEntry = {
@@ -95,11 +92,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
         );
 
         if (isVacationDayForDoctor) {
-            toast({
-                title: t('dialog.toast.cannotAssignOnVacation.title'),
-                description: t('dialog.toast.cannotAssignOnVacation.description', { doctorName: doctor.name }),
-                variant: "destructive",
-            });
+            onNotify?.({ severity: 'error', title: t('dialog.toast.cannotAssignOnVacation.title'), description: t('dialog.toast.cannotAssignOnVacation.description', { doctorName: doctor.name }), autoDismissMs: 5000 });
             return;
         }
 
@@ -108,11 +101,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
         );
 
         if (isExcludedDayForDoctor) {
-            toast({
-                title: t('dialog.toast.adjustmentWarning.title'), 
-                description: t('dialog.toast.excludedDayWarning.description', { doctorName: doctor.name }),
-                variant: "destructive",
-            });
+            onNotify?.({ severity: 'warning', title: t('dialog.toast.adjustmentWarning.title'), description: t('dialog.toast.excludedDayWarning.description', { doctorName: doctor.name }), autoDismissMs: 5000 });
         }
 
         // Check min interval
@@ -122,42 +111,36 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
 
         const closestWorkDayBefore = doctorsWorkOrPreassignedEntries
             .filter(e => e.date < date)
-            .sort((a,b) => b.date.getTime() - a.date.getTime())[0];
-        
+            .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+
         const closestWorkDayAfter = doctorsWorkOrPreassignedEntries
             .filter(e => e.date > date)
-            .sort((a,b) => a.date.getTime() - b.date.getTime())[0];
+            .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
 
-        if(closestWorkDayBefore) {
+        if (closestWorkDayBefore) {
             const diff = differenceInCalendarDays(date, closestWorkDayBefore.date);
             if (diff <= minIntervalBetweenWorkDays) {
-                 toast({
-                    title: t('page.toast.minIntervalWarning.title'),
-                    description: t('page.toast.minIntervalWarning.description', { doctorName: doctor.name, interval: minIntervalBetweenWorkDays }),
-                    variant: "destructive",
-                });
+                onNotify?.({ severity: 'warning', title: t('page.toast.minIntervalWarning.title'), description: t('page.toast.minIntervalWarning.description', { doctorName: doctor.name, interval: minIntervalBetweenWorkDays }), autoDismissMs: 5000 });
             }
         }
-        if(closestWorkDayAfter) {
+        if (closestWorkDayAfter) {
             const diff = differenceInCalendarDays(closestWorkDayAfter.date, date);
             if (diff <= minIntervalBetweenWorkDays) {
-                 toast({
-                    title: t('page.toast.minIntervalWarning.title'),
-                    description: t('page.toast.minIntervalWarning.description', { doctorName: doctor.name, interval: minIntervalBetweenWorkDays }),
-                    variant: "destructive",
-                });
+                onNotify?.({ severity: 'warning', title: t('page.toast.minIntervalWarning.title'), description: t('page.toast.minIntervalWarning.description', { doctorName: doctor.name, interval: minIntervalBetweenWorkDays }), autoDismissMs: 5000 });
             }
         }
     }
-    
+
     onSave(updatedEntryData);
     onClose();
     const formattedDate = format(date, 'PPP', { locale: currentDateFnsLocale });
-    toast({
+    onNotify?.({
+        severity: 'success',
         title: t('dialog.toast.scheduleUpdated.title'),
-        description: entry 
+        description: entry
             ? t('dialog.toast.scheduleUpdated.description.modified', { date: formattedDate })
             : t('dialog.toast.scheduleUpdated.description.added', { date: formattedDate }),
+        autoDismissMs: 3000,
     });
   };
 

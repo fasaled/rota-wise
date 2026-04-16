@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -69,6 +69,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "baseline-browser-mapping": "^2.10.19",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^30.0.0-beta.3",
     "postcss": "^8",

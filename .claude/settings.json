@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(ls c:/Users/fasl/Src/rota-wise/public/sw.js c:/Users/fasl/Src/rota-wise/public/workbox-*.js)",
+      "Bash(ls -la c:/Users/fasl/Src/rota-wise/public/sw.js c:/Users/fasl/Src/rota-wise/public/workbox-*.js)"
+    ]
+  }
+}

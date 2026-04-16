@@ -1,40 +1,47 @@
 {
-  "name": "Rotawise",
-  "short_name": "Rotawise",
-  "description": "A smart application for fair and balanced doctor scheduling.",
+  "name": "Rota-Wise",
+  "short_name": "Rota-Wise",
+  "description": "Fair and balanced doctor scheduling.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#007bff",
+  "orientation": "any",
+  "background_color": "#f0f4f8",
+  "theme_color": "#6699CC",
+  "prefer_related_applications": false,
+  "file_handlers": [
+    {
+      "action": "/",
+      "accept": {
+        "application/x-rotawise": [".rw"],
+        "application/json": [".json"]
+      }
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/icons/screenshot-desktop.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "RotaWise Desktop View"
+      "purpose": "any"
     },
     {
-      "src": "/icons/screenshot-mobile.png",
-      "sizes": "750x1334",
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
       "type": "image/png",
-      "form_factor": "narrow",
-      "label": "RotaWise Mobile View"
+      "purpose": "maskable"
     }
   ]
 }

@@ -24,8 +24,8 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/language-context';
+import type { InfoBarMessage } from '@/hooks/use-info-bar';
 import {
   Trash2,
   Edit3,
@@ -59,6 +59,7 @@ interface ScheduleVersionsManagerProps {
   currentParameters?: ScheduleFormValues;
   currentSchedule?: Schedule;
   currentWarnings?: string[];
+  onNotify?: (msg: Omit<InfoBarMessage, 'id'>) => void;
 }
 
 interface SaveVersionDialogProps {
@@ -148,8 +149,8 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
   currentParameters,
   currentSchedule,
   currentWarnings,
+  onNotify,
 }) => {
-  console.log("[SVM] ScheduleVersionsManager rendering. Received currentParameters:", currentParameters);
 
   const [versions, setVersions] = useState<ScheduleVersion[]>([]);
   const [selectedVersionId, setSelectedVersionId] = useState<string>('');
@@ -165,7 +166,6 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
   const [newVersionName, setNewVersionName] = useState('');
   const [newVersionDescription, setNewVersionDescription] = useState('');
   
-  const { toast } = useToast();
   const { t, currentDateFnsLocale } = useLanguage();
 
   useEffect(() => {
@@ -196,17 +196,10 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
       
       setVersions(loadScheduleVersions());
       setShowSaveDialog(false);
-      
-      toast({
-        title: t('versions.toast.saved.title'),
-        description: t('versions.toast.saved.description', { name }),
-      });
+
+      onNotify?.({ severity: 'success', title: t('versions.toast.saved.title'), description: t('versions.toast.saved.description', { name }), autoDismissMs: 3000 });
     } catch (error) {
-      toast({
-        title: t('versions.toast.saveError.title'),
-        description: t('versions.toast.saveError.description'),
-        variant: 'destructive',
-      });
+      onNotify?.({ severity: 'error', title: t('versions.toast.saveError.title'), description: t('versions.toast.saveError.description'), autoDismissMs: 5000 });
     } finally {
       setIsSaving(false);
     }
@@ -224,17 +217,10 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
       
       onLoadVersion(parameters, schedule, version.warnings);
       onClose();
-      
-      toast({
-        title: t('versions.toast.loaded.title'),
-        description: t('versions.toast.loaded.description', { name: version.name }),
-      });
+
+      onNotify?.({ severity: 'success', title: t('versions.toast.loaded.title'), description: t('versions.toast.loaded.description', { name: version.name }), autoDismissMs: 3000 });
     } catch (error) {
-      toast({
-        title: t('versions.toast.loadError.title'),
-        description: t('versions.toast.loadError.description'),
-        variant: 'destructive',
-      });
+      onNotify?.({ severity: 'error', title: t('versions.toast.loadError.title'), description: t('versions.toast.loadError.description'), autoDismissMs: 5000 });
     }
   };
 
@@ -244,11 +230,8 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
       if (selectedVersionId === id) {
         setSelectedVersionId('');
       }
-      
-      toast({
-        title: t('versions.toast.deleted.title'),
-        description: t('versions.toast.deleted.description', { name }),
-      });
+
+      onNotify?.({ severity: 'success', title: t('versions.toast.deleted.title'), description: t('versions.toast.deleted.description', { name }), autoDismissMs: 3000 });
     }
   };
 
@@ -265,11 +248,8 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
     })) {
       setVersions(loadScheduleVersions());
       setEditingVersionId(null);
-      
-      toast({
-        title: t('versions.toast.updated.title'),
-        description: t('versions.toast.updated.description'),
-      });
+
+      onNotify?.({ severity: 'success', title: t('versions.toast.updated.title'), description: t('versions.toast.updated.description'), autoDismissMs: 3000 });
     }
   };
 
@@ -281,11 +261,7 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
 
   const handleOverwriteVersion = () => {
     if (!versionToOverwrite || !currentParameters) {
-      toast({
-        title: t('versions.manager.toast.error.title'),
-        description: t('versions.manager.toast.error.noVersionOrParamsForOverwrite'),
-        variant: 'destructive',
-      });
+      onNotify?.({ severity: 'error', title: t('versions.manager.toast.error.title'), description: t('versions.manager.toast.error.noVersionOrParamsForOverwrite'), autoDismissMs: 5000 });
       return;
     }
 
@@ -299,17 +275,10 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
     const success = updateScheduleVersion(versionToOverwrite.id, updates);
 
     if (success) {
-      toast({
-        title: t('versions.manager.toast.success.title'),
-        description: t('versions.manager.toast.success.versionOverwritten', { name: versionToOverwrite.name }),
-      });
+      onNotify?.({ severity: 'success', title: t('versions.manager.toast.success.title'), description: t('versions.manager.toast.success.versionOverwritten', { name: versionToOverwrite.name }), autoDismissMs: 3000 });
       setVersions(loadScheduleVersions());
     } else {
-      toast({
-        title: t('versions.manager.toast.error.title'),
-        description: t('versions.manager.toast.error.overwriteFailed', { name: versionToOverwrite.name }),
-        variant: 'destructive',
-      });
+      onNotify?.({ severity: 'error', title: t('versions.manager.toast.error.title'), description: t('versions.manager.toast.error.overwriteFailed', { name: versionToOverwrite.name }), autoDismissMs: 5000 });
     }
     setShowConfirmOverwriteDialog(false);
     setVersionToOverwrite(null);
