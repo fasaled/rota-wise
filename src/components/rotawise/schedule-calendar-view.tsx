@@ -30,7 +30,9 @@ import {
 interface ScheduleCalendarViewProps {
   schedule: Schedule;
   doctors: DoctorProfile[];
-  onUpdateScheduleEntry: (updatedEntry: ScheduleEntry) => void;
+  onUpdateScheduleEntry: (updatedEntry: ScheduleEntry, oldDate?: Date) => void;
+  onSwapScheduleEntries?: (entry1: ScheduleEntry, entry2: ScheduleEntry, oldDate1?: Date, oldDate2?: Date) => void;
+  onArbitraryScheduleEntry?: (updatedEntry: ScheduleEntry) => void;
   minIntervalBetweenWorkDays: number;
   allScheduleEntries: ScheduleEntry[];
   onToggleMonthFixed?: (month: Date, isFixed: boolean) => void;
@@ -70,6 +72,7 @@ interface DraggableWorkEntryProps {
   assignmentText: string;
   onEdit: (e: React.MouseEvent) => void;
   children?: React.ReactNode;
+  isFilteredByDoctor?: boolean;
 }
 
 const DraggableWorkEntry: React.FC<DraggableWorkEntryProps> = ({
@@ -79,8 +82,10 @@ const DraggableWorkEntry: React.FC<DraggableWorkEntryProps> = ({
   chipStyle,
   assignmentText,
   onEdit,
+  isFilteredByDoctor,
 }) => {
-  const isDraggable = entry.assignment === 'Work' && !entry.isFixed; // Only allow dragging 'Work' assignments that are not fixed
+  // Only allow dragging 'Work' assignments that are not fixed, and only when viewing all doctors
+  const isDraggable = entry.assignment === 'Work' && !entry.isFixed && !isFilteredByDoctor;
   // Every chip needs a unique id — sharing 'non-draggable' across chips confuses dnd-kit
   const dragId = `chip-${entry.doctorId}-${entry.date.getTime()}-${entry.assignment}`;
 
@@ -127,7 +132,7 @@ const DraggableWorkEntry: React.FC<DraggableWorkEntryProps> = ({
         isDragging && "shadow-lg"
       )}
       onClick={onEdit}
-      title={`${doctor?.name || entry.doctorId}: ${assignmentText}${entry.isFixed ? ' (Fixed)' : ''}${isDraggable ? ' (Draggable)' : ''}`}
+      title={`${doctor?.name || entry.doctorId}: ${assignmentText}${entry.isFixed ? ' (Fixed)' : ''}${isDraggable ? ' (Draggable)' : ''}${isFilteredByDoctor ? ' (Filtering active)' : ''}`}
       {...(isDraggable ? { ...attributes, ...listeners } : {})}
     >
       {IconComponent && <IconComponent className={iconClasses} />}
@@ -180,6 +185,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     schedule,
     doctors,
     onUpdateScheduleEntry,
+    onSwapScheduleEntries,
+    onArbitraryScheduleEntry,
     minIntervalBetweenWorkDays,
     allScheduleEntries,
     onToggleMonthFixed,
@@ -216,11 +223,17 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    
+
     setActiveId(null);
     setDraggedEntry(null);
 
     if (!over || !active.data.current?.entry) {
+      return;
+    }
+
+    // Don't allow drag-drop when filtering by a specific doctor
+    if (selectedDoctorId !== 'all') {
+      onNotify?.({ severity: 'error', title: t('calendar.toast.filterDisablesDrag.title'), description: t('calendar.toast.filterDisablesDrag.description'), autoDismissMs: 4000 });
       return;
     }
 
@@ -251,7 +264,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 
     // Find if there's already a work/pre-assigned entry on the target date
     const existingEntryOnTarget = schedule.entries.find(entry =>
-      isSameDay(entry.date, targetDate) && 
+      isSameDay(entry.date, targetDate) &&
       (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned') &&
       entry.doctorId !== draggedEntry.doctorId
     );
@@ -275,9 +288,14 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         dayOfWeek: format(draggedEntry.date, 'EEEE'),
       };
 
-      // Update both entries
-      onUpdateScheduleEntry(updatedDraggedEntry);
-      onUpdateScheduleEntry(updatedExistingEntry);
+      // Use atomic swap if available, otherwise fallback to two updates
+      if (onSwapScheduleEntries) {
+        // Pass old dates: draggedEntry was in draggedEntry.date, existingEntryOnTarget was in targetDate
+        onSwapScheduleEntries(updatedDraggedEntry, updatedExistingEntry, draggedEntry.date, targetDate);
+      } else {
+        onUpdateScheduleEntry(updatedDraggedEntry);
+        onUpdateScheduleEntry(updatedExistingEntry);
+      }
 
       onNotify?.({ severity: 'success', title: t('calendar.toast.doctorsSwapped.title'), description: t('calendar.toast.doctorsSwapped.description'), autoDismissMs: 3000 });
     } else {
@@ -288,7 +306,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         dayOfWeek: format(targetDate, 'EEEE'),
       };
 
-      onUpdateScheduleEntry(updatedEntry);
+      onUpdateScheduleEntry(updatedEntry, draggedEntry.date);
 
       onNotify?.({ severity: 'success', title: t('calendar.toast.doctorMoved.title'), description: t('calendar.toast.doctorMoved.description'), autoDismissMs: 3000 });
     }
@@ -393,6 +411,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                   chipStyle={chipStyle}
                   assignmentText={assignmentText}
                   onEdit={(e) => { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date); }}
+                  isFilteredByDoctor={selectedDoctorId !== 'all'}
                 />
               );
             } else {
@@ -546,8 +565,10 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
           date={selectedDateForAdjustment}
           doctors={doctors}
           onSave={onUpdateScheduleEntry}
+          onSaveArbitrary={onArbitraryScheduleEntry}
           minIntervalBetweenWorkDays={minIntervalBetweenWorkDays}
           allScheduleEntries={allScheduleEntries}
+          onNotify={onNotify}
         />
       )}
     </Card>

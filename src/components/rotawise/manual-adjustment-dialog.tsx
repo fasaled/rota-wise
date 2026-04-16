@@ -27,6 +27,7 @@ interface ManualAdjustmentDialogProps {
   date: Date;
   doctors: DoctorProfile[];
   onSave: (updatedEntry: ScheduleEntry) => void;
+  onSaveArbitrary?: (updatedEntry: ScheduleEntry) => void;
   minIntervalBetweenWorkDays: number;
   allScheduleEntries: ScheduleEntry[];
   onNotify?: (msg: Omit<InfoBarMessage, 'id'>) => void;
@@ -39,6 +40,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
   date,
   doctors,
   onSave,
+  onSaveArbitrary,
   minIntervalBetweenWorkDays,
   allScheduleEntries,
   onNotify,
@@ -53,13 +55,8 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
         if (entry) {
             setSelectedDoctorId(entry.doctorId);
             setIsFixed(entry.isFixed || false);
-            // If existing entry is Work or Off (the only settable types), use that.
-            // If it was Pre-assigned, default to Work in the dialog.
-            if (entry.assignment === 'Work' || entry.assignment === 'Off') {
-                setAssignmentType(entry.assignment);
-            } else { // Handles Pre-assigned, or any other type not in the dropdown
-                setAssignmentType('Work');
-            }
+            // Always default to 'Work' for consistency
+            setAssignmentType('Work');
         } else {
             // Default for new entry
             setSelectedDoctorId(doctors.length > 0 ? doctors[0].id : '');
@@ -70,30 +67,30 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
   }, [entry, doctors, isOpen]); 
 
   const handleSave = () => {
-    // Updated validation: doctor required only if assignment is 'Work'
-    if (assignmentType === 'Work' && !selectedDoctorId) {
+    // Doctor is always required since only Work assignments are allowed
+    if (!selectedDoctorId) {
         onNotify?.({ severity: 'error', title: t('dialog.toast.validationError.title'), description: t('dialog.toast.validationError.description'), autoDismissMs: 5000 });
         return;
     }
-    
+
     const updatedEntryData: ScheduleEntry = {
       date: date,
-      doctorId: selectedDoctorId || (assignmentType === 'Off' ? 'system' : ''), 
-      assignment: assignmentType,
+      doctorId: selectedDoctorId,
+      assignment: 'Work',
       dayOfWeek: format(date, 'EEEE', { locale: currentDateFnsLocale }),
       isFixed: isFixed,
     };
 
     const doctor = doctors.find(d => d.id === selectedDoctorId);
 
-    if (doctor && (assignmentType === 'Work' || assignmentType === 'Pre-assigned')) {
-        const isVacationDayForDoctor = doctor.vacationDates.some(vacDate => 
+    // Manual assignments are arbitrary - allow violations but show warnings
+    if (doctor) {
+        const isVacationDayForDoctor = doctor.vacationDates.some(vacDate =>
             isSameDay(vacDate, date)
         );
 
         if (isVacationDayForDoctor) {
-            onNotify?.({ severity: 'error', title: t('dialog.toast.cannotAssignOnVacation.title'), description: t('dialog.toast.cannotAssignOnVacation.description', { doctorName: doctor.name }), autoDismissMs: 5000 });
-            return;
+            onNotify?.({ severity: 'warning', title: t('dialog.toast.cannotAssignOnVacation.title'), description: t('dialog.toast.cannotAssignOnVacation.description', { doctorName: doctor.name }), autoDismissMs: 5000 });
         }
 
         const isExcludedDayForDoctor = (doctor.excludedDates || []).some(exDate =>
@@ -104,7 +101,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
             onNotify?.({ severity: 'warning', title: t('dialog.toast.adjustmentWarning.title'), description: t('dialog.toast.excludedDayWarning.description', { doctorName: doctor.name }), autoDismissMs: 5000 });
         }
 
-        // Check min interval
+        // Check min interval - show warning but don't prevent assignment
         const doctorsWorkOrPreassignedEntries = allScheduleEntries.filter(
             e => e.doctorId === selectedDoctorId && (e.assignment === 'Work' || e.assignment === 'Pre-assigned') && !isSameDay(e.date, date)
         );
@@ -131,7 +128,9 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
         }
     }
 
-    onSave(updatedEntryData);
+    // Use arbitrary save if available (manual assignments), otherwise use normal save
+    const saveHandler = onSaveArbitrary || onSave;
+    saveHandler(updatedEntryData);
     onClose();
     const formattedDate = format(date, 'PPP', { locale: currentDateFnsLocale });
     onNotify?.({
@@ -144,7 +143,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
     });
   };
 
-  const assignmentTypes: ScheduleEntry['assignment'][] = ['Work', 'Off']; // Limited assignment types
+  const assignmentTypes: ScheduleEntry['assignment'][] = ['Work']; // Only work assignments allowed
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -163,7 +162,6 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
             <Select
               value={selectedDoctorId}
               onValueChange={setSelectedDoctorId}
-              disabled={assignmentType === 'Off'}
             >
               <SelectTrigger className="col-span-3">
                 <SelectValue placeholder={t('dialog.selectDoctorPlaceholder')} />
@@ -172,23 +170,6 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
                 {doctors.map((doc) => (
                   <SelectItem key={doc.id} value={doc.id}>
                     {doc.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="assignment" className="text-right">
-              {t('dialog.assignmentLabel')}
-            </Label>
-            <Select value={assignmentType} onValueChange={(value) => setAssignmentType(value as ScheduleEntry['assignment'])}>
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder={t('dialog.selectAssignmentPlaceholder')} />
-              </SelectTrigger>
-              <SelectContent>
-                {assignmentTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {t(`assignmentType.${type}` as any)}
                   </SelectItem>
                 ))}
               </SelectContent>

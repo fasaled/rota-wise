@@ -125,6 +125,8 @@
   "calendar.toast.cannotMoveToFixed.description": "Cannot move to a date that has a fixed assignment.",
   "calendar.toast.cannotSwapWithFixed.title": "Cannot swap with fixed assignment",
   "calendar.toast.cannotSwapWithFixed.description": "Cannot swap with a fixed assignment.",
+  "calendar.toast.filterDisablesDrag.title": "View all doctors to move/swap",
+  "calendar.toast.filterDisablesDrag.description": "Remove the doctor filter to enable moving and swapping shifts.",
 
   "dialog.adjustTitle": "Adjust schedule for {date}",
   "dialog.modifyDescription": "Modify the assignment for this day.",

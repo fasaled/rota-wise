@@ -467,7 +467,165 @@ export default function RotawisePage() {
   // Schedule entry updates
   // ---------------------------------------------------------------------------
 
-  const handleUpdateScheduleEntry = (updatedEntry: ScheduleEntry) => {
+  const handleArbitraryScheduleEntry = (updatedEntry: ScheduleEntry) => {
+    if (!schedule) return;
+    historyPush({ schedule, doctorsProfiles, scheduleWarnings, currentMinInterval });
+
+    // Arbitrary assignments: only remove direct conflicts on the same date, keep entries from other dates
+    const newEntries = schedule.entries.filter((e) => {
+      // Only remove conflicting Work/Pre-assigned entries on the exact same date and different doctor
+      if (isSameDay(e.date, updatedEntry.date)) {
+        if ((updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') &&
+            (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+            e.doctorId !== updatedEntry.doctorId) {
+          return false; // Remove conflicting Work/Pre-assigned from other doctor on same date
+        }
+        if ((updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') &&
+            e.doctorId === 'system' && e.assignment === 'Off') {
+          return false; // Remove system 'Off' entry on same date
+        }
+      }
+      return true;
+    });
+
+    newEntries.push(updatedEntry);
+    setSchedule({ ...schedule, entries: newEntries });
+    // Note: No validation messages for arbitrary assignments - warnings are shown in the dialog
+  };
+
+  const handleSwapScheduleEntries = (entry1: ScheduleEntry, entry2: ScheduleEntry, oldDate1?: Date, oldDate2?: Date) => {
+    if (!schedule) return;
+    historyPush({ schedule, doctorsProfiles, scheduleWarnings, currentMinInterval });
+
+    // Filter: remove entries from old positions and add swapped ones
+    const newEntries = schedule.entries.filter((e) => {
+      // Remove entry1 from its old date if provided
+      if (oldDate1 && isSameDay(e.date, oldDate1) && e.doctorId === entry1.doctorId &&
+          (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+          (entry1.assignment === 'Work' || entry1.assignment === 'Pre-assigned')) {
+        return false;
+      }
+
+      // Remove entry2 from its old date if provided
+      if (oldDate2 && isSameDay(e.date, oldDate2) && e.doctorId === entry2.doctorId &&
+          (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+          (entry2.assignment === 'Work' || entry2.assignment === 'Pre-assigned')) {
+        return false;
+      }
+
+      // If old dates not provided, fall back to removing in new dates
+      if (!oldDate1 && isSameDay(e.date, entry1.date) && e.doctorId === entry1.doctorId &&
+          (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+          (entry1.assignment === 'Work' || entry1.assignment === 'Pre-assigned')) {
+        return false;
+      }
+
+      if (!oldDate2 && isSameDay(e.date, entry2.date) && e.doctorId === entry2.doctorId &&
+          (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+          (entry2.assignment === 'Work' || entry2.assignment === 'Pre-assigned')) {
+        return false;
+      }
+
+      return true;
+    });
+
+    // Add the swapped entries
+    newEntries.push(entry1, entry2);
+
+    const effectiveMinInterval = schedule.minIntervalBetweenWorkDays ?? currentMinInterval;
+    const doctorProfile1 = doctorsProfiles.find((dp) => dp.id === entry1.doctorId);
+    const doctorProfile2 = doctorsProfiles.find((dp) => dp.id === entry2.doctorId);
+
+    // Collect validation messages
+    const pendingMessages: Omit<InfoBarMessage, 'id'>[] = [];
+
+    // Validate entry1
+    if (doctorProfile1 && (entry1.assignment === 'Work' || entry1.assignment === 'Pre-assigned')) {
+      const otherWorkEntries = newEntries.filter(
+        (e) =>
+          e.doctorId === entry1.doctorId &&
+          (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+          !isSameDay(e.date, entry1.date),
+      );
+
+      const before = otherWorkEntries
+        .filter((e) => e.date < entry1.date)
+        .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+
+      const after = otherWorkEntries
+        .filter((e) => e.date > entry1.date)
+        .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
+
+      if (before && differenceInCalendarDays(entry1.date, before.date) <= effectiveMinInterval) {
+        pendingMessages.push({
+          severity: 'warning',
+          title: t('page.toast.minIntervalWarning.title'),
+          description: t('page.toast.minIntervalWarning.description', {
+            doctorName: doctorProfile1.name,
+            interval: effectiveMinInterval,
+          }),
+          autoDismissMs: 5000,
+        });
+      }
+      if (after && differenceInCalendarDays(after.date, entry1.date) <= effectiveMinInterval) {
+        pendingMessages.push({
+          severity: 'warning',
+          title: t('page.toast.minIntervalWarning.title'),
+          description: t('page.toast.minIntervalWarning.description', {
+            doctorName: doctorProfile1.name,
+            interval: effectiveMinInterval,
+          }),
+          autoDismissMs: 5000,
+        });
+      }
+    }
+
+    // Validate entry2
+    if (doctorProfile2 && (entry2.assignment === 'Work' || entry2.assignment === 'Pre-assigned')) {
+      const otherWorkEntries = newEntries.filter(
+        (e) =>
+          e.doctorId === entry2.doctorId &&
+          (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+          !isSameDay(e.date, entry2.date),
+      );
+
+      const before = otherWorkEntries
+        .filter((e) => e.date < entry2.date)
+        .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+
+      const after = otherWorkEntries
+        .filter((e) => e.date > entry2.date)
+        .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
+
+      if (before && differenceInCalendarDays(entry2.date, before.date) <= effectiveMinInterval) {
+        pendingMessages.push({
+          severity: 'warning',
+          title: t('page.toast.minIntervalWarning.title'),
+          description: t('page.toast.minIntervalWarning.description', {
+            doctorName: doctorProfile2.name,
+            interval: effectiveMinInterval,
+          }),
+          autoDismissMs: 5000,
+        });
+      }
+      if (after && differenceInCalendarDays(after.date, entry2.date) <= effectiveMinInterval) {
+        pendingMessages.push({
+          severity: 'warning',
+          title: t('page.toast.minIntervalWarning.title'),
+          description: t('page.toast.minIntervalWarning.description', {
+            doctorName: doctorProfile2.name,
+            interval: effectiveMinInterval,
+          }),
+          autoDismissMs: 5000,
+        });
+      }
+    }
+
+    setSchedule({ ...schedule, entries: newEntries });
+    pendingMessages.forEach((msg) => addMessage(msg));
+  };
+
+  const handleUpdateScheduleEntry = (updatedEntry: ScheduleEntry, oldDate?: Date) => {
     if (!schedule) return;
     historyPush({ schedule, doctorsProfiles, scheduleWarnings, currentMinInterval });
 
@@ -486,13 +644,31 @@ export default function RotawisePage() {
       }
     } else {
       newEntries = schedule.entries.filter((e) => {
+        // Remove the entry from its old date if provided (for moves)
+        if (oldDate && isSameDay(e.date, oldDate) && e.doctorId === updatedEntry.doctorId &&
+            (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+            (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned')) {
+          return false;
+        }
+
         if (isSameDay(e.date, updatedEntry.date)) {
-          if (e.doctorId === updatedEntry.doctorId) return false;
-          if (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') {
-            if (e.assignment === 'Work' || e.assignment === 'Pre-assigned') return false;
-            if (e.doctorId === 'system' && e.assignment === 'Off') return false;
+          // Remove the old entry for this doctor on the target date
+          if (e.doctorId === updatedEntry.doctorId) {
+            if ((e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+                (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned')) {
+              return false; // Remove old entry same doctor on same date
+            }
           }
-          return true;
+          // Remove conflicting Work/Pre-assigned entries from other doctors
+          if ((updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') &&
+              (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+              e.doctorId !== updatedEntry.doctorId) {
+            return false; // Remove conflicting Work/Pre-assigned from other doctor
+          }
+          if ((updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') &&
+              e.doctorId === 'system' && e.assignment === 'Off') {
+            return false; // Remove system 'Off' entry
+          }
         }
         return true;
       });
@@ -974,6 +1150,8 @@ export default function RotawisePage() {
                   schedule={schedule}
                   doctors={doctorsProfiles}
                   onUpdateScheduleEntry={handleUpdateScheduleEntry}
+                  onSwapScheduleEntries={handleSwapScheduleEntries}
+                  onArbitraryScheduleEntry={handleArbitraryScheduleEntry}
                   minIntervalBetweenWorkDays={currentMinInterval}
                   allScheduleEntries={schedule.entries}
                   onToggleMonthFixed={handleToggleMonthFixed}

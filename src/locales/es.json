@@ -122,6 +122,8 @@
   "calendar.toast.cannotMoveToFixed.description": "No se puede mover a una fecha que tiene una asignación fija.",
   "calendar.toast.cannotSwapWithFixed.title": "No se puede intercambiar con asignación fija",
   "calendar.toast.cannotSwapWithFixed.description": "No se puede intercambiar con una asignación fija.",
+  "calendar.toast.filterDisablesDrag.title": "Ver todos los médicos para mover/intercambiar",
+  "calendar.toast.filterDisablesDrag.description": "Elimina el filtro de médicos para permitir mover e intercambiar turnos.",
 
   "dialog.adjustTitle": "Ajustar horario para {date}",
   "dialog.modifyDescription": "Modifique la asignación para este día.",
