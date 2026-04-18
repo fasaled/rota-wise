@@ -78,49 +78,59 @@ function deserializeAppFileData(data: AppFileData): {
   const scheduleWarnings: string[] = data.scheduleWarnings || [];
   const currentMinInterval = data.currentMinInterval || 1;
 
-  if (data.schedule?.startDate && data.doctorsProfiles && data.formValues) {
+  // Only deserialize if there's meaningful data: either a schedule with entries, or form values with doctors
+  const hasScheduleData = data.schedule?.startDate && (data.schedule?.entries?.length ?? 0) > 0;
+  const hasDoctorData = (data.doctorsProfiles?.length ?? 0) > 0 || (data.formValues?.doctors?.length ?? 0) > 0;
+
+  if (hasScheduleData || hasDoctorData) {
     // Deserialize schedule entries
-    const entries: ScheduleEntry[] = (data.schedule.entries || []).map((e) => ({
+    const entries: ScheduleEntry[] = (data.schedule?.entries || []).map((e) => ({
       ...e,
       date: new Date(e.date),
     }));
 
-    schedule = {
-      ...data.schedule,
-      startDate: new Date(data.schedule.startDate),
-      endDate: new Date(data.schedule.endDate),
-      minIntervalBetweenWorkDays: data.schedule.minIntervalBetweenWorkDays || 1,
-      globalMonthlyShiftLimit: data.schedule.globalMonthlyShiftLimit,
-      entries,
-    };
+    if (data.schedule?.startDate && (data.schedule?.entries?.length ?? 0) > 0) {
+      schedule = {
+        ...data.schedule,
+        startDate: new Date(data.schedule.startDate),
+        endDate: new Date(data.schedule.endDate),
+        minIntervalBetweenWorkDays: data.schedule.minIntervalBetweenWorkDays || 1,
+        globalMonthlyShiftLimit: data.schedule.globalMonthlyShiftLimit,
+        entries,
+      };
+    }
 
     // Deserialize doctor profiles
-    doctorsProfiles = data.doctorsProfiles.map((p) => ({
-      ...p,
-      vacationDates: (p.vacationDates || []).map((d: string) => new Date(d)),
-      preAssignedWorkDates: (p.preAssignedWorkDates || []).map((d: string) => new Date(d)),
-      excludedDates: (p.excludedDates || []).map((d: string) => new Date(d)),
-      isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
-    }));
+    if (data.doctorsProfiles) {
+      doctorsProfiles = data.doctorsProfiles.map((p) => ({
+        ...p,
+        vacationDates: (p.vacationDates || []).map((d: string) => new Date(d)),
+        preAssignedWorkDates: (p.preAssignedWorkDates || []).map((d: string) => new Date(d)),
+        excludedDates: (p.excludedDates || []).map((d: string) => new Date(d)),
+        isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
+      }));
+    }
 
     // Deserialize form values
-    const formDoctors = (data.formValues.doctors || []).map((doc: SerializedDoctorFormFieldInput) => ({
-      id: doc.id,
-      name: doc.name,
-      vacationDates: (doc.vacationDates || []).map((d: string) => new Date(d)),
-      preAssignedWorkDates: (doc.preAssignedWorkDates || []).map((d: string) => new Date(d)),
-      excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
-      isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
-    }));
+    if (data.formValues) {
+      const formDoctors = (data.formValues.doctors || []).map((doc: SerializedDoctorFormFieldInput) => ({
+        id: doc.id,
+        name: doc.name,
+        vacationDates: (doc.vacationDates || []).map((d: string) => new Date(d)),
+        preAssignedWorkDates: (doc.preAssignedWorkDates || []).map((d: string) => new Date(d)),
+        excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
+        isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+      }));
 
-    formValues = {
-      numberOfDoctors: data.formValues.numberOfDoctors,
-      startDate: new Date(data.formValues.startDate),
-      endDate: new Date(data.formValues.endDate),
-      minIntervalBetweenWorkDays: data.formValues.minIntervalBetweenWorkDays || 1,
-      globalMonthlyShiftLimit: data.formValues.globalMonthlyShiftLimit,
-      doctors: formDoctors,
-    };
+      formValues = {
+        numberOfDoctors: data.formValues.numberOfDoctors,
+        startDate: data.formValues.startDate ? new Date(data.formValues.startDate) : new Date(),
+        endDate: data.formValues.endDate ? new Date(data.formValues.endDate) : new Date(),
+        minIntervalBetweenWorkDays: data.formValues.minIntervalBetweenWorkDays || 1,
+        globalMonthlyShiftLimit: data.formValues.globalMonthlyShiftLimit,
+        doctors: formDoctors,
+      };
+    }
   }
 
   return { schedule, doctorsProfiles, formValues, scheduleWarnings, currentMinInterval };
@@ -134,7 +144,10 @@ function buildAppFileData(
   currentMinInterval: number,
   versions: AppFileData['versions'],
 ): AppFileData {
-  const serializedSchedule: AppFileData['schedule'] = schedule
+  // If there are no doctors, clear the schedule to avoid orphaned data
+  const hasDoctors = (doctorsProfiles?.length ?? 0) > 0 || (formValues?.doctors?.length ?? 0) > 0;
+
+  const serializedSchedule: AppFileData['schedule'] = hasDoctors && schedule
     ? {
         ...schedule,
         startDate: schedule.startDate.toISOString(),
@@ -147,13 +160,15 @@ function buildAppFileData(
         endDate: new Date().toISOString(),
       };
 
-  const serializedDoctors: AppFileData['doctorsProfiles'] = doctorsProfiles.map((p) => ({
-    ...p,
-    vacationDates: p.vacationDates.map((d) => d.toISOString()),
-    preAssignedWorkDates: p.preAssignedWorkDates.map((d) => d.toISOString()),
-    excludedDates: (p.excludedDates || []).map((d) => d.toISOString()),
-    isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
-  }));
+  const serializedDoctors: AppFileData['doctorsProfiles'] = (doctorsProfiles?.length ?? 0) > 0
+    ? doctorsProfiles.map((p) => ({
+        ...p,
+        vacationDates: p.vacationDates.map((d) => d.toISOString()),
+        preAssignedWorkDates: p.preAssignedWorkDates.map((d) => d.toISOString()),
+        excludedDates: (p.excludedDates || []).map((d) => d.toISOString()),
+        isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
+      }))
+    : [];
 
   const serializedFormValues: AppFileData['formValues'] = {
     numberOfDoctors: formValues?.numberOfDoctors || 0,
@@ -265,9 +280,16 @@ export default function RotawisePage() {
 
   useEffect(() => {
     if (!isMounted || !fileHandle) return;
+
+    // Sync doctorsProfiles with formValues.doctors before saving
+    const formDoctorIds = new Set((loadedFormValues?.doctors || []).map((d) => d.id).filter(Boolean));
+    const syncedProfiles = formDoctorIds.size === 0
+      ? []
+      : doctorsProfiles.filter((p) => formDoctorIds.has(p.id));
+
     const data = buildAppFileData(
       schedule,
-      doctorsProfiles,
+      syncedProfiles,
       loadedFormValues,
       scheduleWarnings,
       currentMinInterval,
@@ -284,8 +306,9 @@ export default function RotawisePage() {
   function hydrateFromFileData(data: AppFileData) {
     const { schedule: s, doctorsProfiles: dp, formValues: fv, scheduleWarnings: sw, currentMinInterval: cmi } =
       deserializeAppFileData(data);
+    const hasEntries = !!s && s.entries.length > 0;
     setSchedule(s);
-    setDoctorsProfiles(dp);
+    setDoctorsProfiles(hasEntries ? dp : []);
     setScheduleWarnings(sw);
     setCurrentMinInterval(cmi);
     if (fv) {
@@ -293,7 +316,8 @@ export default function RotawisePage() {
       setNumDoctorsInForm(fv.numberOfDoctors || 0);
       setDataInputFormKey((prev) => prev + 1);
     }
-    if (s) setActiveTab('calendar');
+    if (hasEntries) setActiveTab('calendar');
+    else setActiveTab('config');
   }
 
   function handleFileReady(data: AppFileData) {
@@ -790,6 +814,10 @@ export default function RotawisePage() {
     setSchedule(null);
     setScheduleWarnings([]);
     setActiveTab('config');
+    if (fileHandle) {
+      saveToFile(buildAppFileData(null, doctorsProfiles, loadedFormValues, [], currentMinInterval, fileVersions))
+        .catch(console.error);
+    }
     addMessage({
       severity: 'success',
       title: t('page.toast.scheduleCleared.title'),
@@ -806,6 +834,11 @@ export default function RotawisePage() {
       formRef.current.reset(reset);
       setNumDoctorsInForm(0);
       setLoadedFormValues(reset);
+      setDoctorsProfiles([]);
+      if (fileHandle) {
+        saveToFile(buildAppFileData(schedule, [], reset, scheduleWarnings, currentMinInterval, fileVersions))
+          .catch(console.error);
+      }
       addMessage({
         severity: 'success',
         title: t('page.toast.clearedDoctorItems.title'),
@@ -825,6 +858,14 @@ export default function RotawisePage() {
       setNumDoctorsInForm(values.numberOfDoctors);
     }
     setLoadedFormValues(values);
+
+    // Immediately sync doctorsProfiles with form doctors
+    const formDoctorIds = new Set(values.doctors.map((d) => d.id).filter(Boolean));
+    if (formDoctorIds.size === 0) {
+      setDoctorsProfiles([]);
+    } else {
+      setDoctorsProfiles((prev) => prev.filter((p) => formDoctorIds.has(p.id)));
+    }
   };
 
   // ---------------------------------------------------------------------------
@@ -942,11 +983,13 @@ export default function RotawisePage() {
   // Sidebar nav items
   // ---------------------------------------------------------------------------
 
+  const hasScheduleEntries = !!schedule && schedule.entries.length > 0;
+
   const navItems: { id: ActiveTab; icon: React.ElementType; labelKey: string; disabled?: boolean }[] = [
     { id: 'config', icon: Settings, labelKey: 'nav.config' },
     { id: 'calendar', icon: CalendarDays, labelKey: 'nav.calendar', disabled: !schedule },
-    { id: 'weekly', icon: BarChart2, labelKey: 'nav.weeklySummary', disabled: !schedule },
-    { id: 'monthly', icon: LayoutGrid, labelKey: 'nav.monthlySummary', disabled: !schedule },
+    { id: 'weekly', icon: BarChart2, labelKey: 'nav.weeklySummary', disabled: !hasScheduleEntries },
+    { id: 'monthly', icon: LayoutGrid, labelKey: 'nav.monthlySummary', disabled: !hasScheduleEntries },
   ];
 
   const isBusy = isLoading || isExportingPdf || isExportingWord;
