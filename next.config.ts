@@ -1,13 +1,6 @@
 import type {NextConfig} from 'next';
 
 const baseNextConfig: NextConfig = {
-  /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  images: {
-    unoptimized: true,
-  },
   // Turbopack used in dev (fast HMR); webpack used in `next build --webpack` (required by next-pwa)
   turbopack: {},
 };

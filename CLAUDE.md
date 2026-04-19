@@ -5,18 +5,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev          # Start dev server at http://localhost:3000
-npm run build        # Production build
-npm run lint         # ESLint
-npm run typecheck    # TypeScript check (tsc --noEmit)
-npm run test         # Run Jest tests
-npm run test:watch   # Tests in watch mode
-npm run test:coverage # Tests with coverage report
+bun run dev          # Start dev server at http://localhost:3000
+bun run build        # Production build (Next.js + Workbox PWA)
+bun run lint         # ESLint
+bun run typecheck    # TypeScript check (tsc --noEmit)
+bun test             # Run tests (bun test runner, no jest)
+bun test --watch     # Tests in watch mode
+bun test --coverage  # Tests with coverage report
 ```
 
 To run a single test file:
 ```bash
-npx jest src/__tests__/schedule-generator.test.ts
+bun test src/__tests__/schedule-generator.test.ts
 ```
 
 ## Architecture
@@ -67,6 +67,6 @@ All persistence is client-side via localStorage. No backend/database. Export/imp
 ## Key Constraints
 
 - This is a pure client-side app (no API routes, no server actions). All logic runs in the browser.
-- The scheduling algorithm runs synchronously; keep it that way to avoid race conditions with React state.
+- The scheduling algorithm runs in a Web Worker (`src/workers/schedule.worker.ts`) via `useScheduleWorker` hook — do not call `generateSchedule` directly from the main thread.
 - Tests cover the scheduling algorithm exclusively (`src/__tests__/`). UI components are not tested.
 - The app supports two languages (EN/ES); when adding user-facing strings, add translations to both locale files.

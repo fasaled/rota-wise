@@ -1,6 +1,6 @@
 # Algoritmo de Asignación de Guardias — Especificación Completa
 
-Este documento describe con exactitud el algoritmo de generación de horarios de guardias médicas implementado en Rota-Wise, con el objetivo de servir como referencia para reimplementarlo en cualquier plataforma (p. ej. WinUI 3 + MVVM con C#).
+Este documento describe con exactitud el algoritmo de generación de horarios de guardias médicas implementado en Rota-Wise (`src/lib/schedule-generator.ts`).
 
 ---
 
@@ -238,10 +238,9 @@ Si un médico tiene ese día tanto en `preAssignedWorkDates` como una entrada fi
 
 ---
 
-## 11. Consideraciones para la implementación en C# / WinUI 3
+## 11. Notas de implementación
 
-- **Sin aleatoriedad en producción**: El desempate aleatorio (prioridad 7) puede reemplazarse por orden alfabético de nombre o de ID para resultados deterministas si se desea reproducibilidad.
-- **Fechas sin hora**: Todas las comparaciones de fechas son a nivel de día natural (`DateOnly` en C#). No usar `DateTime` con horas para evitar problemas de zona horaria.
-- **Persistencia**: El horario generado puede exportarse/importarse como JSON. Las fechas se serializan en formato ISO 8601 (`yyyy-MM-dd`).
-- **Regeneración parcial**: El sistema admite "entradas fijas" (`isFixed`) para preservar asignaciones manuales al regenerar el horario. Al regenerar, se pasan estas entradas como `existingFixedEntries`.
-- **Idiomas**: Los nombres de día de la semana en la salida (`dayOfWeek`) se almacenan en inglés internamente. La UI los traduce al idioma del usuario.
+- **Fechas**: Todas las comparaciones son a nivel de día natural. Las fechas se serializan en ISO 8601 (`yyyy-MM-dd`) en localStorage y ficheros `.rw`.
+- **Regeneración parcial**: El sistema admite "entradas fijas" (`isFixed`) para preservar asignaciones manuales al regenerar. Se pasan como `existingFixedEntries` al generador.
+- **Idiomas**: `dayOfWeek` se almacena en inglés internamente. La UI traduce al idioma del usuario (EN/ES).
+- **Web Worker**: La función `generateSchedule` se ejecuta en un Web Worker (`src/workers/schedule.worker.ts`) para no bloquear el hilo principal durante la generación.

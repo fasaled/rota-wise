@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type {
   Schedule,
   ScheduleFormValues,
@@ -11,12 +11,13 @@ import type {
   DoctorFormFieldInput,
 } from '@/lib/types';
 import { type UseFormReturn } from 'react-hook-form';
+import dynamic from 'next/dynamic';
 import DataInputForm from '@/components/rotawise/data-input-form';
-import ScheduleCalendarView from '@/components/rotawise/schedule-calendar-view';
-import ScheduleSummaryTable from '@/components/rotawise/schedule-summary-table';
-import MonthlyWorkloadSummaryTable from '@/components/rotawise/MonthlyWorkloadSummaryTable';
+const ScheduleCalendarView = dynamic(() => import('@/components/rotawise/schedule-calendar-view'), { ssr: false });
+const ScheduleSummaryTable = dynamic(() => import('@/components/rotawise/schedule-summary-table'), { ssr: false });
+const MonthlyWorkloadSummaryTable = dynamic(() => import('@/components/rotawise/MonthlyWorkloadSummaryTable'), { ssr: false });
+const StartupScreen = dynamic(() => import('@/components/rotawise/startup-screen'), { ssr: false });
 import LanguageSelector from '@/components/rotawise/language-selector';
-import StartupScreen from '@/components/rotawise/startup-screen';
 import { InfoBarList } from '@/components/rotawise/info-bar';
 import { ThemeIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -48,12 +49,11 @@ import { format, isSameDay, differenceInCalendarDays, startOfMonth, endOfMonth }
 import { useLanguage } from '@/context/language-context';
 import { useFileSystem } from '@/context/file-system-context';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { generateSchedule, type ScheduleWarning } from '@/lib/schedule-generator';
+import type { ScheduleWarning } from '@/lib/schedule-generator';
+import { useScheduleWorker } from '@/hooks/use-schedule-worker';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { useInfoBar, type InfoBarMessage } from '@/hooks/use-info-bar';
 import { useHistory } from '@/hooks/use-history';
-import { exportPdf } from '@/lib/export-pdf';
-import { exportWord } from '@/lib/export-word';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -214,6 +214,7 @@ export default function RotawisePage() {
   } = useFileSystem();
   const { messages, addMessage, dismissMessage } = useInfoBar();
   const { push: historyPush, undo: historyUndo, canUndo } = useHistory();
+  const { generate } = useScheduleWorker();
 
   // Core schedule state
   const [schedule, setSchedule] = useState<Schedule | null>(null);
@@ -303,7 +304,7 @@ export default function RotawisePage() {
   // File hydration
   // ---------------------------------------------------------------------------
 
-  function hydrateFromFileData(data: AppFileData) {
+  const hydrateFromFileData = useCallback((data: AppFileData) => {
     const { schedule: s, doctorsProfiles: dp, formValues: fv, scheduleWarnings: sw, currentMinInterval: cmi } =
       deserializeAppFileData(data);
     const hasEntries = !!s && s.entries.length > 0;
@@ -318,24 +319,25 @@ export default function RotawisePage() {
     }
     if (hasEntries) setActiveTab('calendar');
     else setActiveTab('config');
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  function handleFileReady(data: AppFileData) {
+  const handleFileReady = useCallback((data: AppFileData) => {
     hydrateFromFileData(data);
     setIsFileSessionActive(true);
     addMessage({ severity: 'success', title: t('file.opened'), autoDismissMs: 3000 });
-  }
+  }, [hydrateFromFileData, addMessage, t]);
 
-  function handleFileError(msg: string) {
+  const handleFileError = useCallback((msg: string) => {
     addMessage({ severity: 'error', title: msg, autoDismissMs: 5000 });
-  }
+  }, [addMessage]);
 
   // ---------------------------------------------------------------------------
   // Load as pre-assigned (file input)
   // ---------------------------------------------------------------------------
 
   // Called from StartupScreen when user picks a file to import as pre-assigned
-  function handleLoadAsPreassigned(rawData: AppFileData) {
+  const handleLoadAsPreassigned = useCallback((rawData: AppFileData) => {
     try {
       if (!rawData.schedule || !rawData.doctorsProfiles) throw new Error('Invalid file format');
 
@@ -415,7 +417,7 @@ export default function RotawisePage() {
         autoDismissMs: 5000,
       });
     }
-  }
+  }, [addMessage, t]);
 
   // ---------------------------------------------------------------------------
   // Schedule generation
@@ -439,7 +441,7 @@ export default function RotawisePage() {
     setDoctorsProfiles(profiles);
 
     const existingFixedEntries = schedule?.entries.filter((e) => e.isFixed) || [];
-    const result = generateSchedule(data, existingFixedEntries);
+    const result = await generate(data, existingFixedEntries);
     setIsLoading(false);
 
     if (result.error) {
@@ -491,7 +493,7 @@ export default function RotawisePage() {
   // Schedule entry updates
   // ---------------------------------------------------------------------------
 
-  const handleArbitraryScheduleEntry = (updatedEntry: ScheduleEntry) => {
+  const handleArbitraryScheduleEntry = useCallback((updatedEntry: ScheduleEntry) => {
     if (!schedule) return;
     historyPush({ schedule, doctorsProfiles, scheduleWarnings, currentMinInterval });
 
@@ -515,9 +517,9 @@ export default function RotawisePage() {
     newEntries.push(updatedEntry);
     setSchedule({ ...schedule, entries: newEntries });
     // Note: No validation messages for arbitrary assignments - warnings are shown in the dialog
-  };
+  }, [schedule, historyPush]);
 
-  const handleSwapScheduleEntries = (entry1: ScheduleEntry, entry2: ScheduleEntry, oldDate1?: Date, oldDate2?: Date) => {
+  const handleSwapScheduleEntries = useCallback((entry1: ScheduleEntry, entry2: ScheduleEntry, oldDate1?: Date, oldDate2?: Date) => {
     if (!schedule) return;
     historyPush({ schedule, doctorsProfiles, scheduleWarnings, currentMinInterval });
 
@@ -647,9 +649,9 @@ export default function RotawisePage() {
 
     setSchedule({ ...schedule, entries: newEntries });
     pendingMessages.forEach((msg) => addMessage(msg));
-  };
+  }, [schedule, historyPush, doctorsProfiles, currentMinInterval, addMessage, t]);
 
-  const handleUpdateScheduleEntry = (updatedEntry: ScheduleEntry, oldDate?: Date) => {
+  const handleUpdateScheduleEntry = useCallback((updatedEntry: ScheduleEntry, oldDate?: Date) => {
     if (!schedule) return;
     historyPush({ schedule, doctorsProfiles, scheduleWarnings, currentMinInterval });
 
@@ -771,13 +773,13 @@ export default function RotawisePage() {
 
     setSchedule({ ...schedule, entries: newEntries });
     pendingMessages.forEach((msg) => addMessage(msg));
-  };
+  }, [schedule, historyPush, doctorsProfiles, currentMinInterval, addMessage, t]);
 
   // ---------------------------------------------------------------------------
   // Toggle month fixed
   // ---------------------------------------------------------------------------
 
-  const handleToggleMonthFixed = (month: Date, isFixed: boolean) => {
+  const handleToggleMonthFixed = useCallback((month: Date, isFixed: boolean) => {
     if (!schedule) return;
     historyPush({ schedule, doctorsProfiles, scheduleWarnings, currentMinInterval });
 
@@ -804,7 +806,7 @@ export default function RotawisePage() {
         : t('page.toast.monthUnfixed.description', { month: format(month, 'MMMM yyyy', { locale: currentDateFnsLocale }) }),
       autoDismissMs: 3000,
     });
-  };
+  }, [schedule, historyPush, addMessage, t, currentDateFnsLocale]);
 
   // ---------------------------------------------------------------------------
   // Clear actions
@@ -853,7 +855,7 @@ export default function RotawisePage() {
   // Live form values change
   // ---------------------------------------------------------------------------
 
-  const handleLiveFormValuesChange = (values: ScheduleFormValues) => {
+  const handleLiveFormValuesChange = useCallback((values: ScheduleFormValues) => {
     if (typeof values.numberOfDoctors === 'number') {
       setNumDoctorsInForm(values.numberOfDoctors);
     }
@@ -866,7 +868,8 @@ export default function RotawisePage() {
     } else {
       setDoctorsProfiles((prev) => prev.filter((p) => formDoctorIds.has(p.id)));
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Export
@@ -884,6 +887,7 @@ export default function RotawisePage() {
     }
     setIsExportingPdf(true);
     try {
+      const { exportPdf } = await import('@/lib/export-pdf');
       await exportPdf({
         schedule,
         doctorsProfiles,
@@ -916,6 +920,7 @@ export default function RotawisePage() {
     }
     setIsExportingWord(true);
     try {
+      const { exportWord } = await import('@/lib/export-word');
       await exportWord({
         schedule,
         doctorsProfiles,

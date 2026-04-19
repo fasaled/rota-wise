@@ -1,6 +1,7 @@
 {
-  "name": "Rota-Wise",
-  "short_name": "Rota-Wise",
+  "id": "/",
+  "name": "Rotawise",
+  "short_name": "Rotawise",
   "description": "Fair and balanced doctor scheduling.",
   "start_url": "/",
   "scope": "/",
@@ -9,6 +10,22 @@
   "background_color": "#f0f4f8",
   "theme_color": "#6699CC",
   "prefer_related_applications": false,
+  "categories": ["productivity", "medical"],
+  "shortcuts": [
+    {
+      "name": "New Schedule",
+      "short_name": "New",
+      "description": "Start a new schedule",
+      "url": "/",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+rotawise",
+      "url": "/?file=%s"
+    }
+  ],
   "file_handlers": [
     {
       "action": "/",
@@ -42,6 +59,22 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Rotawise schedule calendar view"
+    },
+    {
+      "src": "/screenshots/mobile.png",
+      "sizes": "540x960",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Rotawise on mobile"
     }
   ]
 }
