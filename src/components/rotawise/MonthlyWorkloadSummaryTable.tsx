@@ -83,8 +83,8 @@ const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = 
   return (
     <Card className="mt-8 shadow-lg">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl md:text-2xl">
-          <BarChartHorizontalBig className="text-primary h-6 w-6 md:h-7 md:w-7" /> {t('monthlySummaryTable.title')}
+        <CardTitle className="flex items-center gap-2 text-xl font-semibold">
+          <BarChartHorizontalBig className="w-5 h-5 text-primary shrink-0" /> {t('monthlySummaryTable.title')}
         </CardTitle>
       </CardHeader>
       <CardContent>

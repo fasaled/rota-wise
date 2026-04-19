@@ -1,7 +1,7 @@
 
 
 import React, { useRef } from 'react';
-import { FolderOpen, FilePlus2, AlertTriangle, Layers } from 'lucide-react';
+import { FolderOpen, FilePlus2, AlertTriangle, Layers, CalendarDays } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 import { useFileSystem } from '@/context/file-system-context';
 import type { AppFileData } from '@/lib/types';
@@ -36,7 +36,6 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
     }
   }
 
-  // Fallback: user picks a file via <input type="file"> for Open
   function handleFallbackOpen(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -53,7 +52,6 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
     e.target.value = '';
   }
 
-  // User picks a file to import as pre-assigned (both supported and fallback paths)
   function handlePreassignedFilePick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -70,36 +68,47 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
     e.target.value = '';
   }
 
-  const actionButtonClass =
-    'group flex items-center gap-4 rounded-xl border border-border bg-card p-5 text-left transition-colors hover:bg-accent/40 hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  const actionClass =
+    'group flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 p-5 text-left transition-all duration-200 hover:bg-white/10 hover:border-blue-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a]';
 
   const iconWrapClass =
-    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary';
+    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600/20 text-blue-400 transition-colors duration-200 group-hover:bg-blue-600/30';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-8 max-w-md w-full px-6">
-        {/* Logo / title */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">
-            {t('startup.title')}
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            {t('startup.subtitle')}
-          </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a] overflow-hidden">
+      {/* Ambient background blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] rounded-full bg-blue-600/5 blur-3xl" />
+        <div className="absolute -bottom-1/3 -left-1/4 w-[500px] h-[500px] rounded-full bg-indigo-500/5 blur-3xl" />
+      </div>
+
+      <div className="relative flex flex-col items-center gap-10 max-w-sm w-full px-6">
+        {/* Brand */}
+        <div className="text-center space-y-4">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-blue-600 shadow-lg shadow-blue-900/50">
+            <CalendarDays className="h-8 w-8 text-white" />
+          </div>
+          <div className="space-y-1.5">
+            <h1 className="text-3xl font-bold tracking-tight text-white">
+              {t('startup.title')}
+            </h1>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              {t('startup.subtitle')}
+            </p>
+          </div>
         </div>
 
         {/* Browser unsupported warning */}
         {!isSupported && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 w-full">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300 w-full">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
             <span>{t('startup.unsupportedBrowser')}</span>
           </div>
         )}
 
         {/* Actions */}
         <div className="flex flex-col gap-3 w-full">
-          {/* Hidden inputs for file picking (used in both supported and fallback paths) */}
+          {/* Hidden inputs for file picking */}
           {!isSupported && (
             <input
               ref={fileInputRef}
@@ -121,14 +130,14 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
           <button
             type="button"
             onClick={isSupported ? handleOpen : () => fileInputRef.current?.click()}
-            className={actionButtonClass}
+            className={actionClass}
           >
             <div className={iconWrapClass}>
               <FolderOpen className="h-5 w-5" />
             </div>
-            <div>
-              <p className="font-medium text-foreground">{t('startup.openFile')}</p>
-              <p className="text-sm text-muted-foreground">{t('startup.openFileDescription')}</p>
+            <div className="min-w-0">
+              <p className="font-semibold text-white text-sm">{t('startup.openFile')}</p>
+              <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{t('startup.openFileDescription')}</p>
             </div>
           </button>
 
@@ -136,14 +145,14 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
           <button
             type="button"
             onClick={handleCreate}
-            className={actionButtonClass}
+            className={actionClass}
           >
             <div className={iconWrapClass}>
               <FilePlus2 className="h-5 w-5" />
             </div>
-            <div>
-              <p className="font-medium text-foreground">{t('startup.createNewFile')}</p>
-              <p className="text-sm text-muted-foreground">{t('startup.createNewFileDescription')}</p>
+            <div className="min-w-0">
+              <p className="font-semibold text-white text-sm">{t('startup.createNewFile')}</p>
+              <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{t('startup.createNewFileDescription')}</p>
             </div>
           </button>
 
@@ -151,14 +160,14 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
           <button
             type="button"
             onClick={() => preassignedInputRef.current?.click()}
-            className={actionButtonClass}
+            className={actionClass}
           >
             <div className={iconWrapClass}>
               <Layers className="h-5 w-5" />
             </div>
-            <div>
-              <p className="font-medium text-foreground">{t('startup.importAsPreassigned')}</p>
-              <p className="text-sm text-muted-foreground">{t('startup.importAsPreassignedDescription')}</p>
+            <div className="min-w-0">
+              <p className="font-semibold text-white text-sm">{t('startup.importAsPreassigned')}</p>
+              <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{t('startup.importAsPreassignedDescription')}</p>
             </div>
           </button>
         </div>

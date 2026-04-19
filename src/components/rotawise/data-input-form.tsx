@@ -17,7 +17,7 @@ import { format, eachDayOfInterval } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import type { ScheduleFormValues } from '@/lib/types';
 import { cn, generateId } from '@/lib/utils';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, GripVertical } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 
 import {
@@ -239,11 +239,11 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
 
   return (
     <Card className="shadow-lg">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-2xl">
-          <PreferencesIcon className="text-primary" /> {t('form.title')}
+      <CardHeader className="border-b border-border pb-4">
+        <CardTitle className="flex items-center gap-2 text-xl font-semibold">
+          <PreferencesIcon className="w-5 h-5 text-primary shrink-0" /> {t('form.title')}
         </CardTitle>
-        <CardDescription>{t('form.description')}</CardDescription>
+        <CardDescription className="text-sm">{t('form.description')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -268,7 +268,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
               const hasRange = startDate || endDate;
               return (
                 <div className="lg:col-span-2">
-                  <Label className="font-semibold min-h-7 block">{t('form.dateRange')}</Label>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center h-7">{t('form.dateRange')}</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -312,8 +312,8 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
               );
             })()}
             <div>
-              <Label htmlFor="minIntervalBetweenWorkDays" className="font-semibold flex items-center gap-1 min-h-7">
-                <Clock3Icon className="w-4 h-4 text-primary"/>
+              <Label htmlFor="minIntervalBetweenWorkDays" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5 h-7">
+                <Clock3Icon className="w-3.5 h-3.5 text-primary"/>
                 {t('form.minInterval')}
               </Label>
               <Controller
@@ -343,7 +343,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
               {form.formState.errors.minIntervalBetweenWorkDays && <p className="text-sm text-destructive mt-1">{form.formState.errors.minIntervalBetweenWorkDays.message}</p>}
             </div>
             <div>
-              <Label htmlFor="globalMonthlyShiftLimit" className="font-semibold min-h-7 block">{t('form.globalMonthlyLimit')}</Label>
+              <Label htmlFor="globalMonthlyShiftLimit" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center h-7">{t('form.globalMonthlyLimit')}</Label>
               <Controller
                 name="globalMonthlyShiftLimit"
                 control={form.control}
@@ -382,8 +382,13 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
           <Separator />
 
           <div>
-            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <DoctorsIcon className="text-primary"/> {t('form.doctorDetails')}
+            <h3 className="text-base font-semibold mb-4 flex items-center gap-2 text-foreground">
+              <DoctorsIcon className="w-4 h-4 text-primary shrink-0"/> {t('form.doctorDetails')}
+              {fields.length > 0 && (
+                <span className="ml-auto font-mono text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  {fields.length}
+                </span>
+              )}
             </h3>
               <DndContext
                 sensors={sensors}
@@ -397,42 +402,52 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                   <div className="space-y-6">
                     {fields.map((docField, index) => (
                       <SortableDoctorItem key={docField.id} id={docField.id}>
-                        <Card className="relative shadow-md">
+                        <Card className="relative overflow-hidden border border-border shadow-sm">
+                  {/* Doctor card header strip */}
+                  <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/40">
+                    <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                    <span className="font-mono text-xs font-bold text-muted-foreground/60 select-none tabular-nums">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <span className="flex-1 text-sm font-medium truncate text-foreground min-w-0">
+                      {form.watch(`doctors.${index}.name`) || (
+                        <span className="text-muted-foreground/50 font-normal">{t('form.doctorNamePlaceholder')}</span>
+                      )}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => remove(index)}
+                      className="shrink-0 h-7 w-7 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 <CardContent className="space-y-4 p-3 md:p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
                     <div>
-                      <Label htmlFor={`doctors.${index}.name`} className="font-medium">{t('form.doctorNameLabel')}</Label>
-                      <div className="flex gap-2 items-center mt-1">
-                        <Controller
-                          name={`doctors.${index}.name`}
-                          control={form.control}
-                          render={({ field }) => (
-                            <Input
-                              {...field}
-                              id={`doctors.${index}.name`}
-                              placeholder={t('form.doctorNamePlaceholder')}
-                              className="bg-background"
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                }
-                              }}
-                            />
-                          )}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => remove(index)}
-                          className="shrink-0 text-destructive hover:text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Label htmlFor={`doctors.${index}.name`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('form.doctorNameLabel')}</Label>
+                      <Controller
+                        name={`doctors.${index}.name`}
+                        control={form.control}
+                        render={({ field }) => (
+                          <Input
+                            {...field}
+                            id={`doctors.${index}.name`}
+                            placeholder={t('form.doctorNamePlaceholder')}
+                            className="mt-1"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }
+                            }}
+                          />
+                        )}
+                      />
                       {form.formState.errors.doctors?.[index]?.name && <p className="text-sm text-destructive mt-1">{form.formState.errors.doctors[index]?.name?.message}</p>}
                     </div>
                     <div>
@@ -458,7 +473,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <Label htmlFor={`doctors.${index}.vacationDates`} className="font-medium flex items-center gap-1"><VacationIcon className="w-4 h-4 text-accent"/>{t('form.vacationDates')}</Label>
+                      <Label htmlFor={`doctors.${index}.vacationDates`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5"><VacationIcon className="w-3.5 h-3.5 text-emerald-500"/>{t('form.vacationDates')}</Label>
                       <Controller
                         name={`doctors.${index}.vacationDates`}
                         control={form.control}
@@ -475,7 +490,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                         }}
                                       >
                             <PopoverTrigger asChild>
-                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
+                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50", controllerDateField.value?.length ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                             {controllerDateField.value?.length ? t('form.datesSelected', { count: controllerDateField.value.length }) : <span>{t('form.selectDates')}</span>}
                               </Button>
@@ -517,7 +532,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`doctors.${index}.preAssignedWorkDates`} className="font-medium flex items-center gap-1"><PreAssignedIcon className="w-4 h-4 text-primary"/>{t('form.preAssignedWorkDates')}</Label>
+                      <Label htmlFor={`doctors.${index}.preAssignedWorkDates`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5"><PreAssignedIcon className="w-3.5 h-3.5 text-blue-500"/>{t('form.preAssignedWorkDates')}</Label>
                        <Controller
                         name={`doctors.${index}.preAssignedWorkDates`}
                         control={form.control}
@@ -534,7 +549,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                         }}
                                       >
                             <PopoverTrigger asChild>
-                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
+                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 border-blue-200 bg-blue-50/50 hover:bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 dark:hover:bg-blue-950/50", controllerDateField.value?.length ? "text-blue-700 dark:text-blue-400" : "text-muted-foreground")}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                             {controllerDateField.value?.length ? t('form.datesSelected', { count: controllerDateField.value.length }) : <span>{t('form.selectDates')}</span>}
                               </Button>
@@ -576,7 +591,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`doctors.${index}.excludedDates`} className="font-medium flex items-center gap-1"><CalendarXIcon className="w-4 h-4 text-destructive"/>{t('form.excludedDates')}</Label>
+                      <Label htmlFor={`doctors.${index}.excludedDates`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5"><CalendarXIcon className="w-3.5 h-3.5 text-rose-500"/>{t('form.excludedDates')}</Label>
                        <Controller
                         name={`doctors.${index}.excludedDates`}
                         control={form.control}
@@ -593,7 +608,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                         }}
                                       >
                             <PopoverTrigger asChild>
-                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 bg-background", !controllerDateField.value?.length && "text-muted-foreground")}>
+                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 border-rose-200 bg-rose-50/50 hover:bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30 dark:hover:bg-rose-950/50", controllerDateField.value?.length ? "text-rose-700 dark:text-rose-400" : "text-muted-foreground")}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                             {controllerDateField.value?.length ? t('form.datesSelected', { count: controllerDateField.value.length }) : <span>{t('form.selectDates')}</span>}
                               </Button>
@@ -652,7 +667,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
             <Button
               type="button"
               variant="outline"
-              className="mt-4 w-full"
+              className="mt-4 w-full border-dashed border-2 text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-primary/5 transition-colors h-11"
               onClick={() => append({ id: generateId(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false })}
             >
               <Plus className="h-4 w-4 mr-2" />

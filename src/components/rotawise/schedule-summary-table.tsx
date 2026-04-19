@@ -70,8 +70,8 @@ const ScheduleSummaryTable: React.FC<ScheduleSummaryTableProps> = ({ schedule, d
   return (
     <Card className="mt-8 shadow-lg">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl md:text-2xl">
-          <BarChart3 className="text-primary h-6 w-6 md:h-7 md:w-7" /> {t('summaryTable.title')}
+        <CardTitle className="flex items-center gap-2 text-xl font-semibold">
+          <BarChart3 className="w-5 h-5 text-primary shrink-0" /> {t('summaryTable.title')}
         </CardTitle>
       </CardHeader>
       <CardContent>

@@ -463,8 +463,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
   return (
     <Card className="shadow-xl mt-8">
       <CardHeader className="flex flex-col md:flex-row justify-between items-center gap-4 p-4">
-        <CardTitle className="text-2xl font-bold text-primary flex items-center gap-2">
-          <CalendarIconLucide /> {t('calendar.title')}
+        <CardTitle className="text-xl font-semibold flex items-center gap-2">
+          <CalendarIconLucide className="w-5 h-5 text-primary shrink-0" /> {t('calendar.title')}
         </CardTitle>
         <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
             <Select value={selectedDoctorId} onValueChange={(value) => setSelectedDoctorId(value as string)}>

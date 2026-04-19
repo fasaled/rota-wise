@@ -20,102 +20,103 @@
 }
 
 body {
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
 @layer base {
   :root {
     --font-geist-sans: 'Geist Sans';
     --font-geist-mono: 'Geist Mono';
-    --background: 210 30% 96%; /* Light Gray #F0F4F8 */
-    --foreground: 210 10% 23%; /* Dark Gray for text */
 
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 210 10% 23%;
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
 
-    --popover: 0 0% 100%; /* White */
-    --popover-foreground: 210 10% 23%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
-    --primary: 210 50% 60%; /* Calming Blue #6699CC */
-    --primary-foreground: 0 0% 100%; /* White for text on primary */
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
 
-    --secondary: 210 30% 90%; /* Lighter gray for secondary elements */
-    --secondary-foreground: 210 10% 23%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
 
-    --muted: 210 30% 85%; /* Muted gray */
-    --muted-foreground: 210 10% 45%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
 
-    --accent: 120 25% 65%; /* Soft Green #8FBC8F */
-    --accent-foreground: 120 25% 15%; /* Dark Green for text on accent */
+    --muted: 210 40% 94%;
+    --muted-foreground: 215 16% 47%;
 
-    --destructive: 0 84.2% 60.2%;
+    --accent: 210 40% 94%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 210 20% 85%;
-    --input: 0 0% 100%; /* White input background */
-    --ring: 210 50% 60%; /* Ring color same as primary */
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
 
-    --chart-1: 12 76% 61%;
+    --chart-1: 221 83% 53%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+
     --radius: 0.5rem;
 
-    /* Sidebar variables - kept for consistency, may not be heavily used by RotaWise's main page */
-    --sidebar-background: 210 30% 98%;
-    --sidebar-foreground: 210 10% 30%;
-    --sidebar-primary: 210 50% 60%;
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 221 83% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 30% 92%;
-    --sidebar-accent-foreground: 210 10% 23%;
-    --sidebar-border: 210 20% 88%;
-    --sidebar-ring: 210 50% 60%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-ring: 221 83% 53%;
   }
 
   .dark {
-    --background: 210 10% 15%;
-    --foreground: 210 10% 85%;
+    --background: 222 47% 8%;
+    --foreground: 210 40% 96%;
 
-    --card: 210 10% 12%;
-    --card-foreground: 210 10% 85%;
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 96%;
 
-    --popover: 210 10% 12%;
-    --popover-foreground: 210 10% 85%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 96%;
 
-    --primary: 210 50% 60%;
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 10% 25%;
-    --secondary-foreground: 210 10% 85%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 96%;
 
-    --muted: 210 10% 25%;
-    --muted-foreground: 210 10% 65%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 120 25% 60%;
-    --accent-foreground: 120 25% 95%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 96%;
 
-    --destructive: 0 70% 50%;
+    --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 210 10% 30%;
-    --input: 210 10% 20%;
-    --ring: 210 50% 60%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 217 91% 60%;
 
-    --chart-1: 220 70% 50%;
+    --chart-1: 217 91% 60%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --sidebar-background: 210 10% 12%;
-    --sidebar-foreground: 210 10% 85%;
-    --sidebar-primary: 210 50% 60%;
+    --sidebar-background: 222 47% 8%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 10% 20%;
-    --sidebar-accent-foreground: 210 10% 85%;
-    --sidebar-border: 210 10% 25%;
-    --sidebar-ring: 210 50% 60%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 217 33% 18%;
+    --sidebar-ring: 217 91% 60%;
   }
 }
 
@@ -128,37 +129,40 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em;
+  }
 }
 
 /* -------------------------------------------------------------------------
    Calendar assignment chip tokens
    ------------------------------------------------------------------------- */
 :root {
-  --chip-work-bg:            #dbeafe;
-  --chip-work-text:          #1e3a5f;
-  --chip-work-border:        #93c5fd;
+  --chip-work-bg:            #eff6ff;
+  --chip-work-text:          #1d4ed8;
+  --chip-work-border:        #bfdbfe;
 
-  --chip-preassigned-bg:     #fed7aa;
-  --chip-preassigned-text:   #7c2d12;
-  --chip-preassigned-border: #fdba74;
+  --chip-preassigned-bg:     #fffbeb;
+  --chip-preassigned-text:   #b45309;
+  --chip-preassigned-border: #fde68a;
 
-  --chip-vacation-bg:        #d1fae5;
-  --chip-vacation-text:      #064e3b;
-  --chip-vacation-border:    #6ee7b7;
+  --chip-vacation-bg:        #ecfdf5;
+  --chip-vacation-text:      #047857;
+  --chip-vacation-border:    #a7f3d0;
 }
 
 .dark {
-  --chip-work-bg:            #1e3a5f;
-  --chip-work-text:          #bfdbfe;
-  --chip-work-border:        #2563eb;
+  --chip-work-bg:            #1e3a8a;
+  --chip-work-text:          #93c5fd;
+  --chip-work-border:        #1d4ed8;
 
   --chip-preassigned-bg:     #451a03;
-  --chip-preassigned-text:   #fed7aa;
-  --chip-preassigned-border: #c2410c;
+  --chip-preassigned-text:   #fcd34d;
+  --chip-preassigned-border: #92400e;
 
   --chip-vacation-bg:        #022c22;
-  --chip-vacation-text:      #d1fae5;
-  --chip-vacation-border:    #059669;
+  --chip-vacation-text:      #6ee7b7;
+  --chip-vacation-border:    #065f46;
 }
 
 /* -------------------------------------------------------------------------
@@ -181,11 +185,11 @@ body {
 
 .app-sidebar {
   flex-shrink: 0;
-  width: 4rem; /* icon-only on small screens */
-  border-right: 1px solid hsl(var(--border));
+  width: 4rem;
+  border-right: none;
   display: flex;
   flex-direction: column;
-  background: hsl(var(--card));
+  background: #0f172a;
   transition: width 0.2s ease;
 }
 
@@ -200,6 +204,20 @@ body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+}
+
+/* Sidebar bottom controls — always use dark-appropriate token values.
+   color must be set explicitly so descendants inherit a light value
+   instead of body's already-computed dark color. */
+.sidebar-bottom-controls {
+  --background: 222 47% 11%;
+  --foreground: 210 20% 68%;
+  --border: 217 33% 22%;
+  --input: 217 33% 22%;
+  --accent: 217 33% 22%;
+  --accent-foreground: 210 40% 90%;
+  --ring: 217 91% 60%;
+  color: hsl(var(--foreground));
 }
 
 /* -------------------------------------------------------------------------
@@ -217,8 +235,8 @@ body {
     flex-direction: row;
     align-items: center;
     border-right: none;
-    border-top: 1px solid hsl(var(--border));
-    order: 1; /* push sidebar below main content */
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    order: 1;
     overflow-x: auto;
     overflow-y: hidden;
     padding: 0 0.5rem;

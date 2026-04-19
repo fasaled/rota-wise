@@ -975,8 +975,8 @@ export default function RotawisePage() {
 
   if (!isMounted) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary" />
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500" />
       </div>
     );
   }
@@ -1018,9 +1018,9 @@ export default function RotawisePage() {
         {/* Sidebar */}
         <aside className="app-sidebar">
           {/* Logo */}
-          <div className="sidebar-logo flex items-center gap-2 px-3 py-4 border-b border-border">
-            <ThemeIcon className="h-7 w-7 shrink-0 text-primary" />
-            <span className="text-sm font-semibold text-foreground hidden sidebar-expanded:block truncate">
+          <div className="sidebar-logo flex items-center gap-2 px-3 py-4 border-b border-white/10">
+            <ThemeIcon className="h-7 w-7 shrink-0 text-blue-400" />
+            <span className="text-sm font-semibold text-white hidden md:block truncate">
               Rota-Wise
             </span>
           </div>
@@ -1035,11 +1035,11 @@ export default function RotawisePage() {
                 disabled={disabled}
                 title={t(labelKey as Parameters<typeof t>[0])}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors w-full text-left',
-                  'disabled:opacity-40 disabled:cursor-not-allowed',
+                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 w-full text-left',
+                  'disabled:opacity-30 disabled:cursor-not-allowed',
                   activeTab === id && !disabled
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-400 hover:bg-white/10 hover:text-slate-100',
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
@@ -1049,7 +1049,7 @@ export default function RotawisePage() {
           </nav>
 
           {/* Bottom controls */}
-          <div className="sidebar-bottom-controls border-t border-border p-2 flex flex-col gap-1">
+          <div className="sidebar-bottom-controls border-t border-white/10 p-2 flex flex-col gap-1">
             <div className="flex items-center justify-between px-1">
               <LanguageSelector />
               <ThemeToggle />
@@ -1060,7 +1060,7 @@ export default function RotawisePage() {
         {/* Main body */}
         <div className="app-body">
           {/* Command bar */}
-          <header className="flex items-center justify-between gap-3 px-4 py-2 border-b border-border bg-card shrink-0">
+          <header className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border bg-card shrink-0 shadow-sm">
             {/* File info */}
             <div className="flex items-center gap-2 min-w-0">
               <File className="h-4 w-4 shrink-0 text-muted-foreground" />
