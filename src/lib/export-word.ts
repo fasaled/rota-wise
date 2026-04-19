@@ -218,8 +218,7 @@ export async function exportWord({
 
   // Generate and download
   const doc = new Document({ sections: [{ children }] });
-  const buffer = await Packer.toBuffer(doc);
-  const blob = new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

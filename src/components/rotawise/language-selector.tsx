@@ -1,5 +1,5 @@
 
-"use client";
+
 
 import type React from 'react';
 import { useLanguage } from '@/context/language-context';

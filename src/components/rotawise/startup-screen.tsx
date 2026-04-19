@@ -1,4 +1,4 @@
-"use client";
+
 
 import React, { useRef } from 'react';
 import { FolderOpen, FilePlus2, AlertTriangle, Layers } from 'lucide-react';

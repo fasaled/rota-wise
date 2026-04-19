@@ -1,5 +1,5 @@
 
-"use client";
+
 
 import { Plane, Star, Briefcase, CalendarDays, Users, Settings, Palette, CalendarX, Clock3, CalendarCheck } from 'lucide-react';
 

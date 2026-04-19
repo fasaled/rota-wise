@@ -5,10 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-bun run dev          # Start dev server at http://localhost:3000
-bun run build        # Production build (Next.js + Workbox PWA)
+bun run dev          # Start dev server at http://localhost:5173 (Vite HMR)
+bun run build        # Production build (Vite/Rollup + Workbox PWA) → dist/
+bun run preview      # Serve production build locally
 bun run lint         # ESLint
-bun run typecheck    # TypeScript check (tsc --noEmit)
+bun run typecheck    # TypeScript check (tsc --noEmit, excludes __tests__)
 bun test             # Run tests (bun test runner, no jest)
 bun test --watch     # Tests in watch mode
 bun test --coverage  # Tests with coverage report
@@ -21,7 +22,7 @@ bun test src/__tests__/schedule-generator.test.ts
 
 ## Architecture
 
-Rota-Wise is a Next.js app for scheduling medical doctors fairly across a time period while respecting hard and soft constraints.
+Rota-Wise is a Vite + React SPA for scheduling medical doctors fairly across a time period while respecting hard and soft constraints. Entry point: `src/main.tsx` → `src/app/page.tsx`. No SSR, no API routes, fully client-side.
 
 ### Core Algorithm (`src/lib/schedule-generator.ts`)
 
@@ -36,10 +37,11 @@ Types are in `src/lib/types.ts`: `DoctorProfile`, `ScheduleEntry`, `Schedule`, `
 
 ### Application Layer (`src/app/page.tsx`)
 
-Large (~1000 lines) orchestrator component. Manages:
+Large (~1280 lines) orchestrator component. Manages:
 - Form state (via react-hook-form + Zod)
 - Generated schedule state
-- localStorage persistence (auto-saves form data and schedules)
+- File persistence via File System Access API (`.rw` files, auto-save on change)
+- Undo history (`useHistory` hook)
 - Coordination between all child components
 
 ### Components (`src/components/rotawise/`)
@@ -62,7 +64,7 @@ English/Spanish support via a React context. Translation files in `src/locales/`
 
 ### Data Persistence
 
-All persistence is client-side via localStorage. No backend/database. Export/import uses JSON files. PDF and Word document export use `jspdf` and `docx` libraries.
+All persistence is client-side via the File System Access API (`.rw` files). Falls back to browser download on Firefox. No backend/database. PDF and Word export use `jspdf` and `docx` libraries (lazy-imported on demand).
 
 ## Key Constraints
 

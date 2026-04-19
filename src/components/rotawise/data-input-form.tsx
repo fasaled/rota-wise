@@ -1,4 +1,4 @@
-"use client";
+
 
 import React, { forwardRef, useImperativeHandle } from 'react';
 import { useForm, useFieldArray, Controller, UseFormReturn } from 'react-hook-form';

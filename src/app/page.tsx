@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import type {
   Schedule,
   ScheduleFormValues,
@@ -11,12 +9,11 @@ import type {
   DoctorFormFieldInput,
 } from '@/lib/types';
 import { type UseFormReturn } from 'react-hook-form';
-import dynamic from 'next/dynamic';
 import DataInputForm from '@/components/rotawise/data-input-form';
-const ScheduleCalendarView = dynamic(() => import('@/components/rotawise/schedule-calendar-view'), { ssr: false });
-const ScheduleSummaryTable = dynamic(() => import('@/components/rotawise/schedule-summary-table'), { ssr: false });
-const MonthlyWorkloadSummaryTable = dynamic(() => import('@/components/rotawise/MonthlyWorkloadSummaryTable'), { ssr: false });
-const StartupScreen = dynamic(() => import('@/components/rotawise/startup-screen'), { ssr: false });
+const ScheduleCalendarView = lazy(() => import('@/components/rotawise/schedule-calendar-view'));
+const ScheduleSummaryTable = lazy(() => import('@/components/rotawise/schedule-summary-table'));
+const MonthlyWorkloadSummaryTable = lazy(() => import('@/components/rotawise/MonthlyWorkloadSummaryTable'));
+const StartupScreen = lazy(() => import('@/components/rotawise/startup-screen'));
 import LanguageSelector from '@/components/rotawise/language-selector';
 import { InfoBarList } from '@/components/rotawise/info-bar';
 import { ThemeIcon } from '@/components/icons';
@@ -1007,11 +1004,13 @@ export default function RotawisePage() {
     <>
       {/* Startup screen — shown when no file session is active */}
       {!isFileSessionActive && (
-        <StartupScreen
-          onFileReady={handleFileReady}
-          onLoadAsPreassigned={handleLoadAsPreassigned}
-          onError={handleFileError}
-        />
+        <Suspense fallback={null}>
+          <StartupScreen
+            onFileReady={handleFileReady}
+            onLoadAsPreassigned={handleLoadAsPreassigned}
+            onError={handleFileError}
+          />
+        </Suspense>
       )}
 
       {/* Main app shell — hidden until file session is active */}
@@ -1194,29 +1193,35 @@ export default function RotawisePage() {
 
             {activeTab === 'calendar' && schedule && (
               <div className="p-4 md:p-6">
-                <ScheduleCalendarView
-                  schedule={schedule}
-                  doctors={doctorsProfiles}
-                  onUpdateScheduleEntry={handleUpdateScheduleEntry}
-                  onSwapScheduleEntries={handleSwapScheduleEntries}
-                  onArbitraryScheduleEntry={handleArbitraryScheduleEntry}
-                  minIntervalBetweenWorkDays={currentMinInterval}
-                  allScheduleEntries={schedule.entries}
-                  onToggleMonthFixed={handleToggleMonthFixed}
-                  onNotify={addMessage}
-                />
+                <Suspense fallback={null}>
+                  <ScheduleCalendarView
+                    schedule={schedule}
+                    doctors={doctorsProfiles}
+                    onUpdateScheduleEntry={handleUpdateScheduleEntry}
+                    onSwapScheduleEntries={handleSwapScheduleEntries}
+                    onArbitraryScheduleEntry={handleArbitraryScheduleEntry}
+                    minIntervalBetweenWorkDays={currentMinInterval}
+                    allScheduleEntries={schedule.entries}
+                    onToggleMonthFixed={handleToggleMonthFixed}
+                    onNotify={addMessage}
+                  />
+                </Suspense>
               </div>
             )}
 
             {activeTab === 'weekly' && schedule && (
               <div className="p-4 md:p-6">
-                <ScheduleSummaryTable schedule={schedule} doctors={doctorsProfiles} />
+                <Suspense fallback={null}>
+                  <ScheduleSummaryTable schedule={schedule} doctors={doctorsProfiles} />
+                </Suspense>
               </div>
             )}
 
             {activeTab === 'monthly' && schedule && (
               <div className="p-4 md:p-6">
-                <MonthlyWorkloadSummaryTable schedule={schedule} doctors={doctorsProfiles} />
+                <Suspense fallback={null}>
+                  <MonthlyWorkloadSummaryTable schedule={schedule} doctors={doctorsProfiles} />
+                </Suspense>
               </div>
             )}
 

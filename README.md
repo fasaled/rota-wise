@@ -17,12 +17,12 @@ A PWA for fair and balanced doctor shift scheduling. Generates equitable schedul
 
 ## Tech Stack
 
-- **Next.js 16** / **React 19** / **TypeScript**
+- **Vite 6** / **React 19** / **TypeScript**
 - **Tailwind CSS** + **Radix UI** (shadcn/ui)
 - **date-fns**, **react-hook-form** + **Zod**
 - **jspdf** + **jspdf-autotable** — PDF export (lazy-loaded)
 - **docx** — Word export (lazy-loaded)
-- **@ducanh2912/next-pwa** + **Workbox** — PWA/offline
+- **vite-plugin-pwa** + **Workbox** — PWA/offline
 - **Bun** — package manager, runtime, test runner
 
 ## Getting Started
@@ -31,16 +31,16 @@ A PWA for fair and balanced doctor shift scheduling. Generates equitable schedul
 
 ```bash
 bun install
-bun run dev        # http://localhost:3000
+bun run dev        # http://localhost:5173
 ```
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `bun run dev` | Development server (Turbopack) |
-| `bun run build` | Production build (webpack, required by next-pwa) |
-| `bun run start` | Production server |
+| `bun run dev` | Development server (Vite HMR) |
+| `bun run build` | Production build (Rollup + Workbox) |
+| `bun run preview` | Serve production build locally |
 | `bun run lint` | ESLint |
 | `bun run typecheck` | TypeScript check |
 | `bun test` | Run tests |
@@ -51,7 +51,10 @@ bun run dev        # http://localhost:3000
 
 ```
 src/
-├── app/                        # Next.js app router (layout, page)
+├── main.tsx                    # React entry point (providers + root render)
+├── app/
+│   ├── page.tsx                # Root page component (app shell, tabs)
+│   └── globals.css             # Global styles + Tailwind + CSS variables
 ├── components/
 │   ├── rotawise/               # Schedule-specific components
 │   └── ui/                     # shadcn/ui primitives (Radix UI + Tailwind)
@@ -74,7 +77,7 @@ src/
 The app is a single-page React client. Key design decisions:
 
 - **Scheduling runs in a Web Worker** (`src/workers/schedule.worker.ts` via `useScheduleWorker` hook) to keep the UI responsive during generation.
-- **Heavy components are lazy-loaded** (`next/dynamic`) — calendar, summary tables, and startup screen load on demand.
+- **Heavy components are lazy-loaded** (`React.lazy` + `Suspense`) — calendar, summary tables, and startup screen load on demand.
 - **Export libraries are lazy-imported** — jspdf and docx are fetched from SW cache only when the user clicks export, reducing initial bundle size.
 - **All state is client-side** — localStorage for auto-save, File System Access API for `.rw` files, no backend.
 
@@ -105,7 +108,7 @@ bun test src/__tests__/schedule-generator.test.ts  # single file
 
 Static export deployable to any CDN or Node.js host:
 
-- **Vercel** — recommended (`bun run build` + `bun run start`)
+- **Vercel** — recommended (`bun run build` → deploy `dist/`)
 - **Netlify**, **Cloudflare Pages**, **GitHub Pages**
 - **App stores** — PWA packaged via [PWABuilder](https://www.pwabuilder.com/) for Microsoft Store / Google Play
 

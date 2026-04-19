@@ -14,6 +14,7 @@ export function useScheduleWorker() {
   useEffect(() => {
     workerRef.current = new Worker(
       new URL('../workers/schedule.worker.ts', import.meta.url),
+      { type: 'module' },
     );
     return () => {
       workerRef.current?.terminate();
