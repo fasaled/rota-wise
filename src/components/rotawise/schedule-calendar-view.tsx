@@ -45,19 +45,19 @@ function getChipStyle(assignment: ScheduleEntry['assignment']): React.CSSPropert
       return {
         backgroundColor: 'var(--chip-work-bg)',
         color: 'var(--chip-work-text)',
-        border: 'none',
+        border: '1px solid var(--chip-work-border)',
       };
     case 'Pre-assigned':
       return {
         backgroundColor: 'var(--chip-preassigned-bg)',
         color: 'var(--chip-preassigned-text)',
-        border: 'none',
+        border: '1px solid var(--chip-preassigned-border)',
       };
     case 'Vacation':
       return {
         backgroundColor: 'var(--chip-vacation-bg)',
         color: 'var(--chip-vacation-text)',
-        border: 'none',
+        border: '1px solid var(--chip-vacation-border)',
       };
     default:
       return {};

@@ -238,7 +238,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
   };
 
   return (
-    <Card className="shadow-lg">
+    <Card className="mt-8 shadow-lg">
       <CardContent>
         <form
           id="schedule-form"
@@ -532,7 +532,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`doctors.${index}.preAssignedWorkDates`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5"><PreAssignedIcon className="w-3.5 h-3.5 text-blue-500"/>{t('form.preAssignedWorkDates')}</Label>
+                      <Label htmlFor={`doctors.${index}.preAssignedWorkDates`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5"><PreAssignedIcon className="w-3.5 h-3.5 text-amber-500"/>{t('form.preAssignedWorkDates')}</Label>
                        <Controller
                         name={`doctors.${index}.preAssignedWorkDates`}
                         control={form.control}
@@ -549,7 +549,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                         }}
                                       >
                             <PopoverTrigger asChild>
-                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 border-blue-200 bg-blue-50/50 hover:bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 dark:hover:bg-blue-950/50", controllerDateField.value?.length ? "text-blue-700 dark:text-blue-400" : "text-muted-foreground")}>
+                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 border-amber-200 bg-amber-50/50 hover:bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 dark:hover:bg-amber-950/50", controllerDateField.value?.length ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                             {controllerDateField.value?.length ? t('form.datesSelected', { count: controllerDateField.value.length }) : <span>{t('form.selectDates')}</span>}
                               </Button>
@@ -675,23 +675,6 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
             </Button>
           </div>
 
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-4 pt-6">
-              <Button 
-                type="submit" 
-                disabled={
-                  isLoading || 
-                  fields.length === 0 || 
-                  fields.every(field => !form.getValues(`doctors.${fields.indexOf(field)}.name`)?.trim())
-                } 
-                className="w-full sm:w-auto sm:flex-grow-0 max-w-md"
-              >
-              {isLoading ? (
-                  <><span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>{t('form.generatingButton')}</>
-                ) : (
-                  t('form.generateButton')
-                )}
-            </Button>
-          </div>
         </form>
       </CardContent>
     </Card>
