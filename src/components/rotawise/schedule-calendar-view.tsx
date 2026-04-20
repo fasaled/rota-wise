@@ -468,7 +468,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             <Button variant="outline" size="icon" onClick={prevMonth} aria-label={t('calendar.previousMonth')}>
               <ChevronLeft className="h-5 w-5" />
             </Button>
-            <span className="text-lg font-semibold w-32 text-center">
+            <span className="text-lg font-semibold w-44 text-center shrink-0">
               {format(currentMonth, 'MMMM yyyy', { locale: currentDateFnsLocale })}
             </span>
             <Button variant="outline" size="icon" onClick={nextMonth} aria-label={t('calendar.nextMonth')}>
@@ -479,7 +479,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                 variant={monthHasFixedEntries ? "default" : "outline"}
                 size="sm"
                 onClick={handleToggleMonthFixed}
-                className="ml-2"
+                className="ml-2 w-36 justify-start"
                 title={monthHasFixedEntries ? t('calendar.unfixMonth') : t('calendar.fixMonth')}
               >
                 {monthHasFixedEntries ? <Unlock className="h-4 w-4 mr-1" /> : <Lock className="h-4 w-4 mr-1" />}
