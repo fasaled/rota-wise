@@ -186,7 +186,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       const [handle] = await win.showOpenFilePicker({
         types: [
           {
-            description: 'Rota-Wise files',
+            description: 'Rotawise files',
             accept: {
               'application/x-rotawise': ['.rw'],
               'application/json': ['.json'],
@@ -213,7 +213,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
             suggestedName,
             types: [
               {
-                description: 'Rota-Wise file',
+                description: 'Rotawise file',
                 accept: { 'application/x-rotawise': ['.rw'] },
               },
             ],
@@ -249,7 +249,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
           suggestedName: 'schedule.rw',
           types: [
             {
-              description: 'Rota-Wise file',
+              description: 'Rotawise file',
               accept: { 'application/x-rotawise': ['.rw'] },
             },
           ],

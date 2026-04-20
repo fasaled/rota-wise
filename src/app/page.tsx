@@ -16,7 +16,6 @@ const MonthlyWorkloadSummaryTable = lazy(() => import('@/components/rotawise/Mon
 const StartupScreen = lazy(() => import('@/components/rotawise/startup-screen'));
 import LanguageSelector from '@/components/rotawise/language-selector';
 import { InfoBarList } from '@/components/rotawise/info-bar';
-import { ThemeIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -1019,9 +1018,9 @@ export default function RotawisePage() {
         <aside className="app-sidebar">
           {/* Logo */}
           <div className="sidebar-logo flex items-center gap-2 px-3 py-4 border-b border-white/10">
-            <ThemeIcon className="h-7 w-7 shrink-0 text-blue-400" />
+            <img src="/favicon.svg" alt="Rotawise" className="h-7 w-7 shrink-0" />
             <span className="text-sm font-semibold text-white hidden md:block truncate">
-              Rota-Wise
+              Rota<span className="text-blue-400 font-normal">wise</span>
             </span>
           </div>
 

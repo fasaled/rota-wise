@@ -1,7 +1,7 @@
 
 
 import React, { useRef } from 'react';
-import { FolderOpen, FilePlus2, AlertTriangle, Layers, CalendarDays } from 'lucide-react';
+import { FolderOpen, FilePlus2, AlertTriangle, Layers } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 import { useFileSystem } from '@/context/file-system-context';
 import type { AppFileData } from '@/lib/types';
@@ -85,17 +85,20 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
       <div className="relative flex flex-col items-center gap-10 max-w-sm w-full px-6">
         {/* Brand */}
         <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-blue-600 shadow-lg shadow-blue-900/50">
-            <CalendarDays className="h-8 w-8 text-white" />
+          <div className="flex flex-col items-center gap-3">
+            <img
+              src="/favicon.svg"
+              alt="Rotawise"
+              className="h-16 w-16 drop-shadow-[0_8px_24px_rgba(37,99,235,0.5)]"
+            />
+            <div className="leading-none">
+              <span className="text-3xl font-bold tracking-tight text-white">Rota</span>
+              <span className="text-3xl font-normal tracking-tight text-blue-400">wise</span>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <h1 className="text-3xl font-bold tracking-tight text-white">
-              {t('startup.title')}
-            </h1>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              {t('startup.subtitle')}
-            </p>
-          </div>
+          <p className="text-slate-400 text-sm leading-relaxed">
+            {t('startup.subtitle')}
+          </p>
         </div>
 
         {/* Browser unsupported warning */}

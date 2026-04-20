@@ -214,7 +214,7 @@
   "common.save": "Save",
   "common.close": "Close",
 
-  "startup.title": "Rota-Wise",
+  "startup.title": "Rotawise",
   "startup.subtitle": "Open a schedule file to get started, or create a new one.",
   "startup.openFile": "Open existing file",
   "startup.openFileDescription": "Open a .rw or .json schedule file",

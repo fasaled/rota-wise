@@ -211,7 +211,7 @@
   "common.save": "Guardar",
   "common.close": "Cerrar",
 
-  "startup.title": "Rota-Wise",
+  "startup.title": "Rotawise",
   "startup.subtitle": "Abre un fichero de horario para empezar, o crea uno nuevo.",
   "startup.openFile": "Abrir fichero existente",
   "startup.openFileDescription": "Abre un fichero de horario .rw o .json",
