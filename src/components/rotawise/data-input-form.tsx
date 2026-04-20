@@ -10,9 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { CalendarIcon, DoctorsIcon, PreferencesIcon, VacationIcon, PreAssignedIcon, CalendarXIcon, Clock3Icon } from '@/components/icons';
+import { CalendarIcon, DoctorsIcon, VacationIcon, PreAssignedIcon, CalendarXIcon, Clock3Icon } from '@/components/icons';
 import { format, eachDayOfInterval } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import type { ScheduleFormValues } from '@/lib/types';
@@ -239,18 +239,12 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
 
   return (
     <Card className="shadow-lg">
-      <CardHeader className="border-b border-border pb-4">
-        <CardTitle className="flex items-center gap-2 text-xl font-semibold">
-          <PreferencesIcon className="w-5 h-5 text-primary shrink-0" /> {t('form.title')}
-        </CardTitle>
-        <CardDescription className="text-sm">{t('form.description')}</CardDescription>
-      </CardHeader>
       <CardContent>
         <form
           onSubmit={form.handleSubmit((data) => {
             onSubmit({ ...data, numberOfDoctors: fields.length });
           })}
-          className="space-y-8"
+          className="space-y-8 pt-6"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && e.target !== e.currentTarget) {
               // Prevent form submission when Enter is pressed on form elements
@@ -259,6 +253,10 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
             }
           }}
         >
+          <div>
+            <h3 className="text-base font-semibold mb-4 flex items-center gap-2 text-foreground">
+              <CalendarIcon className="w-4 h-4 text-primary shrink-0" /> {t('form.title')}
+            </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Date range — single calendar, spans 2 columns */}
             {(() => {
@@ -377,6 +375,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
               />
               {form.formState.errors.globalMonthlyShiftLimit && <p className="text-sm text-destructive mt-1">{form.formState.errors.globalMonthlyShiftLimit.message}</p>}
             </div>
+          </div>
           </div>
 
           <Separator />

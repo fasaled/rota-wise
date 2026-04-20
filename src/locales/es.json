@@ -81,7 +81,7 @@
   "form.minInterval": "Intervalo mín. (días laborables)",
   "form.globalMonthlyLimit": "Límite global de guardias mensual",
   "form.globalMonthlyLimitPlaceholder": "Opcional",
-  "form.doctorDetails": "Detalles del médico",
+  "form.doctorDetails": "Plantilla de médicos",
   "form.doctorNum": "Médico {index}",
   "form.doctorNameLabel": "Nombre",
   "form.doctorNamePlaceholder": "Ej: Dr. García",
@@ -222,7 +222,7 @@
   "startup.unsupportedBrowser": "Tu navegador no admite guardado automático de ficheros. Usa el botón Guardar para descargar los cambios.",
 
   "nav.undo": "Deshacer",
-  "nav.config": "Planificación",
+  "nav.config": "Planilla",
   "nav.calendar": "Calendario",
   "nav.weeklySummary": "Resumen semanal",
   "nav.monthlySummary": "Resumen mensual",

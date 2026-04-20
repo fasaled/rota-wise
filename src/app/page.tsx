@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn, generateId } from '@/lib/utils';
 import {
-  Settings,
+  Users,
   CalendarDays,
   BarChart2,
   LayoutGrid,
@@ -987,7 +987,7 @@ export default function RotawisePage() {
   const hasScheduleEntries = !!schedule && schedule.entries.length > 0;
 
   const navItems: { id: ActiveTab; icon: React.ElementType; labelKey: string; disabled?: boolean }[] = [
-    { id: 'config', icon: Settings, labelKey: 'nav.config' },
+    { id: 'config', icon: Users, labelKey: 'nav.config' },
     { id: 'calendar', icon: CalendarDays, labelKey: 'nav.calendar', disabled: !schedule },
     { id: 'weekly', icon: BarChart2, labelKey: 'nav.weeklySummary', disabled: !hasScheduleEntries },
     { id: 'monthly', icon: LayoutGrid, labelKey: 'nav.monthlySummary', disabled: !hasScheduleEntries },
@@ -1231,7 +1231,7 @@ export default function RotawisePage() {
                 <p className="text-lg font-medium">{t('page.noSchedule.title')}</p>
                 <p className="text-sm mt-1">{t('page.noSchedule.description')}</p>
                 <Button variant="outline" className="mt-4" onClick={() => setActiveTab('config')}>
-                  <Settings className="h-4 w-4 mr-2" />
+                  <Users className="h-4 w-4 mr-2" />
                   {t('nav.config')}
                 </Button>
               </div>

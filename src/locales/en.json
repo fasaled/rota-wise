@@ -84,7 +84,7 @@
   "form.minInterval": "Min. interval (work days)",
   "form.globalMonthlyLimit": "Global monthly shift limit",
   "form.globalMonthlyLimitPlaceholder": "Optional",
-  "form.doctorDetails": "Doctor details",
+  "form.doctorDetails": "Medical Staff",
   "form.doctorNum": "Doctor {index}",
   "form.doctorNameLabel": "Name",
   "form.doctorNamePlaceholder": "e.g., Dr. Smith",
@@ -225,7 +225,7 @@
   "startup.unsupportedBrowser": "Your browser does not support automatic file saving. Use the Save button to download changes.",
 
   "nav.undo": "Undo",
-  "nav.config": "Planning",
+  "nav.config": "Roster",
   "nav.calendar": "Calendar",
   "nav.weeklySummary": "Weekly Summary",
   "nav.monthlySummary": "Monthly Summary",
