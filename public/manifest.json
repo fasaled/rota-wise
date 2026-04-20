@@ -39,8 +39,7 @@
     {
       "action": "/",
       "accept": {
-        "application/x-rotawise": [".rw"],
-        "application/json": [".json"]
+        "application/x-rotawise": [".rw"]
       }
     }
   ],
