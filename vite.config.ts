@@ -13,7 +13,10 @@ export default defineConfig({
       workbox: {
         maximumFileSizeToCacheInBytes: 10_000_000,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,json}'],
-        navigateFallback: '/_offline.html',
+        navigateFallback: '/index.html',
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
       },
       devOptions: { enabled: false },
     }),
