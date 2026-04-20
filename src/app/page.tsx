@@ -17,6 +17,7 @@ const StartupScreen = lazy(() => import('@/components/rotawise/startup-screen'))
 import LanguageSelector from '@/components/rotawise/language-selector';
 import { InfoBarList } from '@/components/rotawise/info-bar';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1152,6 +1153,8 @@ export default function RotawisePage() {
                 )}
                 <span className="hidden md:inline">{t('page.exportWord')}</span>
               </Button>
+
+              <Separator orientation="vertical" className="h-5" />
 
               {/* Clear schedule */}
               <Button
