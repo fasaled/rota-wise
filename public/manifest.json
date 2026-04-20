@@ -3,10 +3,19 @@
   "name": "Rotawise",
   "short_name": "Rotawise",
   "description": "Fair and balanced doctor scheduling.",
+  "lang": "en",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "minimal-ui", "standalone"],
   "orientation": "any",
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
   "background_color": "#f0f4f8",
   "theme_color": "#6699CC",
   "prefer_related_applications": false,
