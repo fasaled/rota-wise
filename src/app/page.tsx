@@ -1018,7 +1018,7 @@ export default function RotawisePage() {
         <aside className="app-sidebar">
           {/* Logo */}
           <div className="sidebar-logo flex items-center gap-2 px-3 py-4 border-b border-white/10">
-            <img src="/favicon.svg" alt="Rotawise" className="h-7 w-7 shrink-0" />
+            <img src="/favicon.svg" alt="Rotawise" className="h-7 w-7 shrink-0 drop-shadow-[0_2px_8px_rgba(37,99,235,0.6)]" />
             <span className="text-sm font-semibold text-white hidden md:block truncate">
               Rota<span className="text-blue-400 font-normal">wise</span>
             </span>
