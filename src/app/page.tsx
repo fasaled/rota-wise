@@ -1080,6 +1080,27 @@ export default function RotawisePage() {
 
             {/* Action buttons */}
             <div className="flex items-center gap-1.5 shrink-0">
+              {/* Generate schedule */}
+              <Button
+                form="schedule-form"
+                type="submit"
+                size="sm"
+                disabled={
+                  !loadedFormValues?.doctors?.length ||
+                  loadedFormValues.doctors.every((d) => !d.name?.trim()) ||
+                  isBusy
+                }
+              >
+                {isLoading ? (
+                  <>
+                    <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-current rounded-full" />
+                    {t('form.generatingButton')}
+                  </>
+                ) : (
+                  t('form.generateButton')
+                )}
+              </Button>
+
               {/* Firefox: manual save */}
               {!isSupported && (
                 <Button size="sm" variant="outline" onClick={handleManualSave} disabled={isBusy}>

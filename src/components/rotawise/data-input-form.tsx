@@ -241,6 +241,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
     <Card className="shadow-lg">
       <CardContent>
         <form
+          id="schedule-form"
           onSubmit={form.handleSubmit((data) => {
             onSubmit({ ...data, numberOfDoctors: fields.length });
           })}
