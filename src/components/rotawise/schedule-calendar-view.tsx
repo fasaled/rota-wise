@@ -5,8 +5,8 @@ import { useState, useMemo } from 'react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO, addDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Users, CalendarDays as CalendarIconLucide, FilterIcon, Lock, Unlock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays as CalendarIconLucide, Lock, Unlock } from 'lucide-react';
+import { CalendarFilterBar, type ActiveFilter } from './calendar-filter-bar';
 import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { VacationIcon, PreAssignedIcon, WorkIcon } from '@/components/icons';
@@ -194,8 +194,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 }) => {
   const { t, currentDateFnsLocale } = useLanguage();
   const [currentMonth, setCurrentMonth] = useState(schedule.startDate || new Date());
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string | 'all'>('all');
-  const [assignmentFilter, setAssignmentFilter] = useState<string>('all');
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draggedEntry, setDraggedEntry] = useState<ScheduleEntry | null>(null);
 
@@ -232,7 +231,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     }
 
     // Don't allow drag-drop when filtering by a specific doctor
-    if (selectedDoctorId !== 'all') {
+    if (activeFilters.some(f => f.type === 'doctor')) {
       onNotify?.({ severity: 'error', title: t('calendar.toast.filterDisablesDrag.title'), description: t('calendar.toast.filterDisablesDrag.description'), autoDismissMs: 4000 });
       return;
     }
@@ -337,15 +336,13 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         isSameDay(entry.date instanceof Date ? entry.date : parseISO(entry.date as unknown as string), date)
       );
       
-      entriesForDay = entriesForDay.filter(entry => 
-        selectedDoctorId === 'all' || entry.doctorId === selectedDoctorId
-      );
+      const doctorIds = activeFilters.filter(f => f.type === 'doctor').map(f => f.value);
+      const assignmentTypes = activeFilters.filter(f => f.type === 'assignment').map(f => f.value);
 
-      if (assignmentFilter === 'workOnly') {
-        entriesForDay = entriesForDay.filter(entry => entry.assignment === 'Work' || entry.assignment === 'Pre-assigned');
-      } else if (assignmentFilter === 'vacationOnly') {
-        entriesForDay = entriesForDay.filter(entry => entry.assignment === 'Vacation');
-      }
+      if (doctorIds.length > 0)
+        entriesForDay = entriesForDay.filter(e => doctorIds.includes(e.doctorId));
+      if (assignmentTypes.length > 0)
+        entriesForDay = entriesForDay.filter(e => assignmentTypes.includes(e.assignment));
       
       entriesForDay = entriesForDay.filter(entry => 
           !(entry.doctorId === 'system' && entry.assignment === 'Off')
@@ -358,7 +355,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         assignments: entriesForDay,
       };
     });
-  }, [currentMonth, schedule.entries, selectedDoctorId, currentDateFnsLocale, assignmentFilter]);
+  }, [currentMonth, schedule.entries, activeFilters, currentDateFnsLocale]);
 
   const renderDayCell = (day: DayDetails) => {
     const dateTextClasses = day.isCurrentMonth ? "font-medium" : "text-muted-foreground/70";
@@ -411,7 +408,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                   chipStyle={chipStyle}
                   assignmentText={assignmentText}
                   onEdit={(e) => { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date); }}
-                  isFilteredByDoctor={selectedDoctorId !== 'all'}
+                  isFilteredByDoctor={activeFilters.some(f => f.type === 'doctor')}
                 />
               );
             } else {
@@ -462,58 +459,40 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 
   return (
     <Card className="shadow-xl mt-8">
-      <CardHeader className="flex flex-col md:flex-row justify-between items-center gap-4 p-4">
-        <CardTitle className="text-xl font-semibold flex items-center gap-2">
-          <CalendarIconLucide className="w-5 h-5 text-primary shrink-0" /> {t('calendar.title')}
-        </CardTitle>
-        <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
-            <Select value={selectedDoctorId} onValueChange={(value) => setSelectedDoctorId(value as string)}>
-                <SelectTrigger className="w-full sm:w-[180px] bg-card">
-                <Users className="w-4 h-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder={t('calendar.filterDoctorPlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                <SelectItem value="all">{t('calendar.allDoctors')}</SelectItem>
-                {doctors.map(doc => (
-                    <SelectItem key={doc.id} value={doc.id}>{doc.name}</SelectItem>
-                ))}
-                </SelectContent>
-            </Select>
-            <Select value={assignmentFilter} onValueChange={(value) => setAssignmentFilter(value as string)}>
-                <SelectTrigger className="w-full sm:w-[180px] bg-card">
-                <FilterIcon className="w-4 h-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder={t('calendar.filterAssignmentPlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">{t('calendar.filterAssignment.all')}</SelectItem>
-                    <SelectItem value="workOnly">{t('calendar.filterAssignment.workOnly')}</SelectItem>
-                    <SelectItem value="vacationOnly">{t('calendar.filterAssignment.vacationOnly')}</SelectItem>
-                </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={prevMonth} aria-label={t('calendar.previousMonth')}>
-                <ChevronLeft className="h-5 w-5" />
-                </Button>
-                <span className="text-lg font-semibold w-32 text-center">
-                {format(currentMonth, 'MMMM yyyy', { locale: currentDateFnsLocale })}
-                </span>
-                <Button variant="outline" size="icon" onClick={nextMonth} aria-label={t('calendar.nextMonth')}>
-                <ChevronRight className="h-5 w-5" />
-                </Button>
-                {onToggleMonthFixed && (
-                  <Button 
-                    variant={monthHasFixedEntries ? "default" : "outline"} 
-                    size="sm" 
-                    onClick={handleToggleMonthFixed}
-                    className="ml-2"
-                    title={monthHasFixedEntries ? t('calendar.unfixMonth') : t('calendar.fixMonth')}
-                  >
-                    {monthHasFixedEntries ? <Unlock className="h-4 w-4 mr-1" /> : <Lock className="h-4 w-4 mr-1" />}
-                    {monthHasFixedEntries ? t('calendar.unfixMonth') : t('calendar.fixMonth')}
-                  </Button>
-                )}
-            </div>
+      <CardHeader className="flex flex-col gap-3 p-4">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <CardTitle className="text-xl font-semibold flex items-center gap-2">
+            <CalendarIconLucide className="w-5 h-5 text-primary shrink-0" /> {t('calendar.title')}
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" onClick={prevMonth} aria-label={t('calendar.previousMonth')}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <span className="text-lg font-semibold w-32 text-center">
+              {format(currentMonth, 'MMMM yyyy', { locale: currentDateFnsLocale })}
+            </span>
+            <Button variant="outline" size="icon" onClick={nextMonth} aria-label={t('calendar.nextMonth')}>
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+            {onToggleMonthFixed && (
+              <Button
+                variant={monthHasFixedEntries ? "default" : "outline"}
+                size="sm"
+                onClick={handleToggleMonthFixed}
+                className="ml-2"
+                title={monthHasFixedEntries ? t('calendar.unfixMonth') : t('calendar.fixMonth')}
+              >
+                {monthHasFixedEntries ? <Unlock className="h-4 w-4 mr-1" /> : <Lock className="h-4 w-4 mr-1" />}
+                {monthHasFixedEntries ? t('calendar.unfixMonth') : t('calendar.fixMonth')}
+              </Button>
+            )}
+          </div>
         </div>
+        <CalendarFilterBar
+          doctors={doctors}
+          activeFilters={activeFilters}
+          onFiltersChange={setActiveFilters}
+        />
       </CardHeader>
       <CardContent className="p-2 sm:p-4">
         <DndContext
