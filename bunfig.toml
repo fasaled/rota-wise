@@ -9,3 +9,4 @@
 # bun test picks up tsconfig.json paths automatically (@/* → src/*)
 # No transform needed — bun handles TypeScript natively
 timeout = 10000
+preload = ["./src/__tests__/setup.ts"]
