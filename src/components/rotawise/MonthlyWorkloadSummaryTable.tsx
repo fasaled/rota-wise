@@ -6,9 +6,10 @@ import { useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Schedule, DoctorProfile } from '@/lib/types';
-import { format, startOfMonth, eachMonthOfInterval, isSameMonth } from 'date-fns';
+import { format, startOfMonth, eachMonthOfInterval } from 'date-fns';
 import { useLanguage } from '@/context/language-context';
 import { BarChartHorizontalBig } from 'lucide-react'; // Using a different icon
+import { cn } from '@/lib/utils';
 
 interface MonthlyWorkloadSummaryTableProps {
   schedule: Schedule | null;
@@ -20,6 +21,14 @@ interface DoctorMonthlyStats {
   doctorName: string;
   monthlyWorkdays: Map<string, number>; // Key: 'yyyy-MM', Value: count
   totalWorkdaysAcrossMonths: number;
+}
+
+function getHeatClass(value: number, max: number): string {
+  if (value === 0 || max === 0) return '';
+  const ratio = value / max;
+  if (ratio < 0.4) return 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300';
+  if (ratio < 0.75) return 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200';
+  return 'bg-blue-200 dark:bg-blue-800/60 text-blue-900 dark:text-blue-100 font-medium';
 }
 
 const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = ({ schedule, doctors }) => {
@@ -80,6 +89,12 @@ const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = 
     return null;
   }
 
+  const maxValue = Math.max(
+    ...summaryData.flatMap(s =>
+      monthsInSchedule.map(m => s.monthlyWorkdays.get(format(m, 'yyyy-MM')) ?? 0)
+    )
+  );
+
   return (
     <Card className="mt-8 shadow-lg">
       <CardHeader>
@@ -103,20 +118,24 @@ const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = 
             </TableHeader>
             <TableBody>
               {summaryData.map((doctorStat) => (
-                <TableRow key={doctorStat.doctorId}>
+                <TableRow key={doctorStat.doctorId} className="[&:hover>td]:!bg-primary/15">
                   <TableCell className="font-medium">{doctorStat.doctorName}</TableCell>
                   {monthsInSchedule.map(monthDate => {
                     const monthKey = format(monthDate, 'yyyy-MM');
+                    const value = doctorStat.monthlyWorkdays.get(monthKey) ?? 0;
                     return (
-                      <TableCell key={`${doctorStat.doctorId}-${monthKey}`} className="text-center">
-                        {doctorStat.monthlyWorkdays.get(monthKey) || 0}
+                      <TableCell
+                        key={`${doctorStat.doctorId}-${monthKey}`}
+                        className={cn("text-center", getHeatClass(value, maxValue))}
+                      >
+                        {value}
                       </TableCell>
                     );
                   })}
                   <TableCell className="text-center font-semibold">{doctorStat.totalWorkdaysAcrossMonths}</TableCell>
                 </TableRow>
               ))}
-               <TableRow className="bg-muted/50 font-semibold">
+               <TableRow className="bg-muted/70 font-semibold border-t-2">
                  <TableCell>{t('monthlySummaryTable.totalHeader')}</TableCell>
                  {monthsInSchedule.map(monthDate => {
                     const monthKey = format(monthDate, 'yyyy-MM');
