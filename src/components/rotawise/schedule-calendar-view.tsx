@@ -501,11 +501,15 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="grid grid-cols-7 gap-1 text-center font-medium text-muted-foreground text-sm mb-2">
-            {weekDays.map(day => <div key={day}>{day}</div>)}
-          </div>
-          <div className="grid grid-cols-7 gap-1.5">
-            {daysInMonth.map(renderDayCell)}
+          <div className="overflow-x-auto">
+            <div className="min-w-[448px]">
+              <div className="grid grid-cols-7 gap-1 text-center font-medium text-muted-foreground text-sm mb-2">
+                {weekDays.map(day => <div key={day}>{day}</div>)}
+              </div>
+              <div className="grid grid-cols-7 gap-1.5">
+                {daysInMonth.map(renderDayCell)}
+              </div>
+            </div>
           </div>
           <DragOverlay>
             {activeId && draggedEntry ? (

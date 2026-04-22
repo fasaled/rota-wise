@@ -9,6 +9,7 @@
   "page.exportWord": "Exportar informe Word",
   "page.exportingWord": "Exportando...",
   "page.clearSchedule": "Borrar horario",
+  "page.moreActions": "Más acciones",
   "page.noSchedule.title": "Aún no se ha generado ningún horario",
   "page.noSchedule.description": "Ingrese parámetros y haga clic en \"generar horario\", o cargue un horario existente.",
   "page.toast.scheduleGenerated.title": "Horario generado",

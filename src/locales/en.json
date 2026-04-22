@@ -9,6 +9,7 @@
   "page.exportWord": "Export Word report",
   "page.exportingWord": "Exporting...",
   "page.clearSchedule": "Clear schedule",
+  "page.moreActions": "More actions",
   "page.noSchedule.title": "No schedule generated yet",
   "page.noSchedule.description": "Enter parameters and click \"generate schedule\", or load an existing schedule.",
   "page.toast.scheduleGenerated.title": "Schedule generated",

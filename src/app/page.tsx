@@ -41,7 +41,15 @@ import {
   AlertTriangle,
   File,
   Download,
+  MoreHorizontal,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { format, isSameDay, differenceInCalendarDays, startOfMonth, endOfMonth } from 'date-fns';
 import { useLanguage } from '@/context/language-context';
 import { useFileSystem } from '@/context/file-system-context';
@@ -1079,8 +1087,8 @@ export default function RotawisePage() {
               )}
             </div>
 
-            {/* Action buttons */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            {/* Action buttons — desktop/tablet */}
+            <div className="hidden sm:flex items-center gap-1.5 shrink-0">
               {/* Generate schedule */}
               <Button
                 form="schedule-form"
@@ -1181,6 +1189,81 @@ export default function RotawisePage() {
               >
                 <UserX className="h-3.5 w-3.5" />
               </Button>
+            </div>
+
+            {/* Action buttons — mobile */}
+            <div className="flex sm:hidden items-center gap-2 shrink-0">
+              {/* Generate schedule */}
+              <Button
+                form="schedule-form"
+                type="submit"
+                size="sm"
+                disabled={
+                  !loadedFormValues?.doctors?.length ||
+                  loadedFormValues.doctors.every((d) => !d.name?.trim()) ||
+                  isBusy
+                }
+              >
+                {isLoading ? (
+                  <>
+                    <span className="animate-spin mr-1.5 h-4 w-4 border-t-2 border-b-2 border-current rounded-full" />
+                    {t('form.generatingButton')}
+                  </>
+                ) : (
+                  t('form.generateButton')
+                )}
+              </Button>
+
+              {/* Secondary actions dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" title={t('page.moreActions')}>
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  {!isSupported && (
+                    <DropdownMenuItem onClick={handleManualSave} disabled={isBusy}>
+                      <Download className="h-4 w-4 mr-2" />
+                      {t('file.save')}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={handleUndoHistory} disabled={!canUndo || isBusy}>
+                    <History className="h-4 w-4 mr-2" />
+                    {t('nav.undo')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleExportPdf} disabled={!schedule || isBusy}>
+                    <FileDown className="h-4 w-4 mr-2" />
+                    {t('page.exportPdf')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportWord} disabled={!schedule || isBusy}>
+                    <FileDown className="h-4 w-4 mr-2" />
+                    {t('page.exportWord')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setShowClearScheduleDialog(true)}
+                    disabled={!schedule || isBusy}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    {t('page.clearSchedule')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setShowClearDoctorDetailsDialog(true)}
+                    disabled={
+                      !loadedFormValues?.doctors?.length ||
+                      loadedFormValues.doctors.every((d) => !d.name?.trim()) ||
+                      isBusy
+                    }
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <UserX className="h-4 w-4 mr-2" />
+                    {t('page.clearDoctorDetails.button')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </header>
 
