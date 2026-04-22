@@ -243,6 +243,16 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
       return;
     }
 
+    // If the same doctor is already assigned on the target date, no change needed
+    const sameDocOnTarget = schedule.entries.find(entry =>
+      isSameDay(entry.date, targetDate) &&
+      entry.doctorId === draggedEntry.doctorId &&
+      (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned')
+    );
+    if (sameDocOnTarget) {
+      return;
+    }
+
     // Check if the dragged entry is a 'Work' assignment and not fixed (only these can be dragged)
     if (draggedEntry.assignment !== 'Work' || draggedEntry.isFixed) {
       onNotify?.({ severity: 'error', title: t('calendar.toast.onlyWorkDraggable.title'), description: t('calendar.toast.onlyWorkDraggable.description'), autoDismissMs: 4000 });
