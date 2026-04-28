@@ -399,12 +399,24 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                   items={fields.map(field => field.id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  <div className="space-y-6">
-                    {fields.map((docField, index) => (
+                  <div className="space-y-5">
+                    {fields.map((docField, index) => {
+                      const accentColors = [
+                        'border-l-blue-400 dark:border-l-blue-500',
+                        'border-l-violet-400 dark:border-l-violet-500',
+                        'border-l-emerald-400 dark:border-l-emerald-500',
+                        'border-l-amber-400 dark:border-l-amber-500',
+                        'border-l-rose-400 dark:border-l-rose-500',
+                        'border-l-cyan-400 dark:border-l-cyan-500',
+                        'border-l-orange-400 dark:border-l-orange-500',
+                        'border-l-pink-400 dark:border-l-pink-500',
+                      ];
+                      const accent = accentColors[index % accentColors.length];
+                      return (
                       <SortableDoctorItem key={docField.id} id={docField.id}>
-                        <Card className="relative overflow-hidden border border-border shadow-sm">
+                        <Card className={cn("relative overflow-hidden border border-border/70 shadow border-l-[5px]", accent)}>
                   {/* Doctor card header strip */}
-                  <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/40">
+                  <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/65">
                     <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
                     <span className="font-mono text-xs font-bold text-muted-foreground/60 select-none tabular-nums">
                       {String(index + 1).padStart(2, '0')}
@@ -653,7 +665,8 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                 </CardContent>
               </Card>
                       </SortableDoctorItem>
-            ))}
+              );
+            })}
                   </div>
                 </SortableContext>
               </DndContext>
