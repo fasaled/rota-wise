@@ -113,6 +113,7 @@
   "calendar.nextMonth": "Next month",
   "calendar.fixMonth": "Fix Month",
   "calendar.unfixMonth": "Unfix Month",
+  "calendar.clearDayTooltip": "Remove all work assignments for this day",
 
   "calendar.toast.vacationUneditable.title": "Vacation Uneditable",
   "calendar.toast.vacationUneditable.description": "Vacation entries are managed in the main form and cannot be edited directly on the calendar.",

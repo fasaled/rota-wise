@@ -110,6 +110,7 @@
   "calendar.nextMonth": "Mes siguiente",
   "calendar.fixMonth": "Fijar Mes",
   "calendar.unfixMonth": "Desfijar Mes",
+  "calendar.clearDayTooltip": "Eliminar todas las asignaciones de trabajo de este día",
 
   "calendar.toast.vacationUneditable.title": "Vacaciones no editables",
   "calendar.toast.vacationUneditable.description": "Las entradas de vacaciones se gestionan en el formulario principal y no se pueden editar directamente en el calendario.",

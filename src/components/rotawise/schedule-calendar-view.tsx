@@ -5,7 +5,7 @@ import { useState, useMemo } from 'react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO, addDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, CalendarDays as CalendarIconLucide, Lock, Unlock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays as CalendarIconLucide, Lock, Unlock, X } from 'lucide-react';
 import { CalendarFilterBar, type ActiveFilter } from './calendar-filter-bar';
 import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -36,6 +36,7 @@ interface ScheduleCalendarViewProps {
   minIntervalBetweenWorkDays: number;
   allScheduleEntries: ScheduleEntry[];
   onToggleMonthFixed?: (month: Date, isFixed: boolean) => void;
+  onRemoveWorkEntriesForDate?: (date: Date) => void;
   onNotify?: (msg: Omit<InfoBarMessage, 'id'>) => void;
 }
 
@@ -190,6 +191,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     minIntervalBetweenWorkDays,
     allScheduleEntries,
     onToggleMonthFixed,
+    onRemoveWorkEntriesForDate,
     onNotify,
 }) => {
   const { t, currentDateFnsLocale } = useLanguage();
@@ -370,6 +372,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
   const renderDayCell = (day: DayDetails) => {
     const dateTextClasses = day.isCurrentMonth ? "font-medium" : "text-muted-foreground/70";
     const todayMarkerClasses = day.isToday ? "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center" : "";
+    const workEntriesForDay = day.assignments.filter((e) => e.assignment === 'Work');
+    const canClearDay = onRemoveWorkEntriesForDate && workEntriesForDay.length > 0;
 
     return (
       <DroppableDayCell 
@@ -377,8 +381,21 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         day={day} 
         onDayClick={() => handleOpenAdjustmentDialog(null, day.date)}
       >
-        <div className={cn("text-xs md:text-sm mb-1", dateTextClasses)}>
+        <div className={cn("text-xs md:text-sm mb-1 flex items-center justify-between", dateTextClasses)}>
           <span className={todayMarkerClasses}>{format(day.date, 'd')}</span>
+          {canClearDay && (
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-destructive transition-colors opacity-60 hover:opacity-100"
+              title={t('calendar.clearDayTooltip')}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemoveWorkEntriesForDate?.(day.date);
+              }}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
         <div className="space-y-1 overflow-y-auto flex-grow">
           {day.assignments.map((entry, index) => {
@@ -411,7 +428,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             if (entry.assignment === 'Work') {
               return (
                 <DraggableWorkEntry
-                  key={`${entry.doctorId}-${entry.assignment}-${index}`}
+                  key={`${entry.doctorId}-${format(day.date, 'yyyy-MM-dd')}-${entry.assignment}`}
                   entry={entry}
                   doctor={doctor}
                   IconComponent={IconComponent}
@@ -425,7 +442,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
               // Non-draggable entries (Vacation, Pre-assigned)
               return (
                 <div
-                  key={`${entry.doctorId}-${entry.assignment}-${index}`}
+                  key={`${entry.doctorId}-${format(day.date, 'yyyy-MM-dd')}-${entry.assignment}`}
                   style={chipStyle}
                   className="w-full rounded-sm flex items-center gap-1 p-1.5 text-xs cursor-pointer"
                   onClick={(e) => { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date); }}

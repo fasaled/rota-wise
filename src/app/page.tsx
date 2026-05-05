@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { cn, generateId } from '@/lib/utils';
+import { cn, generateId, deduplicateEntries } from '@/lib/utils';
 import {
   Users,
   CalendarDays,
@@ -378,7 +378,7 @@ export default function RotawisePage() {
         endDate: new Date(rawData.schedule.endDate),
         minIntervalBetweenWorkDays: rawData.schedule.minIntervalBetweenWorkDays || 1,
         globalMonthlyShiftLimit: rawData.schedule.globalMonthlyShiftLimit,
-        entries,
+        entries: deduplicateEntries(entries),
       };
 
       setSchedule(finalSchedule);
@@ -458,11 +458,12 @@ export default function RotawisePage() {
       });
       setSchedule(null);
     } else if (result.schedule) {
+      const rawEntries = result.schedule.entries.map((e) => ({ ...e, date: new Date(e.date) }));
       const processedSchedule: Schedule = {
         ...result.schedule,
         startDate: result.schedule.startDate,
         endDate: result.schedule.endDate,
-        entries: result.schedule.entries.map((e) => ({ ...e, date: new Date(e.date) })),
+        entries: deduplicateEntries(rawEntries),
       };
       setSchedule(processedSchedule);
       addMessage({
@@ -504,8 +505,13 @@ export default function RotawisePage() {
 
     // Arbitrary assignments: only remove direct conflicts on the same date, keep entries from other dates
     const newEntries = schedule.entries.filter((e) => {
-      // Only remove conflicting Work/Pre-assigned entries on the exact same date and different doctor
       if (isSameDay(e.date, updatedEntry.date)) {
+        // Remove the old entry for this doctor on the same date
+        if (e.doctorId === updatedEntry.doctorId &&
+            (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+            (updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned')) {
+          return false;
+        }
         if ((updatedEntry.assignment === 'Work' || updatedEntry.assignment === 'Pre-assigned') &&
             (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
             e.doctorId !== updatedEntry.doctorId) {
@@ -520,9 +526,9 @@ export default function RotawisePage() {
     });
 
     newEntries.push(updatedEntry);
-    setSchedule({ ...schedule, entries: newEntries });
+    setSchedule({ ...schedule, entries: deduplicateEntries(newEntries) });
     // Note: No validation messages for arbitrary assignments - warnings are shown in the dialog
-  }, [schedule, historyPush]);
+  }, [schedule, historyPush, deduplicateEntries]);
 
   const handleSwapScheduleEntries = useCallback((entry1: ScheduleEntry, entry2: ScheduleEntry, oldDate1?: Date, oldDate2?: Date) => {
     if (!schedule) return;
@@ -652,9 +658,9 @@ export default function RotawisePage() {
       }
     }
 
-    setSchedule({ ...schedule, entries: newEntries });
+    setSchedule({ ...schedule, entries: deduplicateEntries(newEntries) });
     pendingMessages.forEach((msg) => addMessage(msg));
-  }, [schedule, historyPush, doctorsProfiles, currentMinInterval, addMessage, t]);
+  }, [schedule, historyPush, doctorsProfiles, currentMinInterval, addMessage, t, deduplicateEntries]);
 
   const handleUpdateScheduleEntry = useCallback((updatedEntry: ScheduleEntry, oldDate?: Date) => {
     if (!schedule) return;
@@ -776,7 +782,7 @@ export default function RotawisePage() {
       return diff !== 0 ? diff : a.doctorId.localeCompare(b.doctorId);
     });
 
-    setSchedule({ ...schedule, entries: newEntries });
+    setSchedule({ ...schedule, entries: deduplicateEntries(newEntries) });
     pendingMessages.forEach((msg) => addMessage(msg));
   }, [schedule, historyPush, doctorsProfiles, currentMinInterval, addMessage, t]);
 
@@ -812,6 +818,21 @@ export default function RotawisePage() {
       autoDismissMs: 3000,
     });
   }, [schedule, historyPush, addMessage, t, currentDateFnsLocale]);
+
+  // ---------------------------------------------------------------------------
+  // Remove all Work entries for a specific date
+  // ---------------------------------------------------------------------------
+
+  const handleRemoveWorkEntriesForDate = useCallback((targetDate: Date) => {
+    if (!schedule) return;
+    historyPush({ schedule, doctorsProfiles, scheduleWarnings, currentMinInterval });
+
+    const newEntries = schedule.entries.filter(
+      (e) => !(e.assignment === 'Work' && isSameDay(e.date, targetDate)),
+    );
+
+    setSchedule({ ...schedule, entries: newEntries });
+  }, [schedule, historyPush]);
 
   // ---------------------------------------------------------------------------
   // Clear actions
@@ -1309,6 +1330,7 @@ export default function RotawisePage() {
                     minIntervalBetweenWorkDays={currentMinInterval}
                     allScheduleEntries={schedule.entries}
                     onToggleMonthFixed={handleToggleMonthFixed}
+                    onRemoveWorkEntriesForDate={handleRemoveWorkEntriesForDate}
                     onNotify={addMessage}
                   />
                 </Suspense>
