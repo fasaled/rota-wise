@@ -356,10 +356,15 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
       if (assignmentTypes.length > 0)
         entriesForDay = entriesForDay.filter(e => assignmentTypes.includes(e.assignment));
       
-      entriesForDay = entriesForDay.filter(entry => 
+      entriesForDay = entriesForDay.filter(entry =>
           !(entry.doctorId === 'system' && entry.assignment === 'Off')
       );
-      
+
+      entriesForDay.sort((a, b) => {
+        const order: { [key: string]: number } = { 'Work': 0, 'Pre-assigned': 1, 'Vacation': 2 };
+        return (order[a.assignment] ?? 99) - (order[b.assignment] ?? 99);
+      });
+
       return {
         date,
         isCurrentMonth: isSameMonth(date, currentMonth),
