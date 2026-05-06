@@ -42,6 +42,8 @@ import {
   File,
   Download,
   MoreHorizontal,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -54,7 +56,7 @@ import { format, isSameDay, differenceInCalendarDays, startOfMonth, endOfMonth }
 import { useLanguage } from '@/context/language-context';
 import { useFileSystem } from '@/context/file-system-context';
 import { ThemeToggle } from '@/components/theme-toggle';
-import type { ScheduleWarning } from '@/lib/schedule-generator';
+import { type ScheduleWarning, analyzeBrokenConstraints } from '@/lib/schedule-generator';
 import { useScheduleWorker } from '@/hooks/use-schedule-worker';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { useInfoBar, type InfoBarMessage } from '@/hooks/use-info-bar';
@@ -207,7 +209,7 @@ function buildAppFileData(
 // ---------------------------------------------------------------------------
 
 export default function RotawisePage() {
-  const { t, currentDateFnsLocale } = useLanguage();
+  const { t, currentDateFnsLocale, language } = useLanguage();
   const {
     fileHandle,
     fileName,
@@ -225,6 +227,7 @@ export default function RotawisePage() {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [doctorsProfiles, setDoctorsProfiles] = useState<DoctorProfile[]>([]);
   const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
+  const [warningsCollapsed, setWarningsCollapsed] = useState(false);
   const [currentMinInterval, setCurrentMinInterval] = useState<number>(1);
   const [loadedFormValues, setLoadedFormValues] = useState<Partial<ScheduleFormValues> | null>(null);
 
@@ -477,20 +480,15 @@ export default function RotawisePage() {
       if (result.warnings && result.warnings.length > 0) {
         const translatedWarnings = result.warnings.map((warning: ScheduleWarning) => {
           const params = { ...warning.params };
-          if (params.date && params.date instanceof Date) {
-            params.date = format(params.date, 'PPP', { locale: currentDateFnsLocale });
-          }
+          const dateFields = ['date', 'date1', 'date2'];
+          dateFields.forEach(field => {
+            if (params[field] && params[field] instanceof Date) {
+              params[field] = format(params[field], 'P', { locale: currentDateFnsLocale });
+            }
+          });
           return t(warning.key, params);
         });
         setScheduleWarnings(translatedWarnings);
-        translatedWarnings.forEach((w) =>
-          addMessage({
-            severity: 'warning',
-            title: t('page.toast.scheduleWarning.title'),
-            description: w,
-            autoDismissMs: 10000,
-          }),
-        );
       }
     }
   };
@@ -526,9 +524,30 @@ export default function RotawisePage() {
     });
 
     newEntries.push(updatedEntry);
-    setSchedule({ ...schedule, entries: deduplicateEntries(newEntries) });
-    // Note: No validation messages for arbitrary assignments - warnings are shown in the dialog
-  }, [schedule, historyPush, deduplicateEntries]);
+    const updatedSchedule = { ...schedule, entries: deduplicateEntries(newEntries) };
+    setSchedule(updatedSchedule);
+
+    const newWarnings = analyzeBrokenConstraints(
+      updatedSchedule.entries,
+      doctorsProfiles,
+      currentMinInterval,
+      schedule.globalMonthlyShiftLimit,
+      schedule.startDate,
+      schedule.endDate,
+      language
+    );
+    const translatedWarnings = newWarnings.map((warning: ScheduleWarning) => {
+      const params = { ...warning.params };
+      const dateFields = ['date', 'date1', 'date2'];
+      dateFields.forEach(field => {
+        if (params[field] && params[field] instanceof Date) {
+          params[field] = format(params[field], 'P', { locale: currentDateFnsLocale });
+        }
+      });
+      return t(warning.key, params);
+    });
+    setScheduleWarnings(translatedWarnings);
+  }, [schedule, historyPush, deduplicateEntries, doctorsProfiles, currentMinInterval, language, currentDateFnsLocale, t]);
 
   const handleSwapScheduleEntries = useCallback((entry1: ScheduleEntry, entry2: ScheduleEntry, oldDate1?: Date, oldDate2?: Date) => {
     if (!schedule) return;
@@ -782,9 +801,31 @@ export default function RotawisePage() {
       return diff !== 0 ? diff : a.doctorId.localeCompare(b.doctorId);
     });
 
-    setSchedule({ ...schedule, entries: deduplicateEntries(newEntries) });
+    const updatedSchedule = { ...schedule, entries: deduplicateEntries(newEntries) };
+    setSchedule(updatedSchedule);
     pendingMessages.forEach((msg) => addMessage(msg));
-  }, [schedule, historyPush, doctorsProfiles, currentMinInterval, addMessage, t]);
+
+    const newWarnings = analyzeBrokenConstraints(
+      updatedSchedule.entries,
+      doctorsProfiles,
+      effectiveMinInterval,
+      schedule.globalMonthlyShiftLimit,
+      schedule.startDate,
+      schedule.endDate,
+      language
+    );
+    const translatedWarnings = newWarnings.map((warning: ScheduleWarning) => {
+      const params = { ...warning.params };
+      const dateFields = ['date', 'date1', 'date2'];
+      dateFields.forEach(field => {
+        if (params[field] && params[field] instanceof Date) {
+          params[field] = format(params[field], 'P', { locale: currentDateFnsLocale });
+        }
+      });
+      return t(warning.key, params);
+    });
+    setScheduleWarnings(translatedWarnings);
+  }, [schedule, historyPush, doctorsProfiles, currentMinInterval, addMessage, t, language, currentDateFnsLocale]);
 
   // ---------------------------------------------------------------------------
   // Toggle month fixed
@@ -1292,13 +1333,26 @@ export default function RotawisePage() {
           {scheduleWarnings.length > 0 && activeTab !== 'config' && (
             <div className="flex items-start gap-2 mx-4 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-              <div>
-                <p className="font-medium">{t('page.section.scheduleWarnings.title')}</p>
-                <ul className="mt-1 list-disc pl-4 space-y-0.5">
-                  {scheduleWarnings.map((w, i) => (
-                    <li key={i}>{w}</li>
-                  ))}
-                </ul>
+              <div className="flex-1">
+                <button
+                  type="button"
+                  onClick={() => setWarningsCollapsed(!warningsCollapsed)}
+                  className="flex items-center gap-1 font-medium w-full text-left"
+                >
+                  {t('page.section.scheduleWarnings.title')}
+                  {warningsCollapsed ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronUp className="h-4 w-4" />
+                  )}
+                </button>
+                {!warningsCollapsed && (
+                  <ul className="mt-1 list-disc pl-4 space-y-0.5 max-h-48 overflow-y-auto">
+                    {scheduleWarnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           )}

@@ -203,6 +203,13 @@
 
   "warnings.multiplePreAssignedInput": "Múltiples doctores ({doctors}) están preasignados a la misma fecha del calendario: {date}. Por favor revise.",
   "warnings.uncoveredDay": "No se pudo asignar ningún médico al {date} debido a restricciones de programación (p. ej., intervalo mínimo, límites de fin de semana, etc.). el día se ha marcado como 'libre'.",
+  "warnings.brokenMinInterval": "{doctor} tiene solo {interval} día(s) entre días de trabajo el {date1} y el {date2} (mínimo requerido: {required}).",
+  "warnings.workOnVacation": "{doctor} está programado para trabajar en un día de vacaciones: {date}.",
+  "warnings.workOnExcludedDate": "{doctor} está programado para trabajar en un día excluido: {date}.",
+  "warnings.exceededMonthlyLimit": "{doctor} tiene {count} días de trabajo en {month}, excediendo el límite mensual de {limit}.",
+  "warnings.unbalancedMonthlyWorkdays": "En {month}, los días de trabajo están desbalanceados: {maxDoctor} tiene {maxCount} días y {minDoctor} tiene {minCount} días.",
+  "warnings.unbalancedDayOfWeek": "Los días de trabajo en {day} están desbalanceados: {maxDoctor} tiene {maxCount} días y {minDoctor} tiene {minCount} días.",
+  "warnings.unbalancedPreferredDays": "El día preferido {day} está desbalanceado: {maxDoctor} tiene {maxCount} días y {minDoctor} tiene {minCount} días.",
 
   "calendar.filter.addFilter": "Añadir filtro",
   "calendar.filter.clearAll": "Limpiar",

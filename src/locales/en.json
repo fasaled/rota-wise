@@ -206,6 +206,13 @@
 
   "warnings.multiplePreAssignedInput": "Multiple doctors ({doctors}) are pre-assigned to the same calendar date: {date}. Please review.",
   "warnings.uncoveredDay": "No doctor could be assigned to {date} due to scheduling constraints (e.g., minimum interval, weekend limits, etc.). The day has been marked as 'Off'.",
+  "warnings.brokenMinInterval": "{doctor} has only {interval} day(s) between work days on {date1} and {date2} (minimum required: {required}).",
+  "warnings.workOnVacation": "{doctor} is scheduled to work on a vacation day: {date}.",
+  "warnings.workOnExcludedDate": "{doctor} is scheduled to work on an excluded day: {date}.",
+  "warnings.exceededMonthlyLimit": "{doctor} has {count} work days in {month}, exceeding the monthly limit of {limit}.",
+  "warnings.unbalancedMonthlyWorkdays": "In {month}, work days are unbalanced: {maxDoctor} has {maxCount} days and {minDoctor} has {minCount} days.",
+  "warnings.unbalancedDayOfWeek": "Work days on {day} are unbalanced: {maxDoctor} has {maxCount} days and {minDoctor} has {minCount} days.",
+  "warnings.unbalancedPreferredDays": "Preferred day {day} is unbalanced: {maxDoctor} has {maxCount} days and {minDoctor} has {minCount} days.",
 
   "calendar.filter.addFilter": "Add filter",
   "calendar.filter.clearAll": "Clear",

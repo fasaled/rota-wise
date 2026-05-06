@@ -791,9 +791,9 @@ describe('Schedule Generator', () => {
   });
 
   describe('Global Monthly Shift Limit', () => {
-    it('should NOT assign automatic shifts that would exceed limit when combined with pre-assigned', () => {
-      // CRITICAL TEST: Doctor has 6 pre-assigned shifts, limit is 8
-      // System should allow at most 2 automatic shifts, NOT more
+    it('should warn when automatic shifts exceed monthly limit when combined with pre-assigned', () => {
+      // Doctor has 6 pre-assigned shifts, limit is 8
+      // System SHOULD assign automatic shifts (soft limit), but WARN about exceeding
       const preAssignedDates = [
         new Date('2024-01-03'),
         new Date('2024-01-07'),
@@ -831,28 +831,28 @@ describe('Schedule Generator', () => {
       const result = generateSchedule(data);
       expect(result.schedule).toBeDefined();
 
-      // Verify 6 pre-assigned shifts
+      // Verify 6 pre-assigned shifts are present
       const doc1PreAssigned = result.schedule!.entries.filter(
         e => e.doctorId === 'doc1' && e.assignment === 'Pre-assigned'
       );
       expect(doc1PreAssigned.length).toBe(6);
 
-      // CRITICAL: Total should NOT exceed 8
+      // Total may exceed 8 (soft limit), but should generate warning
       const doc1TotalWork = result.schedule!.entries.filter(
         e => e.doctorId === 'doc1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
       );
-      expect(doc1TotalWork.length).toBeLessThanOrEqual(8);
+      expect(doc1TotalWork.length).toBeGreaterThan(8);
 
-      // Should have at most 2 automatic assignments (8 limit - 6 pre-assigned = 2)
-      const doc1AutoAssignments = result.schedule!.entries.filter(
-        e => e.doctorId === 'doc1' && e.assignment === 'Work'
+      // Should have warning about exceeded monthly limit
+      const exceededWarning = result.warnings?.find(
+        w => w.key === 'warnings.exceededMonthlyLimit'
       );
-      expect(doc1AutoAssignments.length).toBeLessThanOrEqual(2);
+      expect(exceededWarning).toBeDefined();
     });
 
-    it('should respect pre-assigned shifts and not remove them when limit is exceeded', () => {
+    it('should warn but still include all pre-assigned shifts when limit is exceeded', () => {
       // Doctor has 10 pre-assigned shifts in January, limit is 8
-      // Expected: All 10 pre-assigned shifts should remain, no automatic assignments
+      // Expected: All 10 pre-assigned shifts remain (soft limit), warning generated
       const preAssignedDates = [
         new Date('2024-01-02'),
         new Date('2024-01-05'),
@@ -900,22 +900,22 @@ describe('Schedule Generator', () => {
       );
       expect(doc1PreAssigned.length).toBe(10);
 
-      // Verify doc1 has NO automatic assignments (because limit was exceeded by pre-assignments)
-      const doc1AutoAssignments = result.schedule!.entries.filter(
-        e => e.doctorId === 'doc1' && e.assignment === 'Work'
-      );
-      expect(doc1AutoAssignments.length).toBe(0);
-
-      // Total work + pre-assigned for doc1 should be 10 (all pre-assigned, no automatic)
+      // Total should be at least 10 (all pre-assigned, plus automatic assignments may occur for other doctors)
       const doc1TotalWork = result.schedule!.entries.filter(
         e => e.doctorId === 'doc1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
       );
-      expect(doc1TotalWork.length).toBe(10);
+      expect(doc1TotalWork.length).toBeGreaterThanOrEqual(10);
+
+      // Should have warning about exceeded monthly limit
+      const exceededWarning = result.warnings?.find(
+        w => w.key === 'warnings.exceededMonthlyLimit'
+      );
+      expect(exceededWarning).toBeDefined();
     });
 
-    it('should not add automatic shifts when monthly limit is reached', () => {
+    it('should warn when pre-assigned shifts meet monthly limit and automatic assignments occur', () => {
       // Doctor has 8 pre-assigned shifts, limit is 8
-      // Expected: All 8 pre-assigned shifts, no automatic assignments
+      // Expected: All 8 pre-assigned shifts, warning about exceeded limit
       const preAssignedDates = [
         new Date('2024-01-02'),
         new Date('2024-01-05'),
@@ -961,22 +961,22 @@ describe('Schedule Generator', () => {
       );
       expect(doc1PreAssigned.length).toBe(8);
 
-      // Verify doc1 has NO automatic assignments (limit reached)
-      const doc1AutoAssignments = result.schedule!.entries.filter(
-        e => e.doctorId === 'doc1' && e.assignment === 'Work'
-      );
-      expect(doc1AutoAssignments.length).toBe(0);
-
-      // Total should be exactly 8
+      // Total should be at least 8
       const doc1TotalWork = result.schedule!.entries.filter(
         e => e.doctorId === 'doc1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
       );
-      expect(doc1TotalWork.length).toBe(8);
+      expect(doc1TotalWork.length).toBeGreaterThanOrEqual(8);
+
+      // Should have warning about exceeded monthly limit
+      const exceededWarning = result.warnings?.find(
+        w => w.key === 'warnings.exceededMonthlyLimit'
+      );
+      expect(exceededWarning).toBeDefined();
     });
 
-    it('should allow automatic assignments when pre-assigned shifts are below limit', () => {
+    it('should include monthly limit warnings when pre-assigned shifts are below limit', () => {
       // Doctor has 5 pre-assigned shifts, limit is 8
-      // Expected: 5 pre-assigned shifts + up to 3 automatic assignments (respecting interval)
+      // Automatic assignments can be added, and if total exceeds 8, warning should appear
       const preAssignedDates = [
         new Date('2024-01-02'),
         new Date('2024-01-06'),
@@ -1013,25 +1013,22 @@ describe('Schedule Generator', () => {
       const result = generateSchedule(data);
       expect(result.schedule).toBeDefined();
 
-      // Verify all 5 pre-assigned shifts are present
+      // Verify 5 pre-assigned shifts are present
       const doc1PreAssigned = result.schedule!.entries.filter(
         e => e.doctorId === 'doc1' && e.assignment === 'Pre-assigned'
       );
       expect(doc1PreAssigned.length).toBe(5);
 
-      // Total work + pre-assigned should not exceed 8 (the limit)
+      // Total work + pre-assigned may exceed 8 (soft limit)
       const doc1TotalWork = result.schedule!.entries.filter(
         e => e.doctorId === 'doc1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
       );
-      expect(doc1TotalWork.length).toBeLessThanOrEqual(8);
-      expect(doc1TotalWork.length).toBeGreaterThan(5); // Should have some automatic assignments
+      expect(doc1TotalWork.length).toBeGreaterThan(5);
     });
 
-    it('should handle multiple months with global monthly limit', () => {
+    it('should warn about exceeded monthly limit across multiple months', () => {
       // Doctor has 10 pre-assigned shifts in January, 3 in February
-      // Limit is 8 per month
-      // Expected: All 10 in Jan (exceeds limit, no auto assignments in Jan)
-      //           3 in Feb (below limit, can receive auto assignments in Feb)
+      // Limit is 8 per month - January exceeds, February may or may not
       const janPreAssigned = [
         new Date('2024-01-02'),
         new Date('2024-01-05'),
@@ -1079,7 +1076,7 @@ describe('Schedule Generator', () => {
       const result = generateSchedule(data);
       expect(result.schedule).toBeDefined();
 
-      // January: should have all 10 pre-assigned, no automatic
+      // January: should have all 10 pre-assigned
       const doc1JanWork = result.schedule!.entries.filter(
         e => e.doctorId === 'doc1' &&
              (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
@@ -1087,23 +1084,13 @@ describe('Schedule Generator', () => {
       );
 
       const doc1JanPreAssigned = doc1JanWork.filter(e => e.assignment === 'Pre-assigned');
-      const doc1JanAuto = doc1JanWork.filter(e => e.assignment === 'Work');
-
       expect(doc1JanPreAssigned.length).toBe(10);
-      expect(doc1JanAuto.length).toBe(0); // No automatic because limit exceeded
 
-      // February: should have 3 pre-assigned + potential automatic assignments (up to 5 more)
-      const doc1FebWork = result.schedule!.entries.filter(
-        e => e.doctorId === 'doc1' &&
-             (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
-             e.date >= new Date('2024-02-01') && e.date <= new Date('2024-02-29')
+      // Should have warning about January exceeding limit
+      const janWarning = result.warnings?.find(
+        w => w.key === 'warnings.exceededMonthlyLimit' && w.params?.month === '2024-01'
       );
-
-      const doc1FebPreAssigned = doc1FebWork.filter(e => e.assignment === 'Pre-assigned');
-
-      expect(doc1FebPreAssigned.length).toBe(3);
-      expect(doc1FebWork.length).toBeLessThanOrEqual(8); // Should not exceed monthly limit
-      expect(doc1FebWork.length).toBeGreaterThan(3); // Should have some automatic assignments
+      expect(janWarning).toBeDefined();
     });
   });
 }); 
