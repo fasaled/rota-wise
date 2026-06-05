@@ -14,7 +14,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import type { ScheduleEntry, DoctorProfile } from '@/lib/types';
 import { format, isSameDay, differenceInCalendarDays } from 'date-fns';
 import { useLanguage } from '@/context/language-context';
@@ -48,7 +47,6 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
   const { t, currentDateFnsLocale } = useLanguage();
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(entry?.doctorId || '');
   const [assignmentType, setAssignmentType] = useState<ScheduleEntry['assignment']>(entry?.assignment || 'Work');
-  const [isFixed, setIsFixed] = useState<boolean>(entry?.isFixed || false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
   const isDayBlockedForDoctor = (doctorId: string, targetDate: Date): string | null => {
@@ -72,12 +70,10 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
     if (isOpen) { // Reset state when dialog opens
         if (entry) {
             setSelectedDoctorId(entry.doctorId);
-            setIsFixed(entry.isFixed || false);
             setAssignmentType('Work');
         } else {
             setSelectedDoctorId(doctors.length > 0 ? doctors[0].id : '');
             setAssignmentType('Work');
-            setIsFixed(false);
         }
     }
   }, [entry, doctors, isOpen]);
@@ -108,7 +104,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
       doctorId: selectedDoctorId,
       assignment: 'Work',
       dayOfWeek: format(date, 'EEEE', { locale: currentDateFnsLocale }),
-      isFixed: isFixed,
+      isFixed: entry?.isFixed ?? false,
     };
 
     const doctor = doctors.find(d => d.id === selectedDoctorId);
@@ -187,21 +183,6 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="isFixed" className="text-right">
-              {t('dialog.markAsFixedLabel')}
-            </Label>
-            <div className="col-span-3 flex items-center space-x-2">
-              <Checkbox
-                id="isFixed"
-                checked={isFixed}
-                onCheckedChange={(checked) => setIsFixed(checked as boolean)}
-              />
-              <Label htmlFor="isFixed" className="text-sm text-muted-foreground">
-                {t('dialog.markAsFixedDescription')}
-              </Label>
-            </div>
           </div>
         </div>
         <DialogFooter>

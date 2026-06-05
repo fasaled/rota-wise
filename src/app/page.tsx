@@ -61,6 +61,7 @@ import { useScheduleWorker } from '@/hooks/use-schedule-worker';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { useInfoBar, type InfoBarMessage } from '@/hooks/use-info-bar';
 import { useHistory } from '@/hooks/use-history';
+import { type ActiveFilter } from '@/components/rotawise/calendar-filter-bar';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -227,7 +228,8 @@ export default function RotawisePage() {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [doctorsProfiles, setDoctorsProfiles] = useState<DoctorProfile[]>([]);
   const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
-  const [warningsCollapsed, setWarningsCollapsed] = useState(false);
+  const [warningsCollapsed, setWarningsCollapsed] = useState(true);
+  const [calendarFilters, setCalendarFilters] = useState<ActiveFilter[]>([]);
   const [currentMinInterval, setCurrentMinInterval] = useState<number>(1);
   const [loadedFormValues, setLoadedFormValues] = useState<Partial<ScheduleFormValues> | null>(null);
 
@@ -861,6 +863,28 @@ export default function RotawisePage() {
   }, [schedule, historyPush, addMessage, t, currentDateFnsLocale]);
 
   // ---------------------------------------------------------------------------
+  // Toggle isFixed on a single entry
+  // ---------------------------------------------------------------------------
+
+  const handleToggleEntryFixed = useCallback((entry: ScheduleEntry, isFixed: boolean) => {
+    if (!schedule) return;
+    historyPush({ schedule, doctorsProfiles, scheduleWarnings, currentMinInterval });
+
+    const updatedEntries = schedule.entries.map((e) => {
+      if (
+        isSameDay(e.date, entry.date) &&
+        e.doctorId === entry.doctorId &&
+        e.assignment === entry.assignment
+      ) {
+        return { ...e, isFixed };
+      }
+      return e;
+    });
+
+    setSchedule({ ...schedule, entries: updatedEntries });
+  }, [schedule, historyPush]);
+
+  // ---------------------------------------------------------------------------
   // Remove all Work entries for a specific date
   // ---------------------------------------------------------------------------
 
@@ -1384,8 +1408,11 @@ export default function RotawisePage() {
                     minIntervalBetweenWorkDays={currentMinInterval}
                     allScheduleEntries={schedule.entries}
                     onToggleMonthFixed={handleToggleMonthFixed}
+                    onToggleEntryFixed={handleToggleEntryFixed}
                     onRemoveWorkEntriesForDate={handleRemoveWorkEntriesForDate}
                     onNotify={addMessage}
+                    activeFilters={calendarFilters}
+                    onFiltersChange={setCalendarFilters}
                   />
                 </Suspense>
               </div>
