@@ -228,7 +228,7 @@
   "calendar.filter.addFilter": "Añadir filtro",
   "calendar.filter.clearAll": "Limpiar",
   "calendar.filter.typeDoctor": "Médico",
-  "calendar.filter.typeAssignment": "Tipo de guardia",
+  "calendar.filter.typeAssignment": "Tipo de asignación",
   "calendar.filter.assignment.work": "Trabajo",
   "calendar.filter.assignment.vacation": "Vacaciones",
   "calendar.filter.assignment.preassigned": "Pre-asignado",
