@@ -242,12 +242,155 @@ describe('Schedule Generator', () => {
       expect(result.schedule).toBeDefined();
 
       const workOnExcludedDate = result.schedule!.entries.find(
-        e => e.doctorId === 'doc1' && 
-             isSameDay(e.date, excludedDate) && 
+        e => e.doctorId === 'doc1' &&
+             isSameDay(e.date, excludedDate) &&
              (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
       );
 
       expect(workOnExcludedDate).toBeUndefined();
+    });
+
+    it('should handle multiple excluded dates for a doctor', () => {
+      const excludedDates = [
+        new Date('2024-01-05'),
+        new Date('2024-01-10'),
+        new Date('2024-01-15'),
+        new Date('2024-01-20'),
+        new Date('2024-01-25'),
+      ];
+      const data = createBaseScheduleData({
+        doctors: [
+          {
+            id: 'doc1',
+            name: 'Dr. Smith',
+            vacationDates: [],
+            preAssignedWorkDates: [],
+            excludedDates,
+            isExcludedFromAutomaticAssignment: false,
+          },
+        ],
+      });
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+
+      excludedDates.forEach(excludedDate => {
+        const workOnExcludedDate = result.schedule!.entries.find(
+          e => e.doctorId === 'doc1' &&
+               isSameDay(e.date, excludedDate) &&
+               (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+        );
+        expect(workOnExcludedDate).toBeUndefined();
+      });
+    });
+
+    it('should handle excluded dates combined with vacations', () => {
+      const data = createBaseScheduleData({
+        doctors: [
+          {
+            id: 'doc1',
+            name: 'Dr. Smith',
+            vacationDates: [new Date('2024-01-10'), new Date('2024-01-11')],
+            preAssignedWorkDates: [],
+            excludedDates: [new Date('2024-01-15'), new Date('2024-01-20')],
+            isExcludedFromAutomaticAssignment: false,
+          },
+        ],
+      });
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+
+      // Verify no work on vacation dates
+      const workOnVacation = result.schedule!.entries.find(
+        e => e.doctorId === 'doc1' &&
+             isSameDay(e.date, new Date('2024-01-10')) &&
+             (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+      );
+      expect(workOnVacation).toBeUndefined();
+
+      // Verify no work on excluded dates
+      const workOnExcluded = result.schedule!.entries.find(
+        e => e.doctorId === 'doc1' &&
+             isSameDay(e.date, new Date('2024-01-15')) &&
+             (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+      );
+      expect(workOnExcluded).toBeUndefined();
+    });
+
+    it('should distribute work fairly when doctor has many excluded dates', () => {
+      const excludedDates = Array.from({ length: 10 }, (_, i) =>
+        addDays(new Date('2024-01-01'), i * 3)
+      );
+      const data = createBaseScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31'),
+        doctors: [
+          {
+            id: 'doc1',
+            name: 'Dr. Smith',
+            vacationDates: [],
+            preAssignedWorkDates: [],
+            excludedDates,
+            isExcludedFromAutomaticAssignment: false,
+          },
+          {
+            id: 'doc2',
+            name: 'Dr. Johnson',
+            vacationDates: [],
+            preAssignedWorkDates: [],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+        ],
+      });
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+
+      const doc1Work = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+      );
+      const doc2Work = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc2' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+      );
+
+      // Doc2 should have at least as much work since doc1 has many excluded dates
+      expect(doc2Work.length).toBeGreaterThanOrEqual(doc1Work.length);
+    });
+
+    it('should respect minimum interval with excluded dates', () => {
+      const excludedDates = [new Date('2024-01-12')];
+      const data = createBaseScheduleData({
+        minIntervalBetweenWorkDays: 3,
+        doctors: [
+          {
+            id: 'doc1',
+            name: 'Dr. Smith',
+            vacationDates: [],
+            preAssignedWorkDates: [],
+            excludedDates,
+            isExcludedFromAutomaticAssignment: false,
+          },
+        ],
+      });
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+
+      const doc1WorkEntries = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+      );
+
+      doc1WorkEntries.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+      for (let i = 1; i < doc1WorkEntries.length; i++) {
+        const daysBetween = differenceInCalendarDays(
+          doc1WorkEntries[i].date,
+          doc1WorkEntries[i - 1].date
+        );
+        expect(daysBetween).toBeGreaterThan(3);
+      }
     });
   });
 

@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import type { DoctorProfile } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
-import { WorkIcon, VacationIcon, PreAssignedIcon } from '@/components/icons';
+import { WorkIcon, VacationIcon, PreAssignedIcon, ExcludedIcon } from '@/components/icons';
 
 export interface ActiveFilter {
   type: 'doctor' | 'assignment';
@@ -39,6 +39,12 @@ const ASSIGNMENT_OPTIONS = [
     labelKey: 'calendar.filter.assignment.preassigned' as const,
     Icon: PreAssignedIcon,
     chipStyle: { backgroundColor: 'var(--chip-preassigned-bg)', color: 'var(--chip-preassigned-text)', border: '1px solid var(--chip-preassigned-border)' },
+  },
+  {
+    value: 'Excluded',
+    labelKey: 'calendar.filter.assignment.excluded' as const,
+    Icon: ExcludedIcon,
+    chipStyle: { backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', border: '2px dashed var(--foreground)' },
   },
 ] as const;
 
@@ -139,12 +145,16 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
         {/* Active filter chips */}
         {activeFilters.map(filter => {
           const chipStyle = filter.type === 'assignment' ? getAssignmentChipStyle(filter.value) : undefined;
+          const isExcluded = filter.type === 'assignment' && filter.value === 'Excluded';
           return (
             <Badge
               key={`${filter.type}-${filter.value}`}
               variant="outline"
-              className="gap-0.5 pr-0.5 h-5 text-xs font-normal cursor-default shrink-0"
-              style={chipStyle}
+              className={cn(
+                "gap-0.5 pr-0.5 h-5 text-xs font-normal cursor-default shrink-0",
+                isExcluded && "bg-muted/50 border-dashed border-muted-foreground/30 text-muted-foreground"
+              )}
+              style={isExcluded ? undefined : chipStyle}
             >
               <span>
                 {filter.type === 'doctor'

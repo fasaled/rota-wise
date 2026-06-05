@@ -603,7 +603,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`doctors.${index}.excludedDates`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5"><CalendarXIcon className="w-3.5 h-3.5 text-rose-500"/>{t('form.excludedDates')}</Label>
+                      <Label htmlFor={`doctors.${index}.excludedDates`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5"><CalendarXIcon className="w-3.5 h-3.5 text-muted-foreground"/>{t('form.excludedDates')}</Label>
                        <Controller
                         name={`doctors.${index}.excludedDates`}
                         control={form.control}
@@ -620,7 +620,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                                         }}
                                       >
                             <PopoverTrigger asChild>
-                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 border-rose-200 bg-rose-50/50 hover:bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30 dark:hover:bg-rose-950/50", controllerDateField.value?.length ? "text-rose-700 dark:text-rose-400" : "text-muted-foreground")}>
+                                          <Button onPointerDown={(e) => e.stopPropagation()} variant="outline" className={cn("w-full justify-start text-left font-normal mt-1 border border-dashed border-muted-foreground/30 bg-muted/50 hover:bg-muted/70 dark:border-muted-foreground/30 dark:bg-muted/50 dark:hover:bg-muted/70", controllerDateField.value?.length ? "text-foreground" : "text-muted-foreground")}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                             {controllerDateField.value?.length ? t('form.datesSelected', { count: controllerDateField.value.length }) : <span>{t('form.selectDates')}</span>}
                               </Button>

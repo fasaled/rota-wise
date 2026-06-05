@@ -32,7 +32,7 @@ export type ScheduleFormValues = z.infer<typeof scheduleFormSchema> & {
 export interface ScheduleEntry {
   date: Date;
   doctorId: string; // ID of the assigned doctor
-  assignment: 'Work' | 'Vacation' | 'Pre-assigned' | 'Off';
+  assignment: 'Work' | 'Vacation' | 'Pre-assigned' | 'Off' | 'Excluded';
   dayOfWeek: string; // e.g., "Monday"
   isFixed?: boolean; // Whether this entry should be preserved when regenerating the schedule
 }

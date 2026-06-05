@@ -9,7 +9,7 @@ import { ChevronLeft, ChevronRight, CalendarDays as CalendarIconLucide, Lock, Un
 import { CalendarFilterBar, type ActiveFilter } from './calendar-filter-bar';
 import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { VacationIcon, PreAssignedIcon, WorkIcon } from '@/components/icons';
+import { VacationIcon, PreAssignedIcon, WorkIcon, ExcludedIcon } from '@/components/icons';
 import ManualAdjustmentDialog from './manual-adjustment-dialog';
 import { useLanguage } from '@/context/language-context';
 import type { InfoBarMessage } from '@/hooks/use-info-bar';
@@ -59,6 +59,12 @@ function getChipStyle(assignment: ScheduleEntry['assignment']): React.CSSPropert
         backgroundColor: 'var(--chip-vacation-bg)',
         color: 'var(--chip-vacation-text)',
         border: '1px solid var(--chip-vacation-border)',
+      };
+    case 'Excluded':
+      return {
+        backgroundColor: 'var(--muted)',
+        color: 'var(--muted-foreground)',
+        border: '2px dashed var(--foreground)',
       };
     default:
       return {};
@@ -204,6 +210,23 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
   const [selectedEntryForAdjustment, setSelectedEntryForAdjustment] = useState<ScheduleEntry | null>(null);
   const [selectedDateForAdjustment, setSelectedDateForAdjustment] = useState<Date | null>(null);
 
+  const isDoctorBlockedOnDate = (doctorId: string, date: Date): { blocked: boolean; reason: string | undefined } => {
+    const doctor = doctors.find(d => d.id === doctorId);
+    if (!doctor) return { blocked: false, reason: undefined };
+
+    const isVacation = doctor.vacationDates.some(vacDate => isSameDay(vacDate, date));
+    if (isVacation) {
+      return { blocked: true, reason: t('calendar.toast.cannotSwapExcludedDay.description', { doctorName: doctor.name, targetDate: format(date, 'PPP', { locale: currentDateFnsLocale }) }) };
+    }
+
+    const isExcluded = (doctor.excludedDates || []).some(exDate => isSameDay(exDate, date));
+    if (isExcluded) {
+      return { blocked: true, reason: t('calendar.toast.cannotSwapExcludedDay.description', { doctorName: doctor.name, targetDate: format(date, 'PPP', { locale: currentDateFnsLocale }) }) };
+    }
+
+    return { blocked: false, reason: undefined };
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -286,6 +309,20 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         onNotify?.({ severity: 'error', title: t('calendar.toast.cannotSwapWithFixed.title'), description: t('calendar.toast.cannotSwapWithFixed.description'), autoDismissMs: 4000 });
         return;
       }
+
+      // Prevent swap if either doctor would be assigned to an excluded/vacation day
+      const draggedDoctorBlocked = isDoctorBlockedOnDate(draggedEntry.doctorId, targetDate);
+      if (draggedDoctorBlocked.blocked) {
+        onNotify?.({ severity: 'error', title: t('calendar.toast.cannotSwapExcludedDay.title'), description: draggedDoctorBlocked.reason, autoDismissMs: 5000 });
+        return;
+      }
+
+      const targetDoctorBlocked = isDoctorBlockedOnDate(existingEntryOnTarget.doctorId, draggedEntry.date);
+      if (targetDoctorBlocked.blocked) {
+        onNotify?.({ severity: 'error', title: t('calendar.toast.cannotSwapExcludedDay.title'), description: targetDoctorBlocked.reason, autoDismissMs: 5000 });
+        return;
+      }
+
       // Swap the doctors
       const updatedDraggedEntry: ScheduleEntry = {
         ...draggedEntry,
@@ -310,6 +347,13 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 
       onNotify?.({ severity: 'success', title: t('calendar.toast.doctorsSwapped.title'), description: t('calendar.toast.doctorsSwapped.description'), autoDismissMs: 3000 });
     } else {
+      // Prevent move if doctor would be assigned to an excluded/vacation day
+      const doctorBlocked = isDoctorBlockedOnDate(draggedEntry.doctorId, targetDate);
+      if (doctorBlocked.blocked) {
+        onNotify?.({ severity: 'error', title: t('calendar.toast.cannotSwapExcludedDay.title'), description: doctorBlocked.reason, autoDismissMs: 5000 });
+        return;
+      }
+
       // Just move the doctor to the new date
       const updatedEntry: ScheduleEntry = {
         ...draggedEntry,
@@ -347,7 +391,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
       let entriesForDay = schedule.entries.filter(entry =>
         isSameDay(entry.date instanceof Date ? entry.date : parseISO(entry.date as unknown as string), date)
       );
-      
+
       const doctorIds = activeFilters.filter(f => f.type === 'doctor').map(f => f.value);
       const assignmentTypes = activeFilters.filter(f => f.type === 'assignment').map(f => f.value);
 
@@ -355,13 +399,25 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         entriesForDay = entriesForDay.filter(e => doctorIds.includes(e.doctorId));
       if (assignmentTypes.length > 0)
         entriesForDay = entriesForDay.filter(e => assignmentTypes.includes(e.assignment));
-      
+
       entriesForDay = entriesForDay.filter(entry =>
           !(entry.doctorId === 'system' && entry.assignment === 'Off')
       );
 
+      const excludedEntriesForDay = doctors
+        .filter(doc => doc.excludedDates?.some(exDate => isSameDay(exDate, date)))
+        .map(doc => ({
+          date,
+          doctorId: doc.id,
+          assignment: 'Excluded' as const,
+          dayOfWeek: format(date, 'EEEE', { locale: currentDateFnsLocale }),
+          isFixed: false,
+        }));
+
+      entriesForDay = [...entriesForDay, ...excludedEntriesForDay];
+
       entriesForDay.sort((a, b) => {
-        const order: { [key: string]: number } = { 'Work': 0, 'Pre-assigned': 1, 'Vacation': 2 };
+        const order: { [key: string]: number } = { 'Work': 0, 'Pre-assigned': 1, 'Vacation': 2, 'Excluded': 3 };
         return (order[a.assignment] ?? 99) - (order[b.assignment] ?? 99);
       });
 
@@ -372,7 +428,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         assignments: entriesForDay,
       };
     });
-  }, [currentMonth, schedule.entries, activeFilters, currentDateFnsLocale]);
+  }, [currentMonth, schedule.entries, activeFilters, currentDateFnsLocale, doctors]);
 
   const renderDayCell = (day: DayDetails) => {
     const dateTextClasses = day.isCurrentMonth ? "font-medium" : "text-muted-foreground/70";
@@ -423,10 +479,28 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
               case 'Work':
                 IconComponent = WorkIcon;
                 break;
+              case 'Excluded':
+                IconComponent = ExcludedIcon;
+                break;
               case 'Off':
                 return null;
               default:
                 return null;
+            }
+
+            // Excluded days are not editable - stop propagation but don't open dialog
+            if (entry.assignment === 'Excluded') {
+              return (
+                <div
+                  key={`${entry.doctorId}-${format(day.date, 'yyyy-MM-dd')}-${entry.assignment}`}
+                  className="w-full rounded-sm flex items-center gap-1 p-1.5 text-xs bg-muted/50 border border-dashed border-muted-foreground/30 text-muted-foreground opacity-70 cursor-default"
+                  onClick={(e) => e.stopPropagation()}
+                  title={t('calendar.excludedDay.tooltip', { doctorName: doctor?.name || entry.doctorId })}
+                >
+                  {IconComponent && <IconComponent className="shrink-0 w-3 h-3" />}
+                  <span className="truncate">{doctor?.name || entry.doctorId}</span>
+                </div>
+              );
             }
 
             // Use DraggableWorkEntry for Work assignments, regular div for others
@@ -444,13 +518,13 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                 />
               );
             } else {
-              // Non-draggable entries (Vacation, Pre-assigned)
+              // Non-draggable, non-editable entries (Vacation, Pre-assigned)
               return (
                 <div
                   key={`${entry.doctorId}-${format(day.date, 'yyyy-MM-dd')}-${entry.assignment}`}
                   style={chipStyle}
-                  className="w-full rounded-sm flex items-center gap-1 p-1.5 text-xs cursor-pointer"
-                  onClick={(e) => { e.stopPropagation(); handleOpenAdjustmentDialog(entry, day.date); }}
+                  className="w-full rounded-sm flex items-center gap-1 p-1.5 text-xs cursor-default opacity-70"
+                  onClick={(e) => e.stopPropagation()}
                   title={`${doctor?.name || entry.doctorId}: ${assignmentText}${entry.isFixed ? ' (Fixed)' : ''}`}
                 >
                   {IconComponent && <IconComponent className="shrink-0 w-3 h-3" />}
@@ -569,6 +643,10 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
           <div className="flex items-center gap-1">
             <VacationIcon className="w-3 h-3" style={{ color: 'var(--chip-vacation-text)' }} />
             <span className="p-0.5 rounded-sm" style={getChipStyle('Vacation')}>{t('calendar.legend.vacation')}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <ExcludedIcon className="w-3 h-3 text-muted-foreground" />
+            <span className="p-0.5 rounded-sm bg-muted/50 border border-dashed border-muted-foreground/30 text-muted-foreground">{t('calendar.legend.excluded')}</span>
           </div>
         </div>
       </CardContent>

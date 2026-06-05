@@ -49,24 +49,54 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(entry?.doctorId || '');
   const [assignmentType, setAssignmentType] = useState<ScheduleEntry['assignment']>(entry?.assignment || 'Work');
   const [isFixed, setIsFixed] = useState<boolean>(entry?.isFixed || false);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
+
+  const isDayBlockedForDoctor = (doctorId: string, targetDate: Date): string | null => {
+    const doctor = doctors.find(d => d.id === doctorId);
+    if (!doctor) return null;
+
+    const isVacation = doctor.vacationDates.some(vacDate => isSameDay(vacDate, targetDate));
+    if (isVacation) {
+      return t('dialog.toast.cannotAssignOnVacation.description', { doctorName: doctor.name });
+    }
+
+    const isExcluded = (doctor.excludedDates || []).some(exDate => isSameDay(exDate, targetDate));
+    if (isExcluded) {
+      return t('dialog.toast.excludedDayWarning.description', { doctorName: doctor.name });
+    }
+
+    return null;
+  };
 
   useEffect(() => {
     if (isOpen) { // Reset state when dialog opens
         if (entry) {
             setSelectedDoctorId(entry.doctorId);
             setIsFixed(entry.isFixed || false);
-            // Always default to 'Work' for consistency
             setAssignmentType('Work');
         } else {
-            // Default for new entry
             setSelectedDoctorId(doctors.length > 0 ? doctors[0].id : '');
             setAssignmentType('Work');
             setIsFixed(false);
         }
     }
-  }, [entry, doctors, isOpen]); 
+  }, [entry, doctors, isOpen]);
+
+  useEffect(() => {
+    if (selectedDoctorId) {
+      const reason = isDayBlockedForDoctor(selectedDoctorId, date);
+      setBlockedReason(reason);
+    } else {
+      setBlockedReason(null);
+    }
+  }, [selectedDoctorId, date, doctors]); 
 
   const handleSave = () => {
+    if (blockedReason) {
+        onNotify?.({ severity: 'error', title: t('dialog.toast.assignmentBlocked.title'), description: blockedReason, autoDismissMs: 5000 });
+        return;
+    }
+
     // Doctor is always required since only Work assignments are allowed
     if (!selectedDoctorId) {
         onNotify?.({ severity: 'error', title: t('dialog.toast.validationError.title'), description: t('dialog.toast.validationError.description'), autoDismissMs: 5000 });
@@ -83,25 +113,8 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
 
     const doctor = doctors.find(d => d.id === selectedDoctorId);
 
-    // Manual assignments are arbitrary - allow violations but show warnings
+    // Check min interval - show warning but don't prevent assignment
     if (doctor) {
-        const isVacationDayForDoctor = doctor.vacationDates.some(vacDate =>
-            isSameDay(vacDate, date)
-        );
-
-        if (isVacationDayForDoctor) {
-            onNotify?.({ severity: 'warning', title: t('dialog.toast.cannotAssignOnVacation.title'), description: t('dialog.toast.cannotAssignOnVacation.description', { doctorName: doctor.name }), autoDismissMs: 5000 });
-        }
-
-        const isExcludedDayForDoctor = (doctor.excludedDates || []).some(exDate =>
-            isSameDay(exDate, date)
-        );
-
-        if (isExcludedDayForDoctor) {
-            onNotify?.({ severity: 'warning', title: t('dialog.toast.adjustmentWarning.title'), description: t('dialog.toast.excludedDayWarning.description', { doctorName: doctor.name }), autoDismissMs: 5000 });
-        }
-
-        // Check min interval - show warning but don't prevent assignment
         const doctorsWorkOrPreassignedEntries = allScheduleEntries.filter(
             e => e.doctorId === selectedDoctorId && (e.assignment === 'Work' || e.assignment === 'Pre-assigned') && !isSameDay(e.date, date)
         );
@@ -195,7 +208,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
           <DialogClose asChild>
             <Button type="button" variant="outline">{t('dialog.cancelButton')}</Button>
           </DialogClose>
-          <Button type="button" onClick={handleSave}>{t('dialog.saveButton')}</Button>
+          <Button type="button" onClick={handleSave} disabled={!!blockedReason}>{t('dialog.saveButton')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
