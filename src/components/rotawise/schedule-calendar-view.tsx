@@ -275,7 +275,7 @@ const DayDoctorTriggerButton = React.forwardRef<HTMLDivElement, DayDoctorTrigger
         ref={ref}
         onClick={onClick}
         className={cn(
-          "w-full flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-xs mb-1 border border-dashed border-muted-foreground/30 text-muted-foreground italic cursor-pointer hover:opacity-80 transition-opacity",
+          "w-full flex items-center gap-1 p-1.5 rounded-sm text-xs mb-1 border border-dashed border-muted-foreground/30 text-muted-foreground italic cursor-pointer hover:opacity-80 transition-opacity",
           isOpen && "ring-1 ring-ring",
         )}
       >
