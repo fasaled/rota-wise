@@ -1389,18 +1389,20 @@ export default function RotawisePage() {
 
           {/* Tab content */}
           <main className="app-main">
-            {activeTab === 'config' && (
-              <div className="p-4 md:p-6">
-                <DataInputForm
-                  key={dataInputFormKey}
-                  ref={formRef}
-                  onSubmit={handleSubmitForm}
-                  isLoading={isLoading}
-                  initialValues={loadedFormValues || stableDefaultFormValues}
-                  onValuesChange={handleLiveFormValuesChange}
-                />
-              </div>
-            )}
+            {/* DataInputForm is always mounted (not conditionally rendered) so
+                that formRef.current stays populated across tabs. This lets the
+                "Generate schedule" header button work on every tab, not only
+                on the config tab. Visibility is toggled via the `hidden` attr. */}
+            <div className={cn('p-4 md:p-6', activeTab !== 'config' && 'hidden')}>
+              <DataInputForm
+                key={dataInputFormKey}
+                ref={formRef}
+                onSubmit={handleSubmitForm}
+                isLoading={isLoading}
+                initialValues={loadedFormValues || stableDefaultFormValues}
+                onValuesChange={handleLiveFormValuesChange}
+              />
+            </div>
 
             {activeTab === 'calendar' && schedule && (
               <div className="p-4 md:p-6">

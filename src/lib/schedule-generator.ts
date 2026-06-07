@@ -310,14 +310,23 @@ export function generateSchedule(
               return { doctor: doc, score };
             });
 
-            scoredDoctors.sort((a, b) => {
-              if (Math.abs(a.score - b.score) > 0.001) {
-                return b.score - a.score;
-              }
-              return Math.random() - 0.5;
-            });
-
-            const doctorToAssign = scoredDoctors[0]?.doctor;
+            // Weighted sampling: every eligible doctor can win, but higher
+            // scores are still favoured. We map scores to non-negative weights
+            // (shift by the min so the worst candidate can still be picked) and
+            // sample proportionally. This produces visibly different schedules
+            // on consecutive runs while keeping hard constraints intact and
+            // preserving fairness preferences encoded in the score.
+            const scores = scoredDoctors.map(d => d.score);
+            const minScore = Math.min(...scores);
+            const weights = scores.map(s => Math.max(0, s - minScore) + 1);
+            const totalWeight = weights.reduce((a, b) => a + b, 0);
+            let pick = Math.random() * totalWeight;
+            let chosenIdx = 0;
+            for (let i = 0; i < weights.length; i++) {
+              pick -= weights[i];
+              if (pick <= 0) { chosenIdx = i; break; }
+            }
+            const doctorToAssign = scoredDoctors[chosenIdx]?.doctor;
             if (doctorToAssign) {
                 mockEntries.push({
                     date: new Date(currentDate),
