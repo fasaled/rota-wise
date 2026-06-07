@@ -75,6 +75,183 @@ function getChipStyle(assignment: ScheduleEntry['assignment']): React.CSSPropert
   }
 }
 
+interface DayCellProps {
+  day: DayDetails;
+  doctors: DoctorProfile[];
+  doctorMap: Map<string, DoctorProfile>;
+  activeFilters: ActiveFilter[];
+  allScheduleEntries: ScheduleEntry[];
+  onToggleEntryFixed?: (entry: ScheduleEntry, isFixed: boolean) => void;
+  onSelectDoctor: (date: Date, doctorId: string) => void;
+  onClearDayAssignment: (date: Date) => void;
+  minIntervalBetweenWorkDays: number;
+  openSelectorDate: string | null;
+  onOpenSelectorChange: (key: string | null) => void;
+}
+
+// One cell of the calendar grid. Extracted as a real React component so that
+// `useRef` for the dropdown trigger is a legitimate hook (the previous inline
+// `renderDayCell` function called `useRef` from inside a .map, which violated
+// the Rules of Hooks and crashed the whole app when month changed).
+const DayCell: React.FC<DayCellProps> = ({
+  day,
+  doctors,
+  doctorMap,
+  activeFilters,
+  allScheduleEntries,
+  onToggleEntryFixed,
+  onSelectDoctor,
+  onClearDayAssignment,
+  minIntervalBetweenWorkDays,
+  openSelectorDate,
+  onOpenSelectorChange,
+}) => {
+  const { t, currentDateFnsLocale } = useLanguage();
+  const triggerButtonRef = useRef<HTMLDivElement>(null);
+
+  const dateTextClasses = day.isCurrentMonth ? "font-medium" : "text-muted-foreground/70";
+  const todayMarkerClasses = day.isToday ? "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center" : "";
+  const workEntryForDay = day.assignments.find((e) => e.assignment === 'Work' || e.assignment === 'Pre-assigned') ?? null;
+  const selectorKey = format(day.date, 'yyyy-MM-dd');
+  const isSelectorOpen = openSelectorDate === selectorKey;
+  const isPreAssigned = workEntryForDay?.assignment === 'Pre-assigned';
+  const isDayFixed = workEntryForDay?.isFixed ?? false;
+  const isEditable = !isDayFixed;
+
+  // Check if the current filter allows showing the doctor selector for this day
+  const assignmentTypeFilters = activeFilters.filter(f => f.type === 'assignment').map(f => f.value);
+  const filterAllowsWork = assignmentTypeFilters.length === 0 || assignmentTypeFilters.includes('Work');
+  // Day has ANY Work/Pre-assigned entry in the unfiltered schedule?
+  const hasAnyWorkEntry = allScheduleEntries.some(e =>
+    isSameDay(e.date, day.date) &&
+    (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
+  );
+  // Day has a Pre-assigned entry? (Pre-assigned days never show the empty selector)
+  const hasPreAssignedEntry = allScheduleEntries.some(e =>
+    isSameDay(e.date, day.date) && e.assignment === 'Pre-assigned'
+  );
+  const showEmptySelector = !workEntryForDay && !hasAnyWorkEntry && !hasPreAssignedEntry && filterAllowsWork;
+
+  const workChipStyle = getChipStyle('Work');
+  const currentDoctor = workEntryForDay ? doctorMap.get(workEntryForDay.doctorId) : null;
+
+  return (
+    <Fragment>
+      <DroppableDayCell
+        day={day}
+        onDayClick={(e) => e.stopPropagation()}
+      >
+        {/* Top line: date number and lock button */}
+        <div className="text-xs md:text-sm mb-1 flex items-center justify-between gap-1">
+          <span className={cn(dateTextClasses, todayMarkerClasses, "shrink-0")}>
+            {format(day.date, 'd')}
+          </span>
+          {workEntryForDay && !isPreAssigned && onToggleEntryFixed && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleEntryFixed(workEntryForDay, !workEntryForDay.isFixed);
+              }}
+              className="shrink-0 rounded p-0.5 opacity-60 hover:opacity-100 transition-opacity"
+              title={isDayFixed ? t('calendar.toggleFixed.tooltip.unlock') : t('calendar.toggleFixed.tooltip.lock')}
+            >
+              {isDayFixed ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+            </button>
+          )}
+        </div>
+        {/* Second line: doctor name as chip */}
+        {workEntryForDay ? (
+          isPreAssigned ? (
+            <div
+              ref={triggerButtonRef}
+              className={doctorChipBaseClass}
+              style={getChipStyle('Pre-assigned')}
+            >
+              <Briefcase className="shrink-0 w-3 h-3 mr-1" />
+              <span className="truncate">{currentDoctor?.name}</span>
+            </div>
+          ) : isEditable ? (
+            <DraggableWorkEntry
+              entry={workEntryForDay}
+              doctor={currentDoctor ?? undefined}
+              IconComponent={Briefcase}
+              chipStyle={workChipStyle}
+              assignmentText={t(`assignmentType.${workEntryForDay.assignment}` as any)}
+              onEdit={(e) => { e.stopPropagation(); onOpenSelectorChange(isSelectorOpen ? null : selectorKey); }}
+              isFilteredByDoctor={activeFilters.some(f => f.type === 'doctor')}
+              externalRef={triggerButtonRef}
+            />
+          ) : (
+            <div
+              ref={triggerButtonRef}
+              className={doctorChipBaseClass}
+              style={workChipStyle}
+            >
+              <Briefcase className="shrink-0 w-3 h-3 mr-1" />
+              <span className="truncate">{currentDoctor?.name}</span>
+            </div>
+          )
+        ) : showEmptySelector ? (
+          <DayDoctorTriggerButton
+            ref={triggerButtonRef}
+            isOpen={isSelectorOpen}
+            onClick={(e) => { e.stopPropagation(); onOpenSelectorChange(isSelectorOpen ? null : selectorKey); }}
+            placeholder={t('calendar.daySelector.placeholder')}
+            isPreAssigned={false}
+          />
+        ) : null}
+        {/* List of additional chips (Vacation, Excluded) - scrollable when overflowing */}
+        {day.assignments.length > 0 && (
+          <div className="flex-1 min-h-0 mt-1 space-y-1 overflow-y-auto">
+            {day.assignments.map((entry) => {
+              if (entry.assignment !== 'Vacation' && entry.assignment !== 'Excluded') {
+                return null;
+              }
+              const doctor = doctorMap.get(entry.doctorId);
+              if (entry.assignment === 'Excluded') {
+                return (
+                  <div
+                    key={`${entry.doctorId}-${format(day.date, 'yyyy-MM-dd')}-${entry.assignment}`}
+                    className="w-full rounded-sm flex items-center p-1.5 text-xs cursor-default bg-muted/50 border border-dashed border-muted-foreground/30 text-muted-foreground"
+                    title={doctor?.name || entry.doctorId}
+                  >
+                    <ExcludedIcon className="shrink-0 w-3 h-3 mr-1" />
+                    <span className="truncate">{doctor?.name || entry.doctorId}</span>
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={`${entry.doctorId}-${format(day.date, 'yyyy-MM-dd')}-${entry.assignment}`}
+                  className="w-full rounded-sm flex items-center p-1.5 text-xs cursor-default opacity-80"
+                  style={getChipStyle(entry.assignment)}
+                  title={doctor?.name || entry.doctorId}
+                >
+                  <VacationIcon className="shrink-0 w-3 h-3 mr-1" />
+                  <span className="truncate">{doctor?.name || entry.doctorId}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </DroppableDayCell>
+      <DayDoctorDropdown
+        doctors={doctors}
+        scheduleEntries={allScheduleEntries}
+        date={day.date}
+        currentEntry={workEntryForDay}
+        isOpen={isSelectorOpen}
+        triggerRef={triggerButtonRef}
+        onOpenChange={(open) => onOpenSelectorChange(open ? selectorKey : null)}
+        onSelect={(doctorId) => onSelectDoctor(day.date, doctorId)}
+        onClear={() => onClearDayAssignment(day.date)}
+        minIntervalBetweenWorkDays={minIntervalBetweenWorkDays}
+      />
+    </Fragment>
+  );
+};
+
 interface DraggableWorkEntryProps {
   entry: ScheduleEntry;
   doctor: DoctorProfile | undefined;
@@ -651,11 +828,6 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     }
   };
 
-  const handleToggleEntryFixed = (entry: ScheduleEntry, e: React.MouseEvent) => {
-    e.stopPropagation();
-    onToggleEntryFixed?.(entry, !entry.isFixed);
-  };
-
   const handleSelectDoctor = (date: Date, doctorId: string) => {
     const currentEntry = schedule.entries.find(e =>
       isSameDay(e.date, date) &&
@@ -741,157 +913,6 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     });
   }, [currentMonth, schedule.entries, activeFilters, currentDateFnsLocale, doctors]);
 
-  const renderDayCell = (day: DayDetails) => {
-    const dateTextClasses = day.isCurrentMonth ? "font-medium" : "text-muted-foreground/70";
-    const todayMarkerClasses = day.isToday ? "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center" : "";
-    const workEntryForDay = day.assignments.find((e) => e.assignment === 'Work' || e.assignment === 'Pre-assigned') ?? null;
-    const selectorKey = format(day.date, 'yyyy-MM-dd');
-    const isSelectorOpen = openSelectorDate === selectorKey;
-    const isPreAssigned = workEntryForDay?.assignment === 'Pre-assigned';
-    const isDayFixed = workEntryForDay?.isFixed ?? false;
-    const isEditable = !isDayFixed;
-
-    // Check if the current filter allows showing the doctor selector for this day
-    const assignmentTypeFilters = activeFilters.filter(f => f.type === 'assignment').map(f => f.value);
-    const filterAllowsWork = assignmentTypeFilters.length === 0 || assignmentTypeFilters.includes('Work');
-    // Check if the day has ANY Work/Pre-assigned entry in the unfiltered schedule
-    // (regardless of current filter) - if yes, don't show the empty selector
-    const hasAnyWorkEntry = allScheduleEntries.some(e =>
-      isSameDay(e.date, day.date) &&
-      (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
-    );
-    // Also check if the day has any Pre-assigned entry specifically - if yes, the selector should never appear
-    const hasPreAssignedEntry = allScheduleEntries.some(e =>
-      isSameDay(e.date, day.date) && e.assignment === 'Pre-assigned'
-    );
-    // Only show the empty selector if:
-    // 1. The day has no workEntryForDay (the filtered entry)
-    // 2. The day has no unfiltered Work/Pre-assigned entry at all (truly empty)
-    // 3. The day has no Pre-assigned entry (Pre-assigned days never show selector)
-    // 4. The filter allows Work
-    const showEmptySelector = !workEntryForDay && !hasAnyWorkEntry && !hasPreAssignedEntry && filterAllowsWork;
-
-    const workChipStyle = getChipStyle('Work');
-    const currentDoctor = workEntryForDay ? doctorMap.get(workEntryForDay.doctorId) : null;
-    const triggerButtonRef = useRef<HTMLDivElement>(null);
-
-    return (
-      <Fragment key={day.date.toString()}>
-      <DroppableDayCell
-        day={day}
-        onDayClick={(e) => e.stopPropagation()}
-      >
-        {/* Top line: date number and lock button */}
-        <div className="text-xs md:text-sm mb-1 flex items-center justify-between gap-1">
-          <span className={cn(dateTextClasses, todayMarkerClasses, "shrink-0")}>
-            {format(day.date, 'd')}
-          </span>
-          {workEntryForDay && !isPreAssigned && onToggleEntryFixed && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleToggleEntryFixed(workEntryForDay, e as unknown as React.MouseEvent);
-              }}
-              className="shrink-0 rounded p-0.5 opacity-60 hover:opacity-100 transition-opacity"
-              title={isDayFixed ? t('calendar.toggleFixed.tooltip.unlock') : t('calendar.toggleFixed.tooltip.lock')}
-            >
-              {isDayFixed ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
-            </button>
-          )}
-        </div>
-        {/* Second line: doctor name as chip - Work uses the draggable chip, Pre-assigned uses a non-editable chip with the same style but different color */}
-        {workEntryForDay ? (
-          isPreAssigned ? (
-            <div
-              ref={triggerButtonRef}
-              className={doctorChipBaseClass}
-              style={getChipStyle('Pre-assigned')}
-            >
-              <Briefcase className="shrink-0 w-3 h-3 mr-1" />
-              <span className="truncate">{currentDoctor?.name}</span>
-            </div>
-          ) : isEditable ? (
-            <DraggableWorkEntry
-              entry={workEntryForDay}
-              doctor={currentDoctor ?? undefined}
-              IconComponent={Briefcase}
-              chipStyle={workChipStyle}
-              assignmentText={t(`assignmentType.${workEntryForDay.assignment}` as any)}
-              onEdit={(e) => { e.stopPropagation(); setOpenSelectorDate(isSelectorOpen ? null : selectorKey); }}
-              isFilteredByDoctor={activeFilters.some(f => f.type === 'doctor')}
-              externalRef={triggerButtonRef}
-            />
-          ) : (
-            <div
-              ref={triggerButtonRef}
-              className={doctorChipBaseClass}
-              style={workChipStyle}
-            >
-              <Briefcase className="shrink-0 w-3 h-3 mr-1" />
-              <span className="truncate">{currentDoctor?.name}</span>
-            </div>
-          )
-        ) : showEmptySelector ? (
-          <DayDoctorTriggerButton
-            ref={triggerButtonRef}
-            isOpen={isSelectorOpen}
-            onClick={(e) => { e.stopPropagation(); setOpenSelectorDate(isSelectorOpen ? null : selectorKey); }}
-            placeholder={t('calendar.daySelector.placeholder')}
-            isPreAssigned={false}
-          />
-        ) : null}
-        {/* List of additional chips (Vacation, Excluded) shown below the header - scrollable when overflowing */}
-        {day.assignments.length > 0 && (
-          <div className="flex-1 min-h-0 mt-1 space-y-1 overflow-y-auto">
-            {day.assignments.map((entry) => {
-              if (entry.assignment !== 'Vacation' && entry.assignment !== 'Excluded') {
-                return null;
-              }
-              const doctor = doctorMap.get(entry.doctorId);
-              if (entry.assignment === 'Excluded') {
-                return (
-                  <div
-                    key={`${entry.doctorId}-${format(day.date, 'yyyy-MM-dd')}-${entry.assignment}`}
-                    className="w-full rounded-sm flex items-center p-1.5 text-xs cursor-default bg-muted/50 border border-dashed border-muted-foreground/30 text-muted-foreground"
-                    title={doctor?.name || entry.doctorId}
-                  >
-                    <ExcludedIcon className="shrink-0 w-3 h-3 mr-1" />
-                    <span className="truncate">{doctor?.name || entry.doctorId}</span>
-                  </div>
-                );
-              }
-              return (
-                <div
-                  key={`${entry.doctorId}-${format(day.date, 'yyyy-MM-dd')}-${entry.assignment}`}
-                  className="w-full rounded-sm flex items-center p-1.5 text-xs cursor-default opacity-80"
-                  style={getChipStyle(entry.assignment)}
-                  title={doctor?.name || entry.doctorId}
-                >
-                  <VacationIcon className="shrink-0 w-3 h-3 mr-1" />
-                  <span className="truncate">{doctor?.name || entry.doctorId}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </DroppableDayCell>
-      <DayDoctorDropdown
-        doctors={doctors}
-        scheduleEntries={allScheduleEntries}
-        date={day.date}
-        currentEntry={workEntryForDay}
-        isOpen={isSelectorOpen}
-        triggerRef={triggerButtonRef}
-        onOpenChange={(open) => setOpenSelectorDate(open ? selectorKey : null)}
-        onSelect={(doctorId) => handleSelectDoctor(day.date, doctorId)}
-        onClear={() => handleClearDayAssignment(day.date)}
-        minIntervalBetweenWorkDays={minIntervalBetweenWorkDays}
-      />
-      </Fragment>
-    );
-  };
-
   const nextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
   const prevMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
 
@@ -968,7 +989,22 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                 {weekDays.map(day => <div key={day}>{day}</div>)}
               </div>
               <div className="grid grid-cols-7 gap-1.5">
-                {daysInMonth.map(renderDayCell)}
+                {daysInMonth.map((day) => (
+                  <DayCell
+                    key={day.date.toString()}
+                    day={day}
+                    doctors={doctors}
+                    doctorMap={doctorMap}
+                    activeFilters={activeFilters}
+                    allScheduleEntries={allScheduleEntries}
+                    onToggleEntryFixed={onToggleEntryFixed}
+                    onSelectDoctor={handleSelectDoctor}
+                    onClearDayAssignment={handleClearDayAssignment}
+                    minIntervalBetweenWorkDays={minIntervalBetweenWorkDays}
+                    openSelectorDate={openSelectorDate}
+                    onOpenSelectorChange={setOpenSelectorDate}
+                  />
+                ))}
               </div>
             </div>
           </div>
