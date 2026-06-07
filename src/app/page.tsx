@@ -495,6 +495,14 @@ export default function RotawisePage() {
     }
   };
 
+  // Trigger form submission from outside the form (e.g. header action button).
+  // Works regardless of which tab is active because it goes through react-hook-form,
+  // not the HTML form element which is only mounted inside the config tab.
+  const handleGenerateClick = () => {
+    if (!formRef.current) return;
+    void formRef.current.handleSubmit(handleSubmitForm)();
+  };
+
   // ---------------------------------------------------------------------------
   // Schedule entry updates
   // ---------------------------------------------------------------------------
@@ -1177,8 +1185,7 @@ export default function RotawisePage() {
             <div className="hidden sm:flex items-center gap-1.5 shrink-0">
               {/* Generate schedule */}
               <Button
-                form="schedule-form"
-                type="submit"
+                onClick={handleGenerateClick}
                 size="sm"
                 disabled={
                   !loadedFormValues?.doctors?.length ||
@@ -1281,8 +1288,7 @@ export default function RotawisePage() {
             <div className="flex sm:hidden items-center gap-2 shrink-0">
               {/* Generate schedule */}
               <Button
-                form="schedule-form"
-                type="submit"
+                onClick={handleGenerateClick}
                 size="sm"
                 disabled={
                   !loadedFormValues?.doctors?.length ||
