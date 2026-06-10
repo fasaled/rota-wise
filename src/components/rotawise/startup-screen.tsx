@@ -1,7 +1,6 @@
 
-
 import React, { useRef } from 'react';
-import { FolderOpen, FilePlus2, AlertTriangle, Layers } from 'lucide-react';
+import { FolderOpen, FilePlus2, Layers } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 import { useFileSystem } from '@/context/file-system-context';
 import type { AppFileData } from '@/lib/types';
@@ -14,8 +13,7 @@ interface StartupScreenProps {
 
 export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: StartupScreenProps) {
   const { t } = useLanguage();
-  const { isSupported, openFile, createNewFile } = useFileSystem();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { openFile, createNewFile } = useFileSystem();
   const preassignedInputRef = useRef<HTMLInputElement>(null);
 
   async function handleOpen() {
@@ -34,22 +32,6 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
     } catch {
       onError(t('file.createError'));
     }
-  }
-
-  function handleFallbackOpen(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const parsed = JSON.parse(ev.target?.result as string);
-        onFileReady({ fileVersion: 1, versions: [], ...parsed } as AppFileData);
-      } catch {
-        onError(t('file.openError'));
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
   }
 
   function handlePreassignedFilePick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -101,26 +83,8 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
           </p>
         </div>
 
-        {/* Browser unsupported warning */}
-        {!isSupported && (
-          <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300 w-full">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-            <span>{t('startup.unsupportedBrowser')}</span>
-          </div>
-        )}
-
         {/* Actions */}
         <div className="flex flex-col gap-3 w-full">
-          {/* Hidden inputs for file picking */}
-          {!isSupported && (
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".rw,.json"
-              className="hidden"
-              onChange={handleFallbackOpen}
-            />
-          )}
           <input
             ref={preassignedInputRef}
             type="file"
@@ -132,7 +96,7 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
           {/* Open existing file */}
           <button
             type="button"
-            onClick={isSupported ? handleOpen : () => fileInputRef.current?.click()}
+            onClick={handleOpen}
             className={actionClass}
           >
             <div className={iconWrapClass}>

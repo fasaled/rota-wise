@@ -6,7 +6,6 @@ import React, {
   useState,
   useCallback,
   useEffect,
-  useRef,
   type ReactNode,
 } from 'react';
 import type { AppFileData } from '@/lib/types';
@@ -20,7 +19,9 @@ interface FileSystemContextValue {
   fileHandle: FileSystemFileHandle | null;
   /** Display name of the current file */
   fileName: string | null;
-  /** True if the File System Access API is available in this browser */
+  /** True if the File System Access API is available in this browser. Rotawise does
+   *  not function on browsers where this is false — the page renders a blocking
+   *  message instead of the app shell. */
   isSupported: boolean;
   /** File data received via PWA launchQueue file association */
   launchQueueData: AppFileData | null;
@@ -32,8 +33,6 @@ interface FileSystemContextValue {
   createNewFile: () => Promise<{ handle: FileSystemFileHandle; data: AppFileData } | null>;
   /** Write data to the current file handle */
   saveToFile: (data: AppFileData) => Promise<void>;
-  /** Fallback: trigger a browser download for browsers without File System Access API */
-  downloadFallback: (data: AppFileData, suggestedName?: string) => void;
   /** Set the file handle (e.g. after saving a new file) */
   setFileHandle: (handle: FileSystemFileHandle | null) => void;
 }
@@ -93,20 +92,6 @@ async function writeFileData(
   const writable = await handle.createWritable();
   await writable.write(JSON.stringify(data, null, 2));
   await writable.close();
-}
-
-function downloadFile(data: AppFileData, name = 'schedule.rw') {
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: 'application/json',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------------
@@ -174,10 +159,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openFile = useCallback(async () => {
-    if (!isSupported) {
-      // Fallback: handled by the caller via a hidden <input type="file">
-      return null;
-    }
+    if (!isSupported) return null;
     const win = window as typeof window & {
       showOpenFilePicker: (opts?: object) => Promise<FileSystemFileHandle[]>;
       showSaveFilePicker: (opts?: object) => Promise<FileSystemFileHandle>;
@@ -238,11 +220,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
   }, [isSupported]);
 
   const createNewFile = useCallback(async () => {
-    if (!isSupported) {
-      // Return empty data for the fallback path
-      const data = makeEmptyFileData();
-      return { handle: null as unknown as FileSystemFileHandle, data };
-    }
+    if (!isSupported) return null;
     try {
       const handle = await (window as typeof window & { showSaveFilePicker: (opts?: object) => Promise<FileSystemFileHandle> })
         .showSaveFilePicker({
@@ -272,13 +250,6 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     [fileHandle],
   );
 
-  const downloadFallback = useCallback(
-    (data: AppFileData, suggestedName = 'schedule.rw') => {
-      downloadFile(data, suggestedName);
-    },
-    [],
-  );
-
   const fileName = fileHandle?.name ?? null;
 
   return (
@@ -292,7 +263,6 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         openFile,
         createNewFile,
         saveToFile,
-        downloadFallback,
         setFileHandle,
       }}
     >

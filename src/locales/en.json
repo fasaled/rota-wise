@@ -252,7 +252,13 @@
   "startup.createNewFileDescription": "Start a new schedule and save it as a .rw file",
   "startup.importAsPreassigned": "Import as pre-assigned",
   "startup.importAsPreassignedDescription": "Load a previous schedule and convert work days to pre-assigned for replanning",
-  "startup.unsupportedBrowser": "Your browser does not support automatic file saving. Use the Save button to download changes.",
+
+  "unsupportedBrowser.title": "Browser not supported",
+  "unsupportedBrowser.description": "Rotawise needs to save changes directly to a file on your device. Your browser does not support this feature, so the app cannot run. Please open this page in a supported browser to continue.",
+  "unsupportedBrowser.supportedTitle": "Supported browsers",
+  "unsupportedBrowser.chrome": "Google Chrome (version 86 or later)",
+  "unsupportedBrowser.edge": "Microsoft Edge (version 86 or later)",
+  "unsupportedBrowser.opera": "Opera (version 72 or later)",
 
   "nav.undo": "Undo",
   "nav.config": "Roster",
@@ -262,15 +268,12 @@
 
   "file.openError": "Failed to open the file. Please try again.",
   "file.createError": "Failed to create the file. Please try again.",
-  "file.autoSaveError": "Failed to auto-save. Click Save to retry.",
+  "file.autoSaveError": "Failed to auto-save.",
   "file.savedSuccessfully": "File saved",
-  "file.unsupportedBrowserWarning": "Your browser does not support automatic file saving. Use the Save button to download changes.",
   "file.legacyFormat": "Legacy format (.json)",
   "file.cancelled": "File selection was cancelled.",
   "file.opened": "File opened",
-  "file.saved": "File downloaded",
-  "file.save": "Save",
-  "file.saveError": "Auto-save failed. Please use the Save button.",
+  "file.saveError": "Auto-save failed.",
   "file.noFileOpen": "No file open",
 
   "infoBar.dismiss": "Dismiss",

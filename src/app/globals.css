@@ -21,6 +21,9 @@
 
 body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  /* Match the startup / unsupported-browser background so there is no white
+     flash while React is mounting or while the StartupScreen chunk loads. */
+  background-color: #0f172a;
 }
 
 @layer base {
@@ -181,6 +184,7 @@ body {
   flex: 1;
   overflow: hidden;
   min-width: 0;
+  background-color: hsl(var(--background));
 }
 
 .app-sidebar {

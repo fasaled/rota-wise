@@ -249,7 +249,13 @@
   "startup.createNewFileDescription": "Empieza un horario nuevo y guárdalo como fichero .rw",
   "startup.importAsPreassigned": "Importar como pre-asignado",
   "startup.importAsPreassignedDescription": "Carga un horario anterior y convierte los turnos en pre-asignados para replanificar",
-  "startup.unsupportedBrowser": "Tu navegador no admite guardado automático de ficheros. Usa el botón Guardar para descargar los cambios.",
+
+  "unsupportedBrowser.title": "Navegador no compatible",
+  "unsupportedBrowser.description": "Rotawise necesita guardar los cambios directamente en un fichero de tu dispositivo. Tu navegador no admite esta función, por lo que la aplicación no puede ejecutarse. Por favor, abre esta página en un navegador compatible para continuar.",
+  "unsupportedBrowser.supportedTitle": "Navegadores compatibles",
+  "unsupportedBrowser.chrome": "Google Chrome (versión 86 o posterior)",
+  "unsupportedBrowser.edge": "Microsoft Edge (versión 86 o posterior)",
+  "unsupportedBrowser.opera": "Opera (versión 72 o posterior)",
 
   "nav.undo": "Deshacer",
   "nav.config": "Planilla",
@@ -259,15 +265,12 @@
 
   "file.openError": "Error al abrir el fichero. Por favor, inténtalo de nuevo.",
   "file.createError": "Error al crear el fichero. Por favor, inténtalo de nuevo.",
-  "file.autoSaveError": "Error al guardar automáticamente. Haz clic en Guardar para reintentar.",
+  "file.autoSaveError": "Error al guardar automáticamente.",
   "file.savedSuccessfully": "Fichero guardado",
-  "file.unsupportedBrowserWarning": "Tu navegador no admite guardado automático. Usa el botón Guardar para descargar los cambios.",
   "file.legacyFormat": "Formato antiguo (.json)",
   "file.cancelled": "Selección de fichero cancelada.",
   "file.opened": "Fichero abierto",
-  "file.saved": "Fichero descargado",
-  "file.save": "Guardar",
-  "file.saveError": "Error al guardar automáticamente. Usa el botón Guardar.",
+  "file.saveError": "Error al guardar automáticamente.",
   "file.noFileOpen": "Sin fichero abierto",
 
   "infoBar.dismiss": "Cerrar",

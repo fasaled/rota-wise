@@ -14,6 +14,7 @@ const ScheduleCalendarView = lazy(() => import('@/components/rotawise/schedule-c
 const ScheduleSummaryTable = lazy(() => import('@/components/rotawise/schedule-summary-table'));
 const MonthlyWorkloadSummaryTable = lazy(() => import('@/components/rotawise/MonthlyWorkloadSummaryTable'));
 const StartupScreen = lazy(() => import('@/components/rotawise/startup-screen'));
+const BrowserNotSupported = lazy(() => import('@/components/rotawise/browser-not-supported'));
 import LanguageSelector from '@/components/rotawise/language-selector';
 import { InfoBarList } from '@/components/rotawise/info-bar';
 import { Button } from '@/components/ui/button';
@@ -40,7 +41,6 @@ import {
   History,
   AlertTriangle,
   File,
-  Download,
   MoreHorizontal,
   ChevronDown,
   ChevronUp,
@@ -218,7 +218,6 @@ export default function RotawisePage() {
     launchQueueData,
     clearLaunchQueueData,
     saveToFile,
-    downloadFallback,
   } = useFileSystem();
   const { messages, addMessage, dismissMessage } = useInfoBar();
   const { push: historyPush, undo: historyUndo, canUndo } = useHistory();
@@ -477,7 +476,6 @@ export default function RotawisePage() {
         description: t('page.toast.scheduleGenerated.description'),
         autoDismissMs: 3000,
       });
-      setActiveTab('calendar');
 
       if (result.warnings && result.warnings.length > 0) {
         const translatedWarnings = result.warnings.map((warning: ScheduleWarning) => {
@@ -1040,20 +1038,6 @@ export default function RotawisePage() {
     }
   };
 
-  // Manual download (Firefox fallback)
-  const handleManualSave = () => {
-    const data = buildAppFileData(
-      schedule,
-      doctorsProfiles,
-      loadedFormValues,
-      scheduleWarnings,
-      currentMinInterval,
-      fileVersions,
-    );
-    downloadFallback(data, fileName || 'schedule.rw');
-    addMessage({ severity: 'success', title: t('file.saved'), autoDismissMs: 3000 });
-  };
-
   // ---------------------------------------------------------------------------
   // Undo history
   // ---------------------------------------------------------------------------
@@ -1083,6 +1067,14 @@ export default function RotawisePage() {
     );
   }
 
+  if (!isSupported) {
+    return (
+      <Suspense fallback={null}>
+        <BrowserNotSupported />
+      </Suspense>
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Sidebar nav items
   // ---------------------------------------------------------------------------
@@ -1104,19 +1096,17 @@ export default function RotawisePage() {
 
   return (
     <>
-      {/* Startup screen — shown when no file session is active */}
-      {!isFileSessionActive && (
-        <Suspense fallback={null}>
+      {!isFileSessionActive ? (
+        <Suspense fallback={<div className="fixed inset-0 z-50 bg-[#0f172a]" />}>
           <StartupScreen
             onFileReady={handleFileReady}
             onLoadAsPreassigned={handleLoadAsPreassigned}
             onError={handleFileError}
           />
         </Suspense>
-      )}
-
-      {/* Main app shell — hidden until file session is active */}
-      <div className={cn('app-shell', !isFileSessionActive && 'hidden')}>
+      ) : (
+        <>
+      <div className="app-shell">
         {/* Sidebar */}
         <aside className="app-sidebar">
           {/* Logo */}
@@ -1174,11 +1164,6 @@ export default function RotawisePage() {
                   .json
                 </span>
               )}
-              {!isSupported && (
-                <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded font-medium shrink-0">
-                  {t('startup.unsupportedBrowser')}
-                </span>
-              )}
             </div>
 
             {/* Action buttons — desktop/tablet */}
@@ -1202,14 +1187,6 @@ export default function RotawisePage() {
                   t('form.generateButton')
                 )}
               </Button>
-
-              {/* Firefox: manual save */}
-              {!isSupported && (
-                <Button size="sm" variant="outline" onClick={handleManualSave} disabled={isBusy}>
-                  <Download className="h-3.5 w-3.5 mr-1.5" />
-                  {t('file.save')}
-                </Button>
-              )}
 
               {/* Undo */}
               <Button
@@ -1314,12 +1291,6 @@ export default function RotawisePage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                  {!isSupported && (
-                    <DropdownMenuItem onClick={handleManualSave} disabled={isBusy}>
-                      <Download className="h-4 w-4 mr-2" />
-                      {t('file.save')}
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuItem onClick={handleUndoHistory} disabled={!canUndo || isBusy}>
                     <History className="h-4 w-4 mr-2" />
                     {t('nav.undo')}
@@ -1458,9 +1429,6 @@ export default function RotawisePage() {
         </div>
       </div>
 
-      {/* Floating notifications — fixed position, does not affect layout */}
-      <InfoBarList messages={messages} onDismiss={dismissMessage} />
-
       {/* Clear schedule confirmation */}
       <AlertDialog open={showClearScheduleDialog} onOpenChange={setShowClearScheduleDialog}>
         <AlertDialogContent>
@@ -1498,6 +1466,11 @@ export default function RotawisePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </>
+      )}
+
+      {/* Floating notifications — fixed position, does not affect layout */}
+      <InfoBarList messages={messages} onDismiss={dismissMessage} />
     </>
   );
 }
