@@ -99,6 +99,8 @@
   "form.generatingButton": "Generating...",
   "form.shiftClickTip": "Tip: hold shift and click to select a range of dates.",
   "form.addDoctor": "Add doctor",
+  "form.noDoctors.title": "No doctors on the roster yet",
+  "form.noDoctors.description": "Add at least one doctor with the button below to be able to generate a schedule.",
 
   "calendar.title": "Generated schedule",
   "calendar.filterDoctorPlaceholder": "Filter by doctor...",

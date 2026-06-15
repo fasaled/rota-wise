@@ -82,7 +82,7 @@ const ScheduleSummaryTable: React.FC<ScheduleSummaryTableProps> = ({ schedule, d
   );
 
   return (
-    <Card className="mt-8 shadow-lg">
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl font-semibold">
           <BarChart3 className="w-5 h-5 text-primary shrink-0" /> {t('summaryTable.title')}
@@ -118,7 +118,7 @@ const ScheduleSummaryTable: React.FC<ScheduleSummaryTableProps> = ({ schedule, d
                       <TableCell
                         key={dayKey}
                         className={cn(
-                          "text-center",
+                          "text-center tabular-nums",
                           weekendKeys.has(dayKey) && "bg-muted/40",
                           getHeatClass(value, maxValue)
                         )}
@@ -127,7 +127,7 @@ const ScheduleSummaryTable: React.FC<ScheduleSummaryTableProps> = ({ schedule, d
                       </TableCell>
                     );
                   })}
-                  <TableCell className="text-center font-semibold">{doctorStat.totalWorkdays}</TableCell>
+                  <TableCell className="text-center font-semibold tabular-nums">{doctorStat.totalWorkdays}</TableCell>
                 </TableRow>
               ))}
               <TableRow className="bg-muted/70 font-semibold border-t-2">
@@ -135,12 +135,12 @@ const ScheduleSummaryTable: React.FC<ScheduleSummaryTableProps> = ({ schedule, d
                 {dayKeys.map(dayKey => (
                   <TableCell
                     key={dayKey}
-                    className={cn("text-center", weekendKeys.has(dayKey) && "bg-muted/40")}
+                    className={cn("text-center tabular-nums", weekendKeys.has(dayKey) && "bg-muted/40")}
                   >
                     {summaryData.reduce((sum, s) => sum + (s.daysOfWeek[dayKey] ?? 0), 0)}
                   </TableCell>
                 ))}
-                <TableCell className="text-center">
+                <TableCell className="text-center tabular-nums">
                   {summaryData.reduce((sum, s) => sum + s.totalWorkdays, 0)}
                 </TableCell>
               </TableRow>

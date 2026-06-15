@@ -96,7 +96,7 @@ const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = 
   );
 
   return (
-    <Card className="mt-8 shadow-lg">
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl font-semibold">
           <BarChartHorizontalBig className="w-5 h-5 text-primary shrink-0" /> {t('monthlySummaryTable.title')}
@@ -108,11 +108,14 @@ const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = 
             <TableHeader>
               <TableRow>
                 <TableHead className="min-w-[150px]">{t('monthlySummaryTable.doctorHeader')}</TableHead>
-                {monthsInSchedule.map(monthDate => (
-                  <TableHead key={format(monthDate, 'yyyy-MM')} className="text-center min-w-[100px]">
-                    {format(monthDate, 'MMM yyyy', { locale: currentDateFnsLocale })}
-                  </TableHead>
-                ))}
+                {monthsInSchedule.map(monthDate => {
+                  const label = format(monthDate, 'MMM yyyy', { locale: currentDateFnsLocale });
+                  return (
+                    <TableHead key={format(monthDate, 'yyyy-MM')} className="text-center min-w-[100px]">
+                      {label.charAt(0).toUpperCase() + label.slice(1)}
+                    </TableHead>
+                  );
+                })}
                 <TableHead className="text-center min-w-[60px]">{t('monthlySummaryTable.totalHeader')}</TableHead>
               </TableRow>
             </TableHeader>
@@ -126,13 +129,13 @@ const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = 
                     return (
                       <TableCell
                         key={`${doctorStat.doctorId}-${monthKey}`}
-                        className={cn("text-center", getHeatClass(value, maxValue))}
+                        className={cn("text-center tabular-nums", getHeatClass(value, maxValue))}
                       >
                         {value}
                       </TableCell>
                     );
                   })}
-                  <TableCell className="text-center font-semibold">{doctorStat.totalWorkdaysAcrossMonths}</TableCell>
+                  <TableCell className="text-center font-semibold tabular-nums">{doctorStat.totalWorkdaysAcrossMonths}</TableCell>
                 </TableRow>
               ))}
                <TableRow className="bg-muted/70 font-semibold border-t-2">
@@ -140,12 +143,12 @@ const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = 
                  {monthsInSchedule.map(monthDate => {
                     const monthKey = format(monthDate, 'yyyy-MM');
                     return (
-                        <TableCell key={`total-${monthKey}`} className="text-center">
+                        <TableCell key={`total-${monthKey}`} className="text-center tabular-nums">
                             {monthlyTotals.get(monthKey) || 0}
                         </TableCell>
                     );
                  })}
-                 <TableCell className="text-center">
+                 <TableCell className="text-center tabular-nums">
                     {Array.from(monthlyTotals.values()).reduce((acc, curr) => acc + curr, 0)}
                  </TableCell>
                </TableRow>

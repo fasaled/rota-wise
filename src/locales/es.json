@@ -96,6 +96,8 @@
   "form.generatingButton": "Generando...",
   "form.shiftClickTip": "Consejo: mantén pulsada la tecla mayús y haz clic para seleccionar un rango de fechas.",
   "form.addDoctor": "Añadir médico",
+  "form.noDoctors.title": "Aún no hay médicos en la plantilla",
+  "form.noDoctors.description": "Añade al menos un médico con el botón de abajo para poder generar un horario.",
 
   "calendar.title": "Horario generado",
   "calendar.filterDoctorPlaceholder": "Filtrar por médico...",

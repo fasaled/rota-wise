@@ -36,6 +36,7 @@ import {
   BarChart2,
   LayoutGrid,
   FileDown,
+  FileText,
   Trash2,
   UserX,
   History,
@@ -1227,7 +1228,7 @@ export default function RotawisePage() {
                 {isExportingWord ? (
                   <span className="h-3.5 w-3.5 mr-1.5 animate-spin rounded-full border-t-2 border-b-2 border-primary" />
                 ) : (
-                  <FileDown className="h-3.5 w-3.5 mr-1.5" />
+                  <FileText className="h-3.5 w-3.5 mr-1.5" />
                 )}
                 <span className="hidden md:inline">{t('page.exportWord')}</span>
               </Button>
@@ -1301,7 +1302,7 @@ export default function RotawisePage() {
                     {t('page.exportPdf')}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportWord} disabled={!schedule || isBusy}>
-                    <FileDown className="h-4 w-4 mr-2" />
+                    <FileText className="h-4 w-4 mr-2" />
                     {t('page.exportWord')}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -1338,9 +1339,12 @@ export default function RotawisePage() {
                 <button
                   type="button"
                   onClick={() => setWarningsCollapsed(!warningsCollapsed)}
-                  className="flex items-center gap-1 font-medium w-full text-left"
+                  className="flex items-center gap-1.5 font-medium w-full text-left"
                 >
                   {t('page.section.scheduleWarnings.title')}
+                  <span className="inline-flex items-center justify-center rounded-full bg-amber-200/80 px-1.5 py-0.5 text-[11px] font-semibold leading-none tabular-nums text-amber-900 dark:bg-amber-800 dark:text-amber-100">
+                    {scheduleWarnings.length}
+                  </span>
                   {warningsCollapsed ? (
                     <ChevronDown className="h-4 w-4" />
                   ) : (
@@ -1364,7 +1368,7 @@ export default function RotawisePage() {
                 that formRef.current stays populated across tabs. This lets the
                 "Generate schedule" header button work on every tab, not only
                 on the config tab. Visibility is toggled via the `hidden` attr. */}
-            <div className={cn('p-4 md:p-6', activeTab !== 'config' && 'hidden')}>
+            <div className={cn('p-4 md:p-6 w-full max-w-5xl mx-auto', activeTab !== 'config' && 'hidden')}>
               <DataInputForm
                 key={dataInputFormKey}
                 ref={formRef}
@@ -1416,10 +1420,12 @@ export default function RotawisePage() {
             {/* Empty state when tab requires schedule but none exists */}
             {(activeTab === 'calendar' || activeTab === 'weekly' || activeTab === 'monthly') && !schedule && (
               <div className="flex flex-col items-center justify-center h-full text-center p-8 text-muted-foreground">
-                <CalendarDays className="h-12 w-12 mb-4 opacity-30" />
-                <p className="text-lg font-medium">{t('page.noSchedule.title')}</p>
-                <p className="text-sm mt-1">{t('page.noSchedule.description')}</p>
-                <Button variant="outline" className="mt-4" onClick={() => setActiveTab('config')}>
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-5">
+                  <CalendarDays className="h-8 w-8 opacity-50" />
+                </div>
+                <p className="text-lg font-medium text-foreground">{t('page.noSchedule.title')}</p>
+                <p className="text-sm mt-1 max-w-md">{t('page.noSchedule.description')}</p>
+                <Button variant="outline" className="mt-5" onClick={() => setActiveTab('config')}>
                   <Users className="h-4 w-4 mr-2" />
                   {t('nav.config')}
                 </Button>

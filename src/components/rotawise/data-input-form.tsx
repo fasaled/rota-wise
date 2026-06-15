@@ -238,7 +238,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
   };
 
   return (
-    <Card className="mt-8 shadow-lg">
+    <Card className="shadow-sm">
       <CardContent>
         <form
           id="schedule-form"
@@ -255,9 +255,10 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
           }}
         >
           <div>
-            <h3 className="text-base font-semibold mb-4 flex items-center gap-2 text-foreground">
+            <h3 className="text-base font-semibold flex items-center gap-2 text-foreground">
               <CalendarIcon className="w-4 h-4 text-primary shrink-0" /> {t('form.title')}
             </h3>
+            <p className="text-sm text-muted-foreground mt-1 mb-4">{t('form.description')}</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Date range — single calendar, spans 2 columns */}
             {(() => {
@@ -382,7 +383,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
           <Separator />
 
           <div>
-            <h3 className="text-base font-semibold mb-4 flex items-center gap-2 text-foreground">
+            <h3 className="text-base font-semibold flex items-center gap-2 text-foreground">
               <DoctorsIcon className="w-4 h-4 text-primary shrink-0"/> {t('form.doctorDetails')}
               {fields.length > 0 && (
                 <span className="ml-auto font-mono text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
@@ -390,6 +391,18 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                 </span>
               )}
             </h3>
+            {fields.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1 mb-4">{t('form.shiftClickTip')}</p>
+            )}
+            {fields.length === 0 && (
+              <div className="mt-4 mb-1 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-6 py-10 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                  <DoctorsIcon className="h-6 w-6 text-muted-foreground/60" />
+                </div>
+                <p className="text-sm font-medium text-foreground">{t('form.noDoctors.title')}</p>
+                <p className="text-xs text-muted-foreground max-w-sm">{t('form.noDoctors.description')}</p>
+              </div>
+            )}
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -414,7 +427,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                       const accent = accentColors[index % accentColors.length];
                       return (
                       <SortableDoctorItem key={docField.id} id={docField.id}>
-                        <Card className={cn("relative overflow-hidden border border-border/70 shadow border-l-[5px]", accent)}>
+                        <Card className={cn("relative overflow-hidden border border-border/70 shadow-sm border-l-[5px]", accent)}>
                   {/* Doctor card header strip */}
                   <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/65">
                     <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />

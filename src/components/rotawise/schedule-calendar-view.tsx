@@ -350,8 +350,7 @@ const DroppableDayCell: React.FC<DroppableDayCellProps> = ({ day, children, onDa
   });
 
   const cellBaseClasses = "h-28 md:h-32 lg:h-36 p-1.5 border flex flex-col overflow-hidden rounded-md";
-  const dateTextClasses = day.isCurrentMonth ? "font-medium" : "text-muted-foreground/70";
-  const todayMarkerClasses = day.isToday ? "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center" : "";
+  const isWeekend = day.date.getDay() === 0 || day.date.getDay() === 6;
 
   return (
     <div
@@ -359,8 +358,11 @@ const DroppableDayCell: React.FC<DroppableDayCellProps> = ({ day, children, onDa
       key={day.date.toString()}
       className={cn(
         cellBaseClasses,
-        day.isCurrentMonth ? 'bg-card' : 'bg-muted/30',
-        "cursor-pointer hover:shadow-md transition-shadow duration-200",
+        day.isCurrentMonth
+          ? isWeekend ? 'bg-muted/40' : 'bg-card'
+          : 'bg-muted/30 [&>*]:opacity-60',
+        day.isToday && 'border-primary/50 ring-1 ring-primary/30',
+        "cursor-pointer hover:border-primary/40 hover:shadow-sm transition-[border-color,box-shadow] duration-200",
         isOver && "ring-2 ring-blue-500 ring-opacity-50 bg-blue-50 dark:bg-blue-900/20"
       )}
       onClick={onDayClick}
@@ -918,8 +920,20 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
 
   const weekDays = useMemo(() => {
     const firstDayOfWeek = startOfWeek(new Date(), { locale: currentDateFnsLocale });
-    return Array.from({ length: 7 }).map((_, i) => format(addDays(firstDayOfWeek, i), 'EEE', { locale: currentDateFnsLocale }));
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = addDays(firstDayOfWeek, i);
+      return {
+        label: format(d, 'EEE', { locale: currentDateFnsLocale }),
+        isWeekend: d.getDay() === 0 || d.getDay() === 6,
+      };
+    });
   }, [currentDateFnsLocale]);
+
+  const monthLabel = useMemo(() => {
+    const label = format(currentMonth, 'MMMM yyyy', { locale: currentDateFnsLocale });
+    // date-fns lowercases month names in Spanish; capitalize for display
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }, [currentMonth, currentDateFnsLocale]);
 
   const monthAllFixed = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
@@ -940,7 +954,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
   };
 
   return (
-    <Card className="shadow-xl mt-8">
+    <Card className="shadow-sm">
       <CardHeader className="flex flex-col gap-3 p-4">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <CardTitle className="text-xl font-semibold flex items-center gap-2">
@@ -950,8 +964,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             <Button variant="outline" size="icon" onClick={prevMonth} aria-label={t('calendar.previousMonth')}>
               <ChevronLeft className="h-5 w-5" />
             </Button>
-            <span className="text-lg font-semibold w-44 text-center shrink-0">
-              {format(currentMonth, 'MMMM yyyy', { locale: currentDateFnsLocale })}
+            <span className="text-lg font-semibold w-44 text-center shrink-0 tabular-nums">
+              {monthLabel}
             </span>
             <Button variant="outline" size="icon" onClick={nextMonth} aria-label={t('calendar.nextMonth')}>
               <ChevronRight className="h-5 w-5" />
@@ -985,8 +999,12 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         >
           <div className="overflow-x-auto">
             <div className="min-w-[448px]">
-              <div className="grid grid-cols-7 gap-1 text-center font-medium text-muted-foreground text-sm mb-2">
-                {weekDays.map(day => <div key={day}>{day}</div>)}
+              <div className="grid grid-cols-7 gap-1 text-center font-semibold uppercase tracking-wider text-muted-foreground text-[11px] mb-2">
+                {weekDays.map(day => (
+                  <div key={day.label} className={cn(day.isWeekend && "text-muted-foreground/60")}>
+                    {day.label}
+                  </div>
+                ))}
               </div>
               <div className="grid grid-cols-7 gap-1.5">
                 {daysInMonth.map((day) => (
@@ -1022,23 +1040,23 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             ) : null}
           </DragOverlay>
         </DndContext>
-        <div className="mt-4 flex flex-wrap gap-2 text-xs">
-          <div className="flex items-center gap-1">
-            <WorkIcon className="w-3 h-3" style={{ color: 'var(--chip-work-text)' }} />
-            <span className="p-0.5 rounded-sm" style={getChipStyle('Work')}>{t('calendar.legend.work')}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <PreAssignedIcon className="w-3 h-3" style={{ color: 'var(--chip-preassigned-text)' }} />
-            <span className="p-0.5 rounded-sm" style={getChipStyle('Pre-assigned')}>{t('calendar.legend.preAssigned')}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <VacationIcon className="w-3 h-3" style={{ color: 'var(--chip-vacation-text)' }} />
-            <span className="p-0.5 rounded-sm" style={getChipStyle('Vacation')}>{t('calendar.legend.vacation')}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <ExcludedIcon className="w-3 h-3 text-muted-foreground" />
-            <span className="p-0.5 rounded-sm bg-muted/50 border border-dashed border-muted-foreground/30 text-muted-foreground">{t('calendar.legend.excluded')}</span>
-          </div>
+        <div className="mt-4 pt-3 border-t flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Work')}>
+            <WorkIcon className="w-3 h-3 shrink-0" />
+            {t('calendar.legend.work')}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Pre-assigned')}>
+            <PreAssignedIcon className="w-3 h-3 shrink-0" />
+            {t('calendar.legend.preAssigned')}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Vacation')}>
+            <VacationIcon className="w-3 h-3 shrink-0" />
+            {t('calendar.legend.vacation')}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-dashed border-muted-foreground/30 text-muted-foreground">
+            <ExcludedIcon className="w-3 h-3 shrink-0" />
+            {t('calendar.legend.excluded')}
+          </span>
         </div>
       </CardContent>
     </Card>
