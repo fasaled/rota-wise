@@ -176,6 +176,9 @@
   "summaryTable.sunHeader": "Dom",
   "summaryTable.totalHeader": "Total",
 
+  "summary.filter.pickRange": "Elegir rango de fechas",
+  "summary.filter.reset": "Restablecer",
+
   "monthlySummaryTable.title": "Resumen de carga de trabajo mensual",
   "monthlySummaryTable.doctorHeader": "Médico",
   "monthlySummaryTable.totalHeader": "Total",

@@ -2,14 +2,18 @@
 
 
 import type React from 'react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import type { Schedule, DoctorProfile } from '@/lib/types';
-import { format, startOfMonth, eachMonthOfInterval } from 'date-fns';
+import { format, isBefore, isAfter, isWithinInterval, startOfDay, endOfDay, startOfMonth, eachMonthOfInterval } from 'date-fns';
 import { useLanguage } from '@/context/language-context';
-import { BarChartHorizontalBig } from 'lucide-react'; // Using a different icon
+import { BarChartHorizontalBig, CalendarIcon, X } from 'lucide-react'; // Using a different icon
 import { cn } from '@/lib/utils';
+import type { DateRange } from 'react-day-picker';
 
 interface MonthlyWorkloadSummaryTableProps {
   schedule: Schedule | null;
@@ -33,15 +37,33 @@ function getHeatClass(value: number, max: number): string {
 
 const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = ({ schedule, doctors }) => {
   const { t, currentDateFnsLocale } = useLanguage();
+  const [filterRange, setFilterRange] = useState<DateRange | undefined>(undefined);
+
+  useEffect(() => {
+    if (schedule) {
+      setFilterRange({ from: schedule.startDate, to: schedule.endDate });
+    }
+  }, [schedule]);
+
+  const isFilterActive = !!schedule && !!filterRange && !!filterRange.from && !!filterRange.to && (
+    filterRange.from.getTime() !== startOfDay(schedule.startDate).getTime() ||
+    filterRange.to.getTime() !== endOfDay(schedule.endDate).getTime()
+  );
 
   const { monthsInSchedule, summaryData, monthlyTotals } = useMemo(() => {
     if (!schedule || !doctors.length) {
       return { monthsInSchedule: [], summaryData: [], monthlyTotals: new Map() };
     }
 
+    const rangeStart = filterRange?.from ?? schedule.startDate;
+    const rangeEnd = filterRange?.to ?? schedule.endDate;
+    const interval = filterRange?.from && filterRange.to
+      ? { start: startOfDay(filterRange.from), end: endOfDay(filterRange.to) }
+      : null;
+
     const scheduleMonths = eachMonthOfInterval({
-      start: schedule.startDate,
-      end: schedule.endDate,
+      start: rangeStart,
+      end: rangeEnd,
     }).map(monthDate => startOfMonth(monthDate)); // Ensure we have the start of each month
 
     const doctorStatsMap = new Map<string, DoctorMonthlyStats>();
@@ -57,6 +79,7 @@ const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = 
 
     schedule.entries.forEach(entry => {
       if ((entry.assignment === 'Work' || entry.assignment === 'Pre-assigned')) {
+        if (interval && !isWithinInterval(entry.date, interval)) return;
         const doctorStat = doctorStatsMap.get(entry.doctorId);
         if (doctorStat) {
           const monthKey = format(entry.date, 'yyyy-MM');
@@ -83,7 +106,7 @@ const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = 
       summaryData: Array.from(doctorStatsMap.values()),
       monthlyTotals: calculatedMonthlyTotals,
     };
-  }, [schedule, doctors]);
+  }, [schedule, doctors, filterRange]);
 
   if (!schedule || !summaryData.length) {
     return null;
@@ -101,6 +124,50 @@ const MonthlyWorkloadSummaryTable: React.FC<MonthlyWorkloadSummaryTableProps> = 
         <CardTitle className="flex items-center gap-2 text-xl font-semibold">
           <BarChartHorizontalBig className="w-5 h-5 text-primary shrink-0" /> {t('monthlySummaryTable.title')}
         </CardTitle>
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "font-normal",
+                  isFilterActive && "border-primary/40 bg-primary/5 text-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {filterRange?.from && filterRange.to ? (
+                  <span>
+                    {format(filterRange.from, 'PP', { locale: currentDateFnsLocale })}
+                    {' → '}
+                    {format(filterRange.to, 'PP', { locale: currentDateFnsLocale })}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">{t('summary.filter.pickRange')}</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+              <Calendar
+                mode="range"
+                selected={filterRange}
+                onSelect={setFilterRange}
+                locale={currentDateFnsLocale}
+                disabled={(date) => isBefore(date, startOfDay(schedule.startDate)) || isAfter(date, endOfDay(schedule.endDate))}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          {isFilterActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setFilterRange({ from: schedule.startDate, to: schedule.endDate })}
+            >
+              <X className="h-3 w-3 mr-1" /> {t('summary.filter.reset')}
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">

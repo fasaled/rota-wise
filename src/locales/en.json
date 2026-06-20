@@ -179,6 +179,9 @@
   "summaryTable.sunHeader": "Sun",
   "summaryTable.totalHeader": "Total",
 
+  "summary.filter.pickRange": "Pick date range",
+  "summary.filter.reset": "Reset",
+
   "monthlySummaryTable.title": "Monthly workload summary",
   "monthlySummaryTable.doctorHeader": "Doctor",
   "monthlySummaryTable.totalHeader": "Total",
