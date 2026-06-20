@@ -108,7 +108,7 @@ export async function exportWord({
     children.push(new Paragraph({
       children: [new TextRun({ text: monthTitleCapped, bold: true, size: 28, color: C_TEXT, font: FONT })],
       alignment: AlignmentType.CENTER,
-      spacing: { before: isFirstOfPage ? 2400 : 0, after: 120 },
+      spacing: { before: 0, after: 120 },
     }));
 
     const lastDay  = endOfMonth(monthStart);
