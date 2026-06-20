@@ -52,7 +52,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { format, isSameDay, differenceInCalendarDays, startOfMonth, endOfMonth } from 'date-fns';
+import { format, isSameDay, differenceInCalendarDays, startOfMonth, endOfMonth, type Locale } from 'date-fns';
 import { useLanguage } from '@/context/language-context';
 import { useFileSystem } from '@/context/file-system-context';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -68,6 +68,91 @@ import { type ActiveFilter } from '@/components/rotawise/calendar-filter-bar';
 // ---------------------------------------------------------------------------
 
 type ActiveTab = 'config' | 'calendar' | 'weekly' | 'monthly';
+
+// ---------------------------------------------------------------------------
+// Warning derivation
+// ---------------------------------------------------------------------------
+
+function computeScheduleWarnings(
+  schedule: Schedule | null,
+  doctorsProfiles: DoctorProfile[],
+  currentMinInterval: number,
+  language: string,
+  currentDateFnsLocale: Locale,
+  t: (key: string, params?: Record<string, any>) => string,
+): string[] {
+  if (!schedule) return [];
+
+  const rawWarnings: ScheduleWarning[] = [];
+
+  rawWarnings.push(
+    ...analyzeBrokenConstraints(
+      schedule.entries,
+      doctorsProfiles,
+      currentMinInterval,
+      schedule.globalMonthlyShiftLimit,
+      schedule.startDate,
+      schedule.endDate,
+      language,
+    ),
+  );
+
+  const preAssignedByDate = new Map<string, ScheduleEntry[]>();
+  for (const entry of schedule.entries) {
+    if (entry.assignment === 'Pre-assigned') {
+      const key = format(entry.date, 'yyyy-MM-dd');
+      const list = preAssignedByDate.get(key) ?? [];
+      list.push(entry);
+      preAssignedByDate.set(key, list);
+    }
+  }
+  for (const [, entries] of preAssignedByDate) {
+    if (entries.length > 1) {
+      const doctors = entries
+        .map((e) => doctorsProfiles.find((p) => p.id === e.doctorId)?.name)
+        .filter((n): n is string => !!n)
+        .join(', ');
+      rawWarnings.push({
+        key: 'warnings.multiplePreAssignedInput',
+        params: { date: entries[0].date, doctors },
+      });
+    }
+  }
+
+  const anyDoctorPotentiallyAvailable = doctorsProfiles.some(
+    (d) => !d.isExcludedFromAutomaticAssignment,
+  );
+  if (anyDoctorPotentiallyAvailable) {
+    const coveredDates = new Set<string>();
+    for (const entry of schedule.entries) {
+      if (entry.assignment === 'Work' || entry.assignment === 'Pre-assigned') {
+        coveredDates.add(format(entry.date, 'yyyy-MM-dd'));
+      }
+    }
+    const cursor = new Date(schedule.startDate);
+    const end = new Date(schedule.endDate);
+    while (cursor <= end) {
+      if (!coveredDates.has(format(cursor, 'yyyy-MM-dd'))) {
+        rawWarnings.push({
+          key: 'warnings.uncoveredDay',
+          params: { date: new Date(cursor) },
+        });
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+
+  return rawWarnings.map((warning) => {
+    const params: Record<string, any> = { ...(warning.params || {}) };
+    const dateFields = ['date', 'date1', 'date2'];
+    dateFields.forEach((field) => {
+      if (params[field] && params[field] instanceof Date) {
+        params[field] = format(params[field], 'P', { locale: currentDateFnsLocale });
+      }
+    });
+    return t(warning.key, params);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Serialization helpers
@@ -269,6 +354,23 @@ export default function RotawisePage() {
     clearLaunchQueueData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [launchQueueData]);
+
+  // ---------------------------------------------------------------------------
+  // Derive warnings from current schedule (covers generation + manual changes)
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    setScheduleWarnings(
+      computeScheduleWarnings(
+        schedule,
+        doctorsProfiles,
+        currentMinInterval,
+        language,
+        currentDateFnsLocale,
+        t,
+      ),
+    );
+  }, [schedule, doctorsProfiles, currentMinInterval, language, currentDateFnsLocale, t]);
 
   // ---------------------------------------------------------------------------
   // Auto-save to file (debounced)
@@ -475,20 +577,6 @@ export default function RotawisePage() {
         description: t('page.toast.scheduleGenerated.description'),
         autoDismissMs: 3000,
       });
-
-      if (result.warnings && result.warnings.length > 0) {
-        const translatedWarnings = result.warnings.map((warning: ScheduleWarning) => {
-          const params = { ...warning.params };
-          const dateFields = ['date', 'date1', 'date2'];
-          dateFields.forEach(field => {
-            if (params[field] && params[field] instanceof Date) {
-              params[field] = format(params[field], 'P', { locale: currentDateFnsLocale });
-            }
-          });
-          return t(warning.key, params);
-        });
-        setScheduleWarnings(translatedWarnings);
-      }
     }
   };
 
@@ -533,28 +621,7 @@ export default function RotawisePage() {
     newEntries.push(updatedEntry);
     const updatedSchedule = { ...schedule, entries: deduplicateEntries(newEntries) };
     setSchedule(updatedSchedule);
-
-    const newWarnings = analyzeBrokenConstraints(
-      updatedSchedule.entries,
-      doctorsProfiles,
-      currentMinInterval,
-      schedule.globalMonthlyShiftLimit,
-      schedule.startDate,
-      schedule.endDate,
-      language
-    );
-    const translatedWarnings = newWarnings.map((warning: ScheduleWarning) => {
-      const params = { ...warning.params };
-      const dateFields = ['date', 'date1', 'date2'];
-      dateFields.forEach(field => {
-        if (params[field] && params[field] instanceof Date) {
-          params[field] = format(params[field], 'P', { locale: currentDateFnsLocale });
-        }
-      });
-      return t(warning.key, params);
-    });
-    setScheduleWarnings(translatedWarnings);
-  }, [schedule, historyPush, deduplicateEntries, doctorsProfiles, currentMinInterval, language, currentDateFnsLocale, t]);
+  }, [schedule, historyPush, deduplicateEntries]);
 
   const handleSwapScheduleEntries = useCallback((entry1: ScheduleEntry, entry2: ScheduleEntry, oldDate1?: Date, oldDate2?: Date) => {
     if (!schedule) return;
@@ -811,27 +878,6 @@ export default function RotawisePage() {
     const updatedSchedule = { ...schedule, entries: deduplicateEntries(newEntries) };
     setSchedule(updatedSchedule);
     pendingMessages.forEach((msg) => addMessage(msg));
-
-    const newWarnings = analyzeBrokenConstraints(
-      updatedSchedule.entries,
-      doctorsProfiles,
-      effectiveMinInterval,
-      schedule.globalMonthlyShiftLimit,
-      schedule.startDate,
-      schedule.endDate,
-      language
-    );
-    const translatedWarnings = newWarnings.map((warning: ScheduleWarning) => {
-      const params = { ...warning.params };
-      const dateFields = ['date', 'date1', 'date2'];
-      dateFields.forEach(field => {
-        if (params[field] && params[field] instanceof Date) {
-          params[field] = format(params[field], 'P', { locale: currentDateFnsLocale });
-        }
-      });
-      return t(warning.key, params);
-    });
-    setScheduleWarnings(translatedWarnings);
   }, [schedule, historyPush, doctorsProfiles, currentMinInterval, addMessage, t, language, currentDateFnsLocale]);
 
   // ---------------------------------------------------------------------------
