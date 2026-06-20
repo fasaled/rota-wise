@@ -9,7 +9,7 @@ A PWA for fair and balanced doctor shift scheduling. Generates equitable schedul
 - **Fairness guarantees** — balanced distribution by weekday, month, and weekend shifts
 - **Global monthly shift limit** — configurable cap on shifts per doctor per month
 - **Summary tables** — workdays by day-of-week and by month for each doctor
-- **Export** — PDF and Word (.docx) reports, generated on demand
+- **Export** — Word (.docx) report, generated on demand
 - **Save/load** — persist full schedules as `.rw` files (JSON); reload as-is or import as pre-assigned
 - **Offline-ready** — Workbox PWA with full precaching; all assets available without network
 - **Internationalization** — English and Spanish
@@ -20,7 +20,6 @@ A PWA for fair and balanced doctor shift scheduling. Generates equitable schedul
 - **Vite 6** / **React 19** / **TypeScript**
 - **Tailwind CSS** + **Radix UI** (shadcn/ui)
 - **date-fns**, **react-hook-form** + **Zod**
-- **jspdf** + **jspdf-autotable** — PDF export (lazy-loaded)
 - **docx** — Word export (lazy-loaded)
 - **vite-plugin-pwa** + **Workbox** — PWA/offline
 - **Bun** — package manager, runtime, test runner
@@ -62,7 +61,6 @@ src/
 ├── hooks/                      # Custom hooks (debounce, history, info-bar, schedule worker)
 ├── lib/
 │   ├── schedule-generator.ts   # Core scheduling algorithm
-│   ├── export-pdf.ts           # PDF export (jspdf)
 │   ├── export-word.ts          # Word export (docx)
 │   ├── types.ts                # TypeScript types
 │   └── utils.ts                # Utilities
@@ -78,7 +76,7 @@ The app is a single-page React client. Key design decisions:
 
 - **Scheduling runs in a Web Worker** (`src/workers/schedule.worker.ts` via `useScheduleWorker` hook) to keep the UI responsive during generation.
 - **Heavy components are lazy-loaded** (`React.lazy` + `Suspense`) — calendar, summary tables, and startup screen load on demand.
-- **Export libraries are lazy-imported** — jspdf and docx are fetched from SW cache only when the user clicks export, reducing initial bundle size.
+- **Export libraries are lazy-imported** — docx is fetched from SW cache only when the user clicks export, reducing initial bundle size.
 - **All state is client-side** — localStorage for auto-save, File System Access API for `.rw` files, no backend.
 
 ## Algorithm

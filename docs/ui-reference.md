@@ -77,8 +77,7 @@ All buttons are `size="sm"`. Busy state (`isBusy`) = generating OR exporting —
 |---|---|---|---|---|
 | Save (Firefox only) | Download | outline | API not supported | Downloads file via browser |
 | Undo | History | outline | `canUndo && !isBusy` | Reverts to previous schedule snapshot |
-| Export PDF | FileDown | outline | Schedule exists | Lazy-imports `export-pdf.ts`, generates PDF |
-| Export Word | FileDown | outline | Schedule exists | Lazy-imports `export-word.ts`, generates .docx |
+| Export | FileText | outline | Schedule exists | Lazy-imports `export-word.ts`, generates .docx named after the open `.rw` file |
 | Clear schedule | Trash2 | destructive | Schedule exists | Opens confirmation dialog |
 | Clear doctors | UserX | outline | Doctors with names exist | Opens confirmation dialog |
 
@@ -342,32 +341,8 @@ Two `AlertDialog` components (Radix UI) for destructive actions:
 
 ---
 
-## 14. Export — PDF
+## 14. Export — Word (.docx)
 
-Lazy-imported on demand (`await import('@/lib/export-pdf')`). Button shows a spinner while processing.
+Lazy-imported on demand (`await import('@/lib/export-word')`). Button shows a spinner while processing.
 
-Generated file: `[report title]_[today's date].pdf`. Structure:
-
-1. Title (centered, bold), period, min interval info.
-2. Warnings section (if any).
-3. Monthly calendar grids (one per month): 7-column grid with day number + doctor name per cell.
-4. Doctor detail tables: one per doctor, listing all work dates.
-5. Workdays by day-of-week summary table.
-6. Monthly workload summary table.
-7. Footer on each page: generation date (left) + page number (right).
-
----
-
-## 15. Export — Word (.docx)
-
-Lazy-imported on demand (`await import('@/lib/export-word')`). Same spinner behavior as PDF.
-
-Generated file: `[report title]_[today's date].docx`. Structure mirrors the PDF:
-
-1. Title, period, min interval.
-2. Warnings (if any).
-3. Monthly calendar tables (7-column Word tables).
-4. Doctor detail tables.
-5. Workdays by day-of-week table.
-6. Monthly workload table.
-7. Footer paragraph with generation date in italics.
+Generated file matches the open `.rw` file's base name (e.g. if the file is `march_2026_schedule.rw`, the export is `march_2026_schedule.docx`). If no file is open, falls back to `rotawise-schedule_<yyyy-MM-dd>.docx`. Content begins with a centered title derived from the file name (`march_2026_schedule.rw` → `march 2026 schedule`; underscores and hyphens are replaced by spaces, extension stripped), followed by the monthly calendar tables. Visual style: minimalist — day cells with no assigned doctor carry a subtle light-blue (`#eff6ff`) tint, assigned days are clean white with a bold primary-blue day number; light-gray (`#f1f5f9`) weekday header row with bold dark uppercase letters; large font sizes (26pt day number, 22pt doctor name, 20pt weekday header, 28pt month title, 40pt document title), all set in **Inter** for a modern look. Month titles are capitalized in both English and Spanish (e.g. "Enero 2026"). A thin horizontal divider line (light gray, 0.5pt) sits between the two months that share a page. Page margins are reduced (0.25in left/right, 0.75in top/bottom) so the calendar tables span almost the full page width. Two months per page — a page break is inserted before every 3rd, 5th, 7th, etc. month. The first month on each page is pushed down (≈120pt of extra top spacing) so the two months sit closer to the vertical center of the page. The page break is emitted as a separate empty paragraph so the spacing is preserved on every page, not just the first. for readability. Page break before the 4th, 7th, 10th, etc. month enforces the 3-per-page layout. Weekday headers are localized.

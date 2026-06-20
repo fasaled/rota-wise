@@ -35,7 +35,6 @@ import {
   CalendarDays,
   BarChart2,
   LayoutGrid,
-  FileDown,
   FileText,
   Trash2,
   UserX,
@@ -236,7 +235,6 @@ export default function RotawisePage() {
   // UI state
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
   const [dataInputFormKey, setDataInputFormKey] = useState(0);
   const [numDoctorsInForm, setNumDoctorsInForm] = useState<number>(0);
@@ -973,39 +971,6 @@ export default function RotawisePage() {
   // Export
   // ---------------------------------------------------------------------------
 
-  const handleExportPdf = async () => {
-    if (!schedule || !doctorsProfiles.length) {
-      addMessage({
-        severity: 'error',
-        title: t('page.toast.noScheduleToExport.title'),
-        description: t('page.toast.noScheduleToExport.description'),
-        autoDismissMs: 4000,
-      });
-      return;
-    }
-    setIsExportingPdf(true);
-    try {
-      const { exportPdf } = await import('@/lib/export-pdf');
-      await exportPdf({
-        schedule,
-        doctorsProfiles,
-        scheduleWarnings,
-        currentMinInterval,
-        t,
-        locale: currentDateFnsLocale,
-      });
-    } catch (err) {
-      addMessage({
-        severity: 'error',
-        title: t('page.toast.errorSavingPdf.title'),
-        description: (err as Error).message,
-        autoDismissMs: 5000,
-      });
-    } finally {
-      setIsExportingPdf(false);
-    }
-  };
-
   const handleExportWord = async () => {
     if (!schedule || !doctorsProfiles.length) {
       addMessage({
@@ -1022,9 +987,7 @@ export default function RotawisePage() {
       await exportWord({
         schedule,
         doctorsProfiles,
-        scheduleWarnings,
-        currentMinInterval,
-        t,
+        fileName,
         locale: currentDateFnsLocale,
       });
     } catch (err) {
@@ -1089,7 +1052,7 @@ export default function RotawisePage() {
     { id: 'monthly', icon: LayoutGrid, labelKey: 'nav.monthlySummary', disabled: !hasScheduleEntries },
   ];
 
-  const isBusy = isLoading || isExportingPdf || isExportingWord;
+  const isBusy = isLoading || isExportingWord;
 
   // ---------------------------------------------------------------------------
   // Render
@@ -1201,36 +1164,20 @@ export default function RotawisePage() {
                 <span className="hidden sm:inline">{t('nav.undo')}</span>
               </Button>
 
-              {/* Export PDF */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleExportPdf}
-                disabled={!schedule || isBusy}
-                title={t('page.exportPdf')}
-              >
-                {isExportingPdf ? (
-                  <span className="h-3.5 w-3.5 mr-1.5 animate-spin rounded-full border-t-2 border-b-2 border-primary" />
-                ) : (
-                  <FileDown className="h-3.5 w-3.5 mr-1.5" />
-                )}
-                <span className="hidden md:inline">{t('page.exportPdf')}</span>
-              </Button>
-
               {/* Export Word */}
               <Button
                 size="sm"
                 variant="outline"
                 onClick={handleExportWord}
                 disabled={!schedule || isBusy}
-                title={t('page.exportWord')}
+                title={t('page.export')}
               >
                 {isExportingWord ? (
                   <span className="h-3.5 w-3.5 mr-1.5 animate-spin rounded-full border-t-2 border-b-2 border-primary" />
                 ) : (
                   <FileText className="h-3.5 w-3.5 mr-1.5" />
                 )}
-                <span className="hidden md:inline">{t('page.exportWord')}</span>
+                <span className="hidden md:inline">{t('page.export')}</span>
               </Button>
 
               <Separator orientation="vertical" className="h-5" />
@@ -1297,13 +1244,9 @@ export default function RotawisePage() {
                     {t('nav.undo')}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleExportPdf} disabled={!schedule || isBusy}>
-                    <FileDown className="h-4 w-4 mr-2" />
-                    {t('page.exportPdf')}
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportWord} disabled={!schedule || isBusy}>
                     <FileText className="h-4 w-4 mr-2" />
-                    {t('page.exportWord')}
+                    {t('page.export')}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
