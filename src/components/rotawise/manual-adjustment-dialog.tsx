@@ -53,9 +53,9 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
     const doctor = doctors.find(d => d.id === doctorId);
     if (!doctor) return null;
 
-    const isVacation = doctor.vacationDates.some(vacDate => isSameDay(vacDate, targetDate));
-    if (isVacation) {
-      return t('dialog.toast.cannotAssignOnVacation.description', { doctorName: doctor.name });
+    const isFreeDay = doctor.freeDates.some(freeDay => isSameDay(freeDay, targetDate));
+    if (isFreeDay) {
+      return t('dialog.toast.cannotAssignOnFreeDay.description', { doctorName: doctor.name });
     }
 
     const isExcluded = (doctor.excludedDates || []).some(exDate => isSameDay(exDate, targetDate));

@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import type { DoctorProfile } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
-import { WorkIcon, VacationIcon, PreAssignedIcon, ExcludedIcon } from '@/components/icons';
+import { WorkIcon, FreeDayIcon, PreAssignedIcon, ExcludedIcon } from '@/components/icons';
 
 export interface ActiveFilter {
   type: 'doctor' | 'assignment';
@@ -17,6 +17,7 @@ interface CalendarFilterBarProps {
   doctors: DoctorProfile[];
   activeFilters: ActiveFilter[];
   onFiltersChange: (filters: ActiveFilter[]) => void;
+  isMetadataMode?: boolean;
 }
 
 type DropdownLevel = 'root' | 'doctor' | 'assignment';
@@ -29,10 +30,10 @@ const ASSIGNMENT_OPTIONS = [
     chipStyle: { backgroundColor: 'var(--chip-work-bg)', color: 'var(--chip-work-text)', border: '1px solid var(--chip-work-border)' },
   },
   {
-    value: 'Vacation',
-    labelKey: 'calendar.filter.assignment.vacation' as const,
-    Icon: VacationIcon,
-    chipStyle: { backgroundColor: 'var(--chip-vacation-bg)', color: 'var(--chip-vacation-text)', border: '1px solid var(--chip-vacation-border)' },
+    value: 'Free',
+    labelKey: 'calendar.filter.assignment.freeDay' as const,
+    Icon: FreeDayIcon,
+    chipStyle: { backgroundColor: 'var(--chip-free-bg)', color: 'var(--chip-free-text)', border: '1px solid var(--chip-free-border)' },
   },
   {
     value: 'Pre-assigned',
@@ -48,13 +49,17 @@ const ASSIGNMENT_OPTIONS = [
   },
 ] as const;
 
-export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: CalendarFilterBarProps) {
+export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange, isMetadataMode = false }: CalendarFilterBarProps) {
   const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [level, setLevel] = useState<DropdownLevel>('root');
   const [searchText, setSearchText] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const filteredAssignmentOptions = ASSIGNMENT_OPTIONS.filter(
+    (o) => !isMetadataMode || (o.value !== 'Pre-assigned' && o.value !== 'Excluded'),
+  );
 
   // Close on outside click
   useEffect(() => {
@@ -118,7 +123,7 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
   };
 
   const getAssignmentChipStyle = (value: string) =>
-    ASSIGNMENT_OPTIONS.find(o => o.value === value)?.chipStyle;
+    filteredAssignmentOptions.find(o => o.value === value)?.chipStyle;
 
   const filteredDoctors = doctors.filter(d =>
     d.name.toLowerCase().includes(searchText.toLowerCase())
@@ -280,7 +285,7 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
                 {t('calendar.filter.back')}
               </button>
               <div className="py-1">
-                {ASSIGNMENT_OPTIONS.map(({ value, labelKey, Icon, chipStyle }) => {
+                {filteredAssignmentOptions.map(({ value, labelKey, Icon, chipStyle }) => {
                   const label = t(labelKey);
                   const checked = activeFilters.some(f => f.type === 'assignment' && f.value === value);
                   return (

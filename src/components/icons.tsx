@@ -3,7 +3,7 @@
 
 import { Plane, Star, Briefcase, CalendarDays, Users, Settings, Palette, CalendarX, Clock3, CalendarCheck, Ban } from 'lucide-react';
 
-export const VacationIcon = (props: React.ComponentProps<typeof Plane>) => <Plane {...props} />;
+export const FreeDayIcon = (props: React.ComponentProps<typeof Plane>) => <Plane {...props} />;
 export const PreAssignedIcon = (props: React.ComponentProps<typeof Star>) => <Star {...props} />;
 export const WorkIcon = (props: React.ComponentProps<typeof Briefcase>) => <Briefcase {...props} />;
 export const CalendarIcon = (props: React.ComponentProps<typeof CalendarDays>) => <CalendarDays {...props} />;

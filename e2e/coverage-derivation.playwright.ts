@@ -95,6 +95,31 @@ test.describe('Coverage is correctly derived from current state', () => {
     expect(coverage.warnings).toBeGreaterThan(0);
   });
 
+  test('partial coverage shows amber dots (not red) when 0 < available < min', async ({ page }) => {
+    // 2 doctors in a unit with min=2, 1 on call and 1 on vacation.
+    // Coverage is 1, which is > 0 (not red) but < 2 (not green) → amber.
+    const file = createTestFileJson({
+      units: [{ id: 'u1', name: 'Planta A', minPostCallCoverage: 2 }],
+      doctors: [
+        { id: 'd1', name: 'Dr. A', unitId: 'u1' },
+        { id: 'd2', name: 'Dr. B', unitId: 'u1', freeDates: ['2024-01-01'] },
+      ],
+      scheduleRange: { start: '2024-01-01', end: '2024-01-12' },
+      preAssignedWork: [{ doctorId: 'd1', date: '2024-01-01' }],
+    });
+    await mockFileSystemAccess(page, JSON.parse(file));
+    await openAppAndLoadFile(page);
+
+    // On Mon Jan 1: d1 is on call (pre-assigned), d2 is on vacation.
+    // The unit has only d1 available, so available=1, min=2 → partial.
+    const grid = page.locator('.grid-cols-7').last();
+    await grid.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
+    const amberCount = await grid.locator('.bg-amber-500').count();
+    const redCount = await grid.locator('.bg-rose-500').count();
+    expect(amberCount, 'partial coverage should produce amber dots').toBeGreaterThan(0);
+    expect(redCount, 'partial coverage must NOT be red').toBe(0);
+  });
+
   test('a file with a holiday in a tracked unit does not require coverage on the holiday', async ({ page }) => {
     // 1 doctor, 1 unit with min=1, holiday on Wed Jan 3. We pre-assign
     // d1 on Mon Jan 1 so the schedule has at least one entry (otherwise

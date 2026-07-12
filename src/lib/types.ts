@@ -18,7 +18,7 @@ export interface Doctor {
 
 // Stored doctor data, used for displaying schedule
 export interface DoctorProfile extends Doctor {
-  vacationDates: Date[];
+  freeDates: Date[];
   preAssignedWorkDates: Date[];
   excludedDates: Date[];
   isExcludedFromAutomaticAssignment: boolean;
@@ -28,7 +28,7 @@ export interface DoctorProfile extends Doctor {
 export interface DoctorFormFieldInput {
   id: string; // Frontend unique key for react-hook-form field array
   name: string;
-  vacationDates: Date[];
+  freeDates: Date[];
   preAssignedWorkDates: Date[];
   excludedDates: Date[];
   isExcludedFromAutomaticAssignment: boolean;
@@ -43,7 +43,7 @@ export type ScheduleFormValues = z.infer<typeof scheduleFormSchema> & {
 export interface ScheduleEntry {
   date: Date;
   doctorId: string; // ID of the assigned doctor
-  assignment: 'Work' | 'Vacation' | 'Pre-assigned' | 'Off' | 'Excluded';
+  assignment: 'Work' | 'Free' | 'Pre-assigned' | 'Off' | 'Excluded';
   dayOfWeek: string; // e.g., "Monday"
   isFixed?: boolean; // Whether this entry should be preserved when regenerating the schedule
 }
@@ -81,8 +81,9 @@ export interface UnitCoverage {
 
 // --- Types for JSON Serialization/Deserialization ---
 
-export interface SerializedScheduleEntry extends Omit<ScheduleEntry, 'date'> {
+export interface SerializedScheduleEntry extends Omit<ScheduleEntry, 'date' | 'dayOfWeek'> {
   date: string; // ISO date string
+  dayOfWeek?: string; // optional — not stored in xlsx metadata
 }
 
 export interface SerializedSchedule extends Omit<Schedule, 'startDate' | 'endDate' | 'entries' | 'minIntervalBetweenWorkDays' | 'globalMonthlyShiftLimit'> {
@@ -93,16 +94,16 @@ export interface SerializedSchedule extends Omit<Schedule, 'startDate' | 'endDat
   globalMonthlyShiftLimit?: number;
 }
 
-export interface SerializedDoctorProfile extends Omit<DoctorProfile, 'vacationDates' | 'preAssignedWorkDates' | 'excludedDates'> {
-  vacationDates: string[]; // Array of ISO date strings
+export interface SerializedDoctorProfile extends Omit<DoctorProfile, 'freeDates' | 'preAssignedWorkDates' | 'excludedDates'> {
+  freeDates: string[]; // Array of ISO date strings
   preAssignedWorkDates: string[]; // Array of ISO date strings
   excludedDates: string[]; // Array of ISO date strings
   isExcludedFromAutomaticAssignment: boolean;
   unitId?: string;
 }
 
-export interface SerializedDoctorFormFieldInput extends Omit<DoctorFormFieldInput, 'vacationDates' | 'preAssignedWorkDates' | 'excludedDates'> {
-  vacationDates: string[]; // Array of ISO date strings
+export interface SerializedDoctorFormFieldInput extends Omit<DoctorFormFieldInput, 'freeDates' | 'preAssignedWorkDates' | 'excludedDates'> {
+  freeDates: string[]; // Array of ISO date strings
   preAssignedWorkDates: string[]; // Array of ISO date strings
   excludedDates: string[]; // Array of ISO date strings
   isExcludedFromAutomaticAssignment: boolean;
@@ -128,6 +129,20 @@ export interface PersistedScheduleData {
   formValues: SerializedScheduleFormValues;
   scheduleWarnings?: string[]; // Optional: Added for persisting warnings
   currentMinInterval?: number; // Optional: Added for persisting min interval context
+}
+
+/**
+ * Payload stored in the hidden `Metadata` sheet of an exported .xlsx
+ * so the calendar can be re-opened by the app. Includes the file version
+ * so future migrations are possible.
+ */
+export interface ExcelMetadataPayload {
+  fileVersion: 3;
+  schedule: SerializedSchedule;
+  doctorsProfiles: SerializedDoctorProfile[];
+  units: SerializedUnit[];
+  holidays: string[]; // ISO date strings
+  formValues: { minIntervalBetweenWorkDays: number };
 }
 
 export interface ScheduleVersion {

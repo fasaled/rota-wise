@@ -20,6 +20,7 @@ import type { Schedule, DoctorProfile } from './types';
 interface ExportWordParams {
   schedule: Schedule;
   doctorsProfiles: DoctorProfile[];
+  holidays?: Date[];
   fileName: string | null;
   locale: Locale;
 }
@@ -31,6 +32,7 @@ const C_PRIMARY       = '2563eb';
 const C_WHITE         = 'ffffff';
 const C_HEADER_BG     = 'f1f5f9';
 const C_UNASSIGNED_BG = 'eff6ff';
+const C_HOLIDAY_BG    = 'fff4e5'; // amber-50, distinguishes holidays from regular weekdays
 
 const headerShading     = { type: ShadingType.CLEAR, color: 'auto', fill: C_HEADER_BG };
 const whiteShading      = { type: ShadingType.CLEAR, color: 'auto', fill: C_WHITE };
@@ -62,6 +64,7 @@ function headerCell(text: string, widthPct?: number): TableCell {
 export async function exportWord({
   schedule,
   doctorsProfiles,
+  holidays = [],
   fileName,
   locale,
 }: ExportWordParams): Promise<void> {
@@ -120,25 +123,38 @@ export async function exportWord({
     );
 
     const monthMatrixBody: string[][] = [];
+    const holidayMatrix: boolean[][] = [];
     let currentWeekRow: string[] = [];
+    let currentWeekHolidays: boolean[] = [];
     let dayIter = new Date(calStart);
 
     while (dayIter <= calEnd) {
       let cellContent = '';
+      let isHolidayCell = false;
       if (
         isSameMonthDateFns(dayIter, monthStart) &&
         isWithinInterval(dayIter, { start: schedule.startDate, end: schedule.endDate })
       ) {
         const doctorName = getDoctorForDay(dayIter);
+        const dayIsHoliday = holidays.some(
+          (h) =>
+            h.getFullYear() === dayIter.getFullYear() &&
+            h.getMonth() === dayIter.getMonth() &&
+            h.getDate() === dayIter.getDate(),
+        );
+        isHolidayCell = dayIsHoliday;
         cellContent = format(dayIter, 'd');
         if (doctorName) cellContent += `\n${doctorName}`;
       } else if (isSameMonthDateFns(dayIter, monthStart)) {
         cellContent = format(dayIter, 'd');
       }
       currentWeekRow.push(cellContent);
+      currentWeekHolidays.push(isHolidayCell);
       if (currentWeekRow.length === 7 || isSameDay(dayIter, calEnd)) {
         monthMatrixBody.push([...currentWeekRow]);
+        holidayMatrix.push([...currentWeekHolidays]);
         currentWeekRow = [];
+        currentWeekHolidays = [];
       }
       dayIter = addDays(dayIter, 1);
     }
@@ -149,18 +165,27 @@ export async function exportWord({
           children: weekDayHeaders.map((h) => headerCell(h, 14.28)),
           tableHeader: true,
         }),
-        ...monthMatrixBody.map((row) =>
+        ...monthMatrixBody.map((row, rowIdx) =>
           new TableRow({
             height: { value: ROW_MIN_HEIGHT, rule: HeightRule.ATLEAST },
-            children: row.map((cell) => {
+            children: row.map((cell, colIdx) => {
               const [dayNum, ...rest] = cell.split('\n');
               const doctorName = rest.join(' ').trim();
               const hasDoctor = Boolean(doctorName);
               const hasDayNumber = dayNum.length > 0;
               const isUnassigned = !hasDoctor && hasDayNumber;
+              const isHolidayCell = holidayMatrix[rowIdx]?.[colIdx] ?? false;
+              // Background priority: holiday (amber-50) > unassigned
+              // weekday (blue-tint) > regular weekday. Holidays always
+              // get the amber background so they stand out.
+              const shading = isHolidayCell
+                ? { type: ShadingType.CLEAR, color: 'auto', fill: C_HOLIDAY_BG }
+                : isUnassigned
+                  ? unassignedShading
+                  : whiteShading;
 
               return new TableCell({
-                shading: isUnassigned ? unassignedShading : whiteShading,
+                shading,
                 width: { size: 14.28, type: WidthType.PERCENTAGE },
                 margins: cellMargins,
                 children: [new Paragraph({
@@ -169,7 +194,10 @@ export async function exportWord({
                   children: [
                     new TextRun({
                       text: dayNum,
-                      bold: hasDoctor,
+                      // Bold holidays (regardless of doctor) and days
+                      // with an on-call doctor. Regular unassigned days
+                      // stay light.
+                      bold: isHolidayCell || hasDoctor,
                       size: 26,
                       color: hasDoctor ? C_PRIMARY : C_TEXT,
                       font: FONT,

@@ -41,11 +41,14 @@ export interface ScheduleWarning {
 
 // A doctor is "available" on a given date when they are:
 //   - not on vacation on that date
-//   - not on an excluded date
+//   - not in a free day
 //   - not on post-call (i.e. they were not on call/work/pre-assigned the previous day)
 //   - not "skip" status (isExcludedFromAutomaticAssignment is intentionally NOT
 //     checked here: a doctor marked as excluded can still be available to satisfy
 //     unit coverage, the algorithm will simply never auto-pick them).
+//
+// Excluded dates are intentionally NOT checked: a doctor can be excluded from
+// assignment on a given day but still count towards unit coverage.
 //
 // `entries` is the current schedule. `doctor.preAssignedWorkDates` is also
 // consulted for the post-call check so the helper works correctly when called
@@ -56,8 +59,7 @@ export function isDoctorAvailableOnDate(
   entries: ScheduleEntry[],
   holidays: Date[] = [],
 ): boolean {
-  if (isDateInArray(date, doctor.vacationDates)) return false;
-  if (isDateInArray(date, doctor.excludedDates || [])) return false;
+  if (isDateInArray(date, doctor.freeDates)) return false;
 
   // A holiday "breaks" the post-call chain: even if the doctor had a Work
   // entry on the previous day, they're not considered on post-call today
@@ -156,7 +158,7 @@ export function generateSchedule(
     const doctorsWithIds: DoctorFormFieldInput[] = doctorInputs.map(doc => ({
         ...doc,
         id: doc.id || `doc-${Math.random().toString(36).substring(2, 9)}`,
-        vacationDates: ensureDateArray(doc.vacationDates),
+        freeDates: ensureDateArray(doc.freeDates),
         preAssignedWorkDates: ensureDateArray(doc.preAssignedWorkDates),
         excludedDates: ensureDateArray(doc.excludedDates),
         isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
@@ -321,11 +323,11 @@ export function generateSchedule(
       }
 
       for (const doctor of doctorsWithIds) {
-          if (isDateInArray(currentDate, doctor.vacationDates)) {
+          if (isDateInArray(currentDate, doctor.freeDates)) {
               mockEntries.push({
                   date: new Date(currentDate),
                   doctorId: doctor.id,
-                  assignment: 'Vacation',
+                  assignment: 'Free',
                   dayOfWeek: dayOfWeekFullName,
               });
           }
@@ -335,7 +337,7 @@ export function generateSchedule(
       if (!dayHasAnyPreAssignment && !dayHasFixedAssignment && doctorsWithIds.length > 0) {
         const eligibleDoctors = doctorsWithIds.filter(doc => {
             if (doc.isExcludedFromAutomaticAssignment) return false;
-            if (isDateInArray(currentDate, doc.vacationDates)) return false;
+            if (isDateInArray(currentDate, doc.freeDates)) return false;
             if (isDateInArray(currentDate, doc.excludedDates)) return false;
 
             const allWorkDates: Date[] = [];
@@ -615,16 +617,16 @@ export function analyzeBrokenConstraints(
   });
 
   doctors.forEach(doc => {
-    doc.vacationDates.forEach(vacDate => {
-      const workOnVacation = allWorkEntries.find(
-        e => e.doctorId === doc.id && isSameDay(e.date, vacDate)
+    doc.freeDates.forEach(freeDay => {
+      const workOnFreeDay = allWorkEntries.find(
+        e => e.doctorId === doc.id && isSameDay(e.date, freeDay)
       );
-      if (workOnVacation) {
+      if (workOnFreeDay) {
         warnings.push({
-          key: 'warnings.workOnVacation',
+          key: 'warnings.workOnFreeDay',
           params: {
             doctor: doc.name,
-            date: vacDate
+            date: freeDay
           }
         });
       }

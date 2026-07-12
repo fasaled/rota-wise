@@ -179,9 +179,9 @@ body {
   --chip-preassigned-text:   #b45309;
   --chip-preassigned-border: #fde68a;
 
-  --chip-vacation-bg:        #ecfdf5;
-  --chip-vacation-text:      #047857;
-  --chip-vacation-border:    #a7f3d0;
+  --chip-free-bg:        #ecfdf5;
+  --chip-free-text:      #047857;
+  --chip-free-border:    #a7f3d0;
 }
 
 .dark {
@@ -193,9 +193,9 @@ body {
   --chip-preassigned-text:   #fcd34d;
   --chip-preassigned-border: #92400e;
 
-  --chip-vacation-bg:        #022c22;
-  --chip-vacation-text:      #6ee7b7;
-  --chip-vacation-border:    #065f46;
+  --chip-free-bg:        #022c22;
+  --chip-free-text:      #6ee7b7;
+  --chip-free-border:    #065f46;
 }
 
 /* -------------------------------------------------------------------------

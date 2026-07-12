@@ -13,7 +13,7 @@ describe('Schedule Validation Tests', () => {
         {
           id: 'doc1',
           name: 'Dr. Smith',
-          vacationDates: [],
+          freeDates: [],
           preAssignedWorkDates: [],
           excludedDates: [],
           isExcludedFromAutomaticAssignment: false,
@@ -21,7 +21,7 @@ describe('Schedule Validation Tests', () => {
         {
           id: 'doc2',
           name: 'Dr. Johnson',
-          vacationDates: [],
+          freeDates: [],
           preAssignedWorkDates: [],
           excludedDates: [],
           isExcludedFromAutomaticAssignment: false,
@@ -69,27 +69,27 @@ describe('Schedule Validation Tests', () => {
 
     // 2. Vacation Constraint
     formData.doctors.forEach(doctor => {
-      doctor.vacationDates.forEach(vacDate => {
-        const workOnVacation = schedule.find(
+      doctor.freeDates.forEach(freeDay => {
+        const workOnFreeDay = schedule.find(
           e => e.doctorId === doctor.id && 
-               isSameDay(e.date, vacDate) && 
+               isSameDay(e.date, freeDay) && 
                (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
         );
-        if (workOnVacation) {
+        if (workOnFreeDay) {
           violations.push(
-            `Doctor ${doctor.name} (${doctor.id}) is assigned work on vacation date ${format(vacDate, 'yyyy-MM-dd')}`
+            `Doctor ${doctor.name} (${doctor.id}) is assigned work on vacation date ${format(freeDay, 'yyyy-MM-dd')}`
           );
         }
 
         // Should have vacation entry
-        const vacationEntry = schedule.find(
+        const freeEntry = schedule.find(
           e => e.doctorId === doctor.id && 
-               isSameDay(e.date, vacDate) && 
-               e.assignment === 'Vacation'
+               isSameDay(e.date, freeDay) && 
+               e.assignment === 'Free'
         );
-        if (!vacationEntry) {
+        if (!freeEntry) {
           violations.push(
-            `Doctor ${doctor.name} (${doctor.id}) missing vacation entry for ${format(vacDate, 'yyyy-MM-dd')}`
+            `Doctor ${doctor.name} (${doctor.id}) missing vacation entry for ${format(freeDay, 'yyyy-MM-dd')}`
           );
         }
       });
@@ -187,7 +187,7 @@ describe('Schedule Validation Tests', () => {
             {
               id: 'doc1',
               name: 'Dr. Smith',
-              vacationDates: [new Date('2024-01-10'), new Date('2024-01-11')],
+              freeDates: [new Date('2024-01-10'), new Date('2024-01-11')],
               preAssignedWorkDates: [],
               excludedDates: [],
               isExcludedFromAutomaticAssignment: false,
@@ -195,7 +195,7 @@ describe('Schedule Validation Tests', () => {
             {
               id: 'doc2',
               name: 'Dr. Johnson',
-              vacationDates: [],
+              freeDates: [],
               preAssignedWorkDates: [],
               excludedDates: [],
               isExcludedFromAutomaticAssignment: false,
@@ -209,7 +209,7 @@ describe('Schedule Validation Tests', () => {
             {
               id: 'doc1',
               name: 'Dr. Smith',
-              vacationDates: [],
+              freeDates: [],
               preAssignedWorkDates: [new Date('2024-01-05'), new Date('2024-01-15')],
               excludedDates: [],
               isExcludedFromAutomaticAssignment: false,
@@ -217,7 +217,7 @@ describe('Schedule Validation Tests', () => {
             {
               id: 'doc2',
               name: 'Dr. Johnson',
-              vacationDates: [],
+              freeDates: [],
               preAssignedWorkDates: [],
               excludedDates: [],
               isExcludedFromAutomaticAssignment: false,
@@ -231,7 +231,7 @@ describe('Schedule Validation Tests', () => {
             {
               id: 'doc1',
               name: 'Dr. Smith',
-              vacationDates: [],
+              freeDates: [],
               preAssignedWorkDates: [],
               excludedDates: [new Date('2024-01-12'), new Date('2024-01-20')],
               isExcludedFromAutomaticAssignment: false,
@@ -239,7 +239,7 @@ describe('Schedule Validation Tests', () => {
             {
               id: 'doc2',
               name: 'Dr. Johnson',
-              vacationDates: [],
+              freeDates: [],
               preAssignedWorkDates: [],
               excludedDates: [],
               isExcludedFromAutomaticAssignment: false,
@@ -253,7 +253,7 @@ describe('Schedule Validation Tests', () => {
             {
               id: 'doc1',
               name: 'Dr. Smith',
-              vacationDates: [],
+              freeDates: [],
               preAssignedWorkDates: [new Date('2024-01-08')], // Can still have pre-assignments
               excludedDates: [],
               isExcludedFromAutomaticAssignment: true,
@@ -261,7 +261,7 @@ describe('Schedule Validation Tests', () => {
             {
               id: 'doc2',
               name: 'Dr. Johnson',
-              vacationDates: [],
+              freeDates: [],
               preAssignedWorkDates: [],
               excludedDates: [],
               isExcludedFromAutomaticAssignment: false,
@@ -319,7 +319,7 @@ describe('Schedule Validation Tests', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [new Date('2024-01-08'), new Date('2024-01-09')],
+            freeDates: [new Date('2024-01-08'), new Date('2024-01-09')],
             preAssignedWorkDates: [new Date('2024-01-05')],
             excludedDates: [new Date('2024-01-25')],
             isExcludedFromAutomaticAssignment: false,
@@ -327,7 +327,7 @@ describe('Schedule Validation Tests', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [new Date('2024-01-20')],
+            freeDates: [new Date('2024-01-20')],
             preAssignedWorkDates: [new Date('2024-01-15')],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -335,7 +335,7 @@ describe('Schedule Validation Tests', () => {
           {
             id: 'doc3',
             name: 'Dr. Williams',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [new Date('2024-01-12'), new Date('2024-01-13')],
             isExcludedFromAutomaticAssignment: true, // Excluded from auto assignment
@@ -379,7 +379,7 @@ describe('Schedule Validation Tests', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [new Date('2024-01-03'), new Date('2024-01-04')],
+            freeDates: [new Date('2024-01-03'), new Date('2024-01-04')],
             preAssignedWorkDates: [new Date('2024-01-01')],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -410,7 +410,7 @@ describe('Schedule Validation Tests', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [
+            freeDates: [
               new Date('2024-07-01'),
               new Date('2024-07-02'),
               new Date('2024-07-03'),
@@ -424,7 +424,7 @@ describe('Schedule Validation Tests', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [
+            freeDates: [
               new Date('2024-12-23'),
               new Date('2024-12-24'),
               new Date('2024-12-25'),
@@ -466,7 +466,7 @@ describe('Schedule Validation Tests', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -474,7 +474,7 @@ describe('Schedule Validation Tests', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -482,7 +482,7 @@ describe('Schedule Validation Tests', () => {
           {
             id: 'doc3',
             name: 'Dr. Williams',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -534,7 +534,7 @@ describe('Schedule Validation Tests', () => {
         doctors: Array.from({ length: 15 }, (_, i) => ({
           id: `doc${i + 1}`,
           name: `Dr. Doctor${i + 1}`,
-          vacationDates: [],
+          freeDates: [],
           preAssignedWorkDates: [],
           excludedDates: [],
           isExcludedFromAutomaticAssignment: false,
@@ -568,7 +568,7 @@ describe('Schedule Validation Tests', () => {
         doctors: Array.from({ length: 5 }, (_, i) => ({
           id: `doc${i + 1}`,
           name: `Dr. Doctor${i + 1}`,
-          vacationDates: [
+          freeDates: [
             addDays(new Date('2024-01-01'), i * 7),
             addDays(new Date('2024-01-01'), i * 7 + 1),
           ],
@@ -614,10 +614,10 @@ describe('Schedule Validation Tests', () => {
         minIntervalBetweenWorkDays: 1,
         numberOfDoctors: 4,
         doctors: [
-          { id: 'd1', name: 'Dr. A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
-          { id: 'd2', name: 'Dr. B', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
-          { id: 'd3', name: 'Dr. C', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
-          { id: 'd4', name: 'Dr. D', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
+          { id: 'd1', name: 'Dr. A', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd2', name: 'Dr. B', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd3', name: 'Dr. C', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd4', name: 'Dr. D', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
         ],
         units: [
           { id: 'ward', name: 'Ward', minPostCallCoverage: 1 },
@@ -663,7 +663,7 @@ describe('Schedule Validation Tests', () => {
         endDate: new Date('2024-01-05'),
         numberOfDoctors: 1,
         doctors: [
-          { id: 'd1', name: 'Solo', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd1', name: 'Solo', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
         ],
         units: [{ id: 'ward', name: 'Ward', minPostCallCoverage: 1 }],
       } as Partial<ScheduleFormValues>) as ScheduleFormValues;
@@ -682,7 +682,7 @@ describe('Schedule Validation Tests', () => {
         endDate: new Date('2024-01-01'),
         numberOfDoctors: 1,
         doctors: [
-          { id: 'd1', name: 'Solo', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd1', name: 'Solo', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
         ],
         units: [{ id: 'ward', name: 'Ward', minPostCallCoverage: 1 }],
       } as Partial<ScheduleFormValues>) as ScheduleFormValues;

@@ -9,7 +9,7 @@ import { ChevronLeft, ChevronRight, CalendarDays as CalendarIconLucide, Lock, Un
 import { CalendarFilterBar, type ActiveFilter } from './calendar-filter-bar';
 import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry, Unit, UnitCoverage } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { VacationIcon, PreAssignedIcon, WorkIcon, ExcludedIcon } from '@/components/icons';
+import { FreeDayIcon, PreAssignedIcon, WorkIcon, ExcludedIcon } from '@/components/icons';
 import { useLanguage } from '@/context/language-context';
 import type { InfoBarMessage } from '@/hooks/use-info-bar';
 import {
@@ -37,9 +37,17 @@ interface ScheduleCalendarViewProps {
   minIntervalBetweenWorkDays: number;
   allScheduleEntries: ScheduleEntry[];
   onToggleMonthFixed?: (month: Date, isFixed: boolean) => void;
+  /**
+   * When true, the calendar renders in metadata mode: day locks (Fix Month
+   * button and per-day lock icons) are hidden. The user can still edit
+   * doctor assignments manually, but cannot lock days. Coverage is still
+   * computed and shown via the dots.
+   */
+  isMetadataMode?: boolean;
   onToggleEntryFixed?: (entry: ScheduleEntry, isFixed: boolean) => void;
   onRemoveWorkEntriesForDate?: (date: Date) => void;
   onNotify?: (msg: Omit<InfoBarMessage, 'id'>) => void;
+  onToggleFreeDay?: (date: Date, doctorId: string) => void;
   activeFilters: ActiveFilter[];
   onFiltersChange: (filters: ActiveFilter[]) => void;
 }
@@ -60,11 +68,11 @@ function getChipStyle(assignment: ScheduleEntry['assignment']): React.CSSPropert
         color: 'var(--chip-preassigned-text)',
         border: '1px solid var(--chip-preassigned-border)',
       };
-    case 'Vacation':
+    case 'Free':
       return {
-        backgroundColor: 'var(--chip-vacation-bg)',
-        color: 'var(--chip-vacation-text)',
-        border: '1px solid var(--chip-vacation-border)',
+        backgroundColor: 'var(--chip-free-bg)',
+        color: 'var(--chip-free-text)',
+        border: '1px solid var(--chip-free-border)',
       };
     case 'Excluded':
       return {
@@ -90,7 +98,12 @@ interface DayCellProps {
   openSelectorDate: string | null;
   onOpenSelectorChange: (key: string | null) => void;
   unitCoverageForDay: UnitCoverage[];
+  isMetadataMode: boolean;
   isHoliday: boolean;
+  freeDayOpenDate: string | null;
+  onFreeDayOpenChange: (key: string | null) => void;
+  onToggleFreeDay?: (date: Date, doctorId: string) => void;
+  allDoctors: DoctorProfile[];
 }
 
 // One cell of the calendar grid. Extracted as a real React component so that
@@ -111,18 +124,28 @@ const DayCell: React.FC<DayCellProps> = ({
   onOpenSelectorChange,
   unitCoverageForDay,
   isHoliday,
+  isMetadataMode,
+  freeDayOpenDate,
+  onFreeDayOpenChange,
+  onToggleFreeDay,
+  allDoctors,
 }) => {
   const { t, currentDateFnsLocale } = useLanguage();
   const triggerButtonRef = useRef<HTMLDivElement>(null);
+  const freeDayTriggerRef = useRef<HTMLDivElement>(null);
 
   const dateTextClasses = day.isCurrentMonth ? "font-medium" : "text-muted-foreground/70";
   const todayMarkerClasses = day.isToday ? "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center" : "";
   const workEntryForDay = day.assignments.find((e) => e.assignment === 'Work' || e.assignment === 'Pre-assigned') ?? null;
   const selectorKey = format(day.date, 'yyyy-MM-dd');
   const isSelectorOpen = openSelectorDate === selectorKey;
+  const isFreeDayOpen = freeDayOpenDate === selectorKey;
   const isPreAssigned = workEntryForDay?.assignment === 'Pre-assigned';
   const isDayFixed = workEntryForDay?.isFixed ?? false;
   const isEditable = !isDayFixed;
+
+  const freeDayEntries = day.assignments.filter((e) => e.assignment === 'Free');
+  const excludedEntries = day.assignments.filter((e) => e.assignment === 'Excluded');
 
   // Check if the current filter allows showing the doctor selector for this day
   const assignmentTypeFilters = activeFilters.filter(f => f.type === 'assignment').map(f => f.value);
@@ -162,7 +185,7 @@ const DayCell: React.FC<DayCellProps> = ({
               </span>
             )}
           </span>
-          {workEntryForDay && !isPreAssigned && onToggleEntryFixed && (
+          {workEntryForDay && !isPreAssigned && onToggleEntryFixed && !isMetadataMode && (
             <button
               type="button"
               onClick={(e) => {
@@ -183,15 +206,21 @@ const DayCell: React.FC<DayCellProps> = ({
         {!isHoliday && unitCoverageForDay.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 mb-1" aria-label={t('calendar.coverage.legend')}>
             {unitCoverageForDay.map((c) => {
+              // Three states for a tracked unit: full coverage (green),
+              // partial coverage (amber — some doctors available but not
+              // enough), or no coverage at all (red). Ignored units (min=0)
+              // are always neutral grey.
               const color =
                 c.status === 'ignored'
                   ? 'bg-zinc-300 dark:bg-zinc-600'
-                  : c.isCovered
-                    ? 'bg-emerald-500'
-                    : 'bg-rose-500';
+                  : c.available === 0
+                    ? 'bg-rose-500'
+                    : c.isCovered
+                      ? 'bg-emerald-500'
+                      : 'bg-amber-500';
               // The tooltip is just the available/minimum ratio. The dot
-              // colour (green / red / grey) already conveys the status;
-              // adding explanatory text on top of that is redundant.
+              // colour (green / amber / red / grey) already conveys the
+              // status; adding explanatory text on top of that is redundant.
               const tooltip =
                 c.status === 'ignored'
                   ? t('calendar.coverage.tooltipUntracked', { unit: c.unitName })
@@ -222,7 +251,7 @@ const DayCell: React.FC<DayCellProps> = ({
         )}
         {/* Second line: doctor name as chip */}
         {workEntryForDay ? (
-          isPreAssigned ? (
+          isPreAssigned && !isMetadataMode ? (
             <div
               ref={triggerButtonRef}
               className={doctorChipBaseClass}
@@ -261,40 +290,54 @@ const DayCell: React.FC<DayCellProps> = ({
             isPreAssigned={false}
           />
         ) : null}
-        {/* List of additional chips (Vacation, Excluded) - scrollable when overflowing */}
-        {day.assignments.length > 0 && (
-          <div className="flex-1 min-h-0 mt-1 space-y-1 overflow-y-auto">
-            {day.assignments.map((entry) => {
-              if (entry.assignment !== 'Vacation' && entry.assignment !== 'Excluded') {
-                return null;
-              }
-              const doctor = doctorMap.get(entry.doctorId);
-              if (entry.assignment === 'Excluded') {
+        {/* Scrollable area for free days + excluded days */}
+        <div className="flex-1 min-h-0 mt-1 overflow-y-auto space-y-0.5">
+          {/* Free day chips — clickable to open multi-select */}
+          <div
+            ref={freeDayTriggerRef}
+            className="space-y-0.5 cursor-pointer"
+            onClick={(e) => { e.stopPropagation(); onFreeDayOpenChange(isFreeDayOpen ? null : selectorKey); }}
+          >
+            {freeDayEntries.length > 0 ? (
+              freeDayEntries.map((entry) => {
+                const doctor = doctorMap.get(entry.doctorId);
                 return (
                   <div
-                    key={`${entry.doctorId}-${format(day.date, 'yyyy-MM-dd')}-${entry.assignment}`}
-                    className="w-full rounded-sm flex items-center p-1.5 text-xs cursor-default bg-muted/50 border border-dashed border-muted-foreground/30 text-muted-foreground"
-                    title={doctor?.name || entry.doctorId}
+                    key={entry.doctorId}
+                    className="flex items-center gap-1 rounded-sm p-1.5 text-xs"
+                    style={getChipStyle(entry.assignment)}
                   >
-                    <ExcludedIcon className="shrink-0 w-3 h-3 mr-1" />
+                    <FreeDayIcon className="shrink-0 w-3 h-3" />
                     <span className="truncate">{doctor?.name || entry.doctorId}</span>
                   </div>
                 );
-              }
-              return (
-                <div
-                  key={`${entry.doctorId}-${format(day.date, 'yyyy-MM-dd')}-${entry.assignment}`}
-                  className="w-full rounded-sm flex items-center p-1.5 text-xs cursor-default opacity-80"
-                  style={getChipStyle(entry.assignment)}
-                  title={doctor?.name || entry.doctorId}
-                >
-                  <VacationIcon className="shrink-0 w-3 h-3 mr-1" />
-                  <span className="truncate">{doctor?.name || entry.doctorId}</span>
-                </div>
-              );
-            })}
+              })
+            ) : (
+              <div className="flex items-center gap-1 rounded-sm p-1.5 text-muted-foreground italic text-xs border border-dashed border-muted-foreground/20">
+                <FreeDayIcon className="shrink-0 w-3 h-3 opacity-50" />
+                <span>{t('calendar.freeDay.add')}</span>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Excluded chips — same format, read-only */}
+          {excludedEntries.length > 0 && (
+            <div className="space-y-0.5">
+              {excludedEntries.map((entry) => {
+                const doctor = doctorMap.get(entry.doctorId);
+                return (
+                  <div
+                    key={entry.doctorId}
+                    className="flex items-center gap-1 rounded-sm p-1.5 text-xs bg-muted/50 text-muted-foreground border border-muted-foreground/15"
+                  >
+                    <ExcludedIcon className="shrink-0 w-3 h-3" />
+                    <span className="truncate">{doctor?.name || entry.doctorId}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </DroppableDayCell>
       <DayDoctorDropdown
         doctors={doctors}
@@ -307,6 +350,15 @@ const DayCell: React.FC<DayCellProps> = ({
         onSelect={(doctorId) => onSelectDoctor(day.date, doctorId)}
         onClear={() => onClearDayAssignment(day.date)}
         minIntervalBetweenWorkDays={minIntervalBetweenWorkDays}
+      />
+      <FreeDayDoctorSelector
+        doctors={allDoctors}
+        date={day.date}
+        freeDayDoctorIds={new Set(freeDayEntries.map((e) => e.doctorId))}
+        isOpen={isFreeDayOpen}
+        triggerRef={freeDayTriggerRef}
+        onOpenChange={(open) => onFreeDayOpenChange(open ? selectorKey : null)}
+        onToggleFreeDay={(doctorId) => onToggleFreeDay?.(day.date, doctorId)}
       />
     </Fragment>
   );
@@ -334,8 +386,8 @@ const DraggableWorkEntry: React.FC<DraggableWorkEntryProps> = ({
   isFilteredByDoctor,
   externalRef,
 }) => {
-  // Only allow dragging 'Work' assignments that are not fixed, and only when viewing all doctors
-  const isDraggable = entry.assignment === 'Work' && !entry.isFixed && !isFilteredByDoctor;
+  // Only allow dragging 'Work' (or 'Pre-assigned' in metadata mode) that are not fixed, and only when viewing all doctors
+  const isDraggable = !entry.isFixed && !isFilteredByDoctor;
   // Every chip needs a unique id — sharing 'non-draggable' across chips confuses dnd-kit
   const dragId = `chip-${entry.doctorId}-${entry.date.getTime()}-${entry.assignment}`;
 
@@ -454,8 +506,8 @@ function isDoctorAvailable(
   scheduleEntries: ScheduleEntry[],
   minInterval: number,
 ): { available: boolean; reason?: string } {
-  if (doctor.vacationDates.some(vacDate => isSameDay(vacDate, date))) {
-    return { available: false, reason: 'vacation' };
+  if (doctor.freeDates.some(freeDay => isSameDay(freeDay, date))) {
+    return { available: false, reason: 'freeDay' };
   }
   if ((doctor.excludedDates || []).some(exDate => isSameDay(exDate, date))) {
     return { available: false, reason: 'excluded' };
@@ -681,12 +733,143 @@ const DayDoctorDropdown: React.FC<DayDoctorDropdownProps> = ({
                     <Check className="h-3 w-3 text-primary shrink-0" />
                   ) : !available && reason ? (
                     <span className="text-[10px] text-muted-foreground shrink-0">
-                      {reason === 'vacation' && t('calendar.daySelector.reason.vacation')}
+                      {reason === 'freeDay' && t('calendar.daySelector.reason.freeDay')}
                       {reason === 'excluded' && t('calendar.daySelector.reason.excluded')}
                       {reason === 'interval' && t('calendar.daySelector.reason.interval')}
                     </span>
                   ) : null}
                 </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+interface FreeDayDoctorSelectorProps {
+  doctors: DoctorProfile[];
+  date: Date;
+  freeDayDoctorIds: Set<string>;
+  isOpen: boolean;
+  triggerRef: React.RefObject<HTMLElement | null>;
+  onOpenChange: (open: boolean) => void;
+  onToggleFreeDay: (doctorId: string) => void;
+}
+
+const FreeDayDoctorSelector: React.FC<FreeDayDoctorSelectorProps> = ({
+  doctors,
+  date,
+  freeDayDoctorIds,
+  isOpen,
+  triggerRef,
+  onOpenChange,
+  onToggleFreeDay,
+}) => {
+  const { t } = useLanguage();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [searchText, setSearchText] = useState('');
+  const [position, setPosition] = useState<{ top: number; left: number; width: number; placement: 'top' | 'bottom' } | null>(null);
+
+  useLayoutEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const dropdownHeight = 280;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const placement: 'top' | 'bottom' = spaceAbove > spaceBelow && spaceAbove > dropdownHeight ? 'top' : 'bottom';
+
+      setPosition({
+        top: placement === 'top' ? rect.top - 4 : rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 200),
+        placement,
+      });
+    } else {
+      setPosition(null);
+    }
+  }, [isOpen, searchText, triggerRef]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        triggerRef.current && !triggerRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
+        onOpenChange(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen, onOpenChange, triggerRef]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleScroll = (e: Event) => {
+      if (dropdownRef.current && dropdownRef.current.contains(e.target as Node)) {
+        return;
+      }
+      onOpenChange(false);
+    };
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
+  }, [isOpen, onOpenChange]);
+
+  const filtered = useMemo(() => {
+    return doctors.filter(doc =>
+      doc.name.toLowerCase().includes(searchText.toLowerCase())
+    );
+  }, [doctors, searchText]);
+
+  if (!isOpen || !position) return null;
+
+  return createPortal(
+    <div
+      ref={dropdownRef}
+      className="fixed z-[1000] rounded-md border bg-popover shadow-lg text-popover-foreground"
+      style={{
+        top: position.placement === 'top' ? position.top - 4 : position.top,
+        left: position.left,
+        width: position.width,
+        transform: position.placement === 'top' ? 'translateY(-100%)' : undefined,
+      }}
+      onClick={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <div className="px-2 py-1.5 border-b">
+        <input
+          autoFocus
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          placeholder={t('calendar.daySelector.searchPlaceholder')}
+          className="w-full text-xs outline-none bg-transparent placeholder:text-muted-foreground"
+        />
+      </div>
+      <div className="overflow-y-auto max-h-64">
+        <div className="py-1">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground">{t('calendar.daySelector.noResults')}</p>
+          ) : (
+            filtered.map((doc) => {
+              const isFree = freeDayDoctorIds.has(doc.id);
+              return (
+                <label
+                  key={doc.id}
+                  className="flex w-full items-center gap-2 px-2.5 py-1.5 text-xs transition-colors cursor-pointer hover:bg-muted"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isFree}
+                    onChange={() => onToggleFreeDay(doc.id)}
+                    className="h-3.5 w-3.5 accent-primary shrink-0"
+                  />
+                  <span className="truncate">{doc.name}</span>
+                </label>
               );
             })
           )}
@@ -709,8 +892,10 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     allScheduleEntries,
     onToggleMonthFixed,
     onToggleEntryFixed,
+    isMetadataMode = false,
     onRemoveWorkEntriesForDate,
     onNotify,
+    onToggleFreeDay,
     activeFilters,
     onFiltersChange,
   }) => {
@@ -720,13 +905,14 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
   const [draggedEntry, setDraggedEntry] = useState<ScheduleEntry | null>(null);
 
   const [openSelectorDate, setOpenSelectorDate] = useState<string | null>(null);
+  const [freeDayOpenDate, setFreeDayOpenDate] = useState<string | null>(null);
 
   const isDoctorBlockedOnDate = (doctorId: string, date: Date): { blocked: boolean; reason: string | undefined } => {
     const doctor = doctors.find(d => d.id === doctorId);
     if (!doctor) return { blocked: false, reason: undefined };
 
-    const isVacation = doctor.vacationDates.some(vacDate => isSameDay(vacDate, date));
-    if (isVacation) {
+    const isFreeDay = doctor.freeDates.some(freeDay => isSameDay(freeDay, date));
+    if (isFreeDay) {
       return { blocked: true, reason: t('calendar.toast.cannotSwapExcludedDay.description', { doctorName: doctor.name, targetDate: format(date, 'PPP', { locale: currentDateFnsLocale }) }) };
     }
 
@@ -790,7 +976,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     }
 
     // Check if the dragged entry is a 'Work' assignment and not fixed (only these can be dragged)
-    if (draggedEntry.assignment !== 'Work' || draggedEntry.isFixed) {
+    const canDragAssignment = draggedEntry.assignment === 'Work' || (draggedEntry.assignment === 'Pre-assigned' && isMetadataMode);
+    if (!canDragAssignment || draggedEntry.isFixed) {
       onNotify?.({ severity: 'error', title: t('calendar.toast.onlyWorkDraggable.title'), description: t('calendar.toast.onlyWorkDraggable.description'), autoDismissMs: 4000 });
       return;
     }
@@ -821,8 +1008,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         return;
       }
 
-      // Prevent swapping with pre-assigned entries
-      if (existingEntryOnTarget.assignment === 'Pre-assigned') {
+      // Prevent swapping with pre-assigned entries (except in metadata mode)
+      if (existingEntryOnTarget.assignment === 'Pre-assigned' && !isMetadataMode) {
         onNotify?.({ severity: 'error', title: t('calendar.toast.cannotSwapWithFixed.title'), description: t('calendar.toast.cannotSwapWithFixed.description'), autoDismissMs: 4000 });
         return;
       }
@@ -938,10 +1125,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             let available = 0;
             for (const doctor of doctors) {
               if (doctor.unitId !== unit.id) continue;
-              const onVacation = doctor.vacationDates.some((v) => isSameDay(v, cursor));
-              if (onVacation) continue;
-              const onExcluded = (doctor.excludedDates || []).some((v) => isSameDay(v, cursor));
-              if (onExcluded) continue;
+              const onFreeDay = doctor.freeDates.some((v) => isSameDay(v, cursor));
+              if (onFreeDay) continue;
               const previousDay = addDays(cursor, -1);
               const previousDayIsHoliday = holidays.some((h) => isSameDay(h, previousDay));
               const onPostCall =
@@ -999,20 +1184,21 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         return assignmentTypes.includes(e.assignment);
       });
 
-      const excludedEntriesForDay = doctors
-        .filter(doc => doc.excludedDates?.some(exDate => isSameDay(exDate, date)))
-        // Apply doctor filter to excluded entries
-        .filter(doc => doctorIds.length === 0 || doctorIds.includes(doc.id))
-        .map(doc => ({
-          date,
-          doctorId: doc.id,
-          assignment: 'Excluded' as const,
-          dayOfWeek: format(date, 'EEEE', { locale: currentDateFnsLocale }),
-          isFixed: false,
-        }));
+      // Synthesize Excluded entries only in normal mode — in metadata mode
+      // the schedule already reflects excluded dates accurately.
+      const excludedEntriesForDay = !isMetadataMode
+        ? doctors
+            .filter(doc => doc.excludedDates?.some(exDate => isSameDay(exDate, date)))
+            .filter(doc => doctorIds.length === 0 || doctorIds.includes(doc.id))
+            .map(doc => ({
+              date,
+              doctorId: doc.id,
+              assignment: 'Excluded' as const,
+              dayOfWeek: format(date, 'EEEE', { locale: currentDateFnsLocale }),
+              isFixed: false,
+            }))
+        : [];
 
-      // Only include excluded entries if 'Excluded' is in the assignment filter,
-      // or if no assignment filter is active
       const excludedEntriesToShow = assignmentTypes.length === 0 || assignmentTypes.includes('Excluded')
         ? excludedEntriesForDay
         : [];
@@ -1020,7 +1206,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
       entriesForDay = [...entriesForDay, ...excludedEntriesToShow];
 
       entriesForDay.sort((a, b) => {
-        const order: { [key: string]: number } = { 'Work': 0, 'Pre-assigned': 1, 'Vacation': 2, 'Excluded': 3 };
+        const order: { [key: string]: number } = { 'Work': 0, 'Pre-assigned': 1, 'Free': 2, 'Excluded': 3 };
         return (order[a.assignment] ?? 99) - (order[b.assignment] ?? 99);
       });
 
@@ -1032,7 +1218,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         unitCoverage: unitCoverageByDate.get(format(date, 'yyyy-MM-dd')),
       };
     });
-  }, [currentMonth, schedule.entries, activeFilters, currentDateFnsLocale, doctors, unitCoverageByDate]);
+  }, [currentMonth, schedule.entries, activeFilters, currentDateFnsLocale, doctors, unitCoverageByDate, isMetadataMode]);
 
   const nextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
   const prevMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
@@ -1089,7 +1275,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             <Button variant="outline" size="icon" onClick={nextMonth} aria-label={t('calendar.nextMonth')}>
               <ChevronRight className="h-5 w-5" />
             </Button>
-            {onToggleMonthFixed && (
+            {onToggleMonthFixed && !isMetadataMode && (
               <Button
                 variant={monthAllFixed ? "default" : "outline"}
                 size="sm"
@@ -1107,6 +1293,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
           doctors={doctors}
           activeFilters={activeFilters}
           onFiltersChange={onFiltersChange}
+          isMetadataMode={isMetadataMode}
         />
       </CardHeader>
       <CardContent className="p-2 sm:p-4">
@@ -1142,6 +1329,11 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                     onOpenSelectorChange={setOpenSelectorDate}
                     unitCoverageForDay={day.unitCoverage ?? []}
                     isHoliday={holidays.some((h) => isSameDay(h, day.date))}
+                    isMetadataMode={isMetadataMode}
+                    freeDayOpenDate={freeDayOpenDate}
+                    onFreeDayOpenChange={setFreeDayOpenDate}
+                    onToggleFreeDay={onToggleFreeDay}
+                    allDoctors={doctors}
                   />
                 ))}
               </div>
@@ -1166,24 +1358,32 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             <WorkIcon className="w-3 h-3 shrink-0" />
             {t('calendar.legend.work')}
           </span>
-          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Pre-assigned')}>
-            <PreAssignedIcon className="w-3 h-3 shrink-0" />
-            {t('calendar.legend.preAssigned')}
+          {!isMetadataMode && (
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Pre-assigned')}>
+              <PreAssignedIcon className="w-3 h-3 shrink-0" />
+              {t('calendar.legend.preAssigned')}
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Free')}>
+            <FreeDayIcon className="w-3 h-3 shrink-0" />
+            {t('calendar.legend.freeDay')}
           </span>
-          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Vacation')}>
-            <VacationIcon className="w-3 h-3 shrink-0" />
-            {t('calendar.legend.vacation')}
-          </span>
-          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-dashed border-muted-foreground/30 text-muted-foreground">
-            <ExcludedIcon className="w-3 h-3 shrink-0" />
-            {t('calendar.legend.excluded')}
-          </span>
+          {!isMetadataMode && (
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-dashed border-muted-foreground/30 text-muted-foreground">
+              <ExcludedIcon className="w-3 h-3 shrink-0" />
+              {t('calendar.legend.excluded')}
+            </span>
+          )}
           {units.length > 0 && (
             <>
               <span className="text-muted-foreground/40">|</span>
               <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                 <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
                 {t('calendar.legend.covered')}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                {t('calendar.legend.partial')}
               </span>
               <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                 <span className="inline-block h-2 w-2 rounded-full bg-rose-500" />

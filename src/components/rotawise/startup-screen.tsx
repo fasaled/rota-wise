@@ -1,25 +1,23 @@
 
-import React, { useRef } from 'react';
-import { FolderOpen, FilePlus2, Layers } from 'lucide-react';
+import React from 'react';
+import { FolderOpen, FilePlus2 } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 import { useFileSystem } from '@/context/file-system-context';
-import { CURRENT_FILE_VERSION, type AppFileData } from '@/lib/types';
+import type { AppFileData } from '@/lib/types';
 
 interface StartupScreenProps {
-  onFileReady: (data: AppFileData, convertedFromJson?: boolean) => void;
-  onLoadAsPreassigned: (data: AppFileData) => void;
+  onFileReady: (data: AppFileData, convertedFromJson?: boolean, isExcel?: boolean) => void;
   onError: (msg: string) => void;
 }
 
-export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: StartupScreenProps) {
+export function StartupScreen({ onFileReady, onError }: StartupScreenProps) {
   const { t } = useLanguage();
-  const { openFile, createNewFile } = useFileSystem();
-  const preassignedInputRef = useRef<HTMLInputElement>(null);
+  const { openAnyFile, createNewFile } = useFileSystem();
 
   async function handleOpen() {
     try {
-      const result = await openFile();
-      if (result) onFileReady(result.data, result.convertedFromJson);
+      const result = await openAnyFile();
+      if (result) onFileReady(result.data, result.convertedFromJson, result.isExcel);
     } catch {
       onError(t('file.openError'));
     }
@@ -32,22 +30,6 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
     } catch {
       onError(t('file.createError'));
     }
-  }
-
-  function handlePreassignedFilePick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const parsed = JSON.parse(ev.target?.result as string);
-        onLoadAsPreassigned({ fileVersion: CURRENT_FILE_VERSION, versions: [], ...parsed } as AppFileData);
-      } catch {
-        onError(t('file.openError'));
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
   }
 
   const actionClass =
@@ -85,15 +67,8 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
 
         {/* Actions */}
         <div className="flex flex-col gap-3 w-full">
-          <input
-            ref={preassignedInputRef}
-            type="file"
-            accept=".rw,.json"
-            className="hidden"
-            onChange={handlePreassignedFilePick}
-          />
 
-          {/* Open existing file */}
+          {/* Open file (any format) */}
           <button
             type="button"
             onClick={handleOpen}
@@ -123,20 +98,6 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
             </div>
           </button>
 
-          {/* Import as pre-assigned */}
-          <button
-            type="button"
-            onClick={() => preassignedInputRef.current?.click()}
-            className={actionClass}
-          >
-            <div className={iconWrapClass}>
-              <Layers className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-white text-sm">{t('startup.importAsPreassigned')}</p>
-              <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{t('startup.importAsPreassignedDescription')}</p>
-            </div>
-          </button>
         </div>
       </div>
     </div>

@@ -150,7 +150,7 @@ export function serializeScheduleFormValues(
     holidays,
     doctors: values.doctors.map((d) => ({
       ...d,
-      vacationDates: d.vacationDates.map((date) =>
+      freeDates: d.freeDates.map((date) =>
         date instanceof Date ? date.toISOString() : (date as string),
       ),
       preAssignedWorkDates: d.preAssignedWorkDates.map((date) =>
@@ -179,14 +179,19 @@ export function deserializeScheduleFormValues(
     holidays: ((values as { holidays?: string[] }).holidays ?? []).map(
       (s) => new Date(s),
     ),
-    doctors: values.doctors.map((d) => ({
-      ...d,
-      vacationDates: d.vacationDates.map((s) => new Date(s)),
-      preAssignedWorkDates: d.preAssignedWorkDates.map((s) => new Date(s)),
-      excludedDates: d.excludedDates.map((s) => new Date(s)),
-      // fileVersion 1 files do not have unitId; default to '' for backward compat.
-      unitId: d.unitId ?? '',
-    })),
+    doctors: values.doctors.map((d) => {
+      const freeDatesRaw: string[] = (d as unknown as Record<string, unknown>).freeDates as string[] ??
+        ((d as unknown as Record<string, unknown>).vacationDates as string[]) ??
+        [];
+      return {
+        ...d,
+        // fileVersion 1 files do not have unitId; default to '' for backward compat.
+        unitId: d.unitId ?? '',
+        freeDates: freeDatesRaw.map((s: string) => new Date(s)),
+        preAssignedWorkDates: d.preAssignedWorkDates.map((s: string) => new Date(s)),
+        excludedDates: d.excludedDates.map((s: string) => new Date(s)),
+      };
+    }),
   } as ScheduleFormValues;
 }
 
@@ -207,9 +212,15 @@ export function deserializeSchedule(schedule: SerializedSchedule): Schedule {
     ...schedule,
     startDate: new Date(schedule.startDate),
     endDate: new Date(schedule.endDate),
-    entries: schedule.entries.map((e) => ({
-      ...e,
-      date: new Date(e.date),
-    })),
+    entries: schedule.entries.map((e) => {
+      const date = new Date(e.date);
+      return {
+        ...e,
+        date,
+        dayOfWeek: e.dayOfWeek || date.toLocaleDateString('en-US', { weekday: 'long' }),
+        // Backward compat for old files with 'Vacation' assignment
+        assignment: (e.assignment as string) === 'Vacation' ? 'Free' : e.assignment,
+      };
+    }),
   };
 }

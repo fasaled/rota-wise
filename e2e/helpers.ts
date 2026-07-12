@@ -21,7 +21,7 @@ export interface TestDoctor {
   id: string;
   name: string;
   unitId?: string;
-  vacationDates?: string[];
+  freeDates?: string[];
   excludedDates?: string[];
   preAssignedWorkDates?: string[];
   isExcludedFromAutomaticAssignment?: boolean;
@@ -78,7 +78,7 @@ export function createTestFileJson(opts: CreateTestFileOptions): string {
     doctorsProfiles: opts.doctors.map((d) => ({
       id: d.id,
       name: d.name,
-      vacationDates: (d.vacationDates ?? []).map(toIso),
+      freeDates: (d.freeDates ?? []).map(toIso),
       preAssignedWorkDates: preAssignedByDoctor.get(d.id) ?? [],
       excludedDates: (d.excludedDates ?? []).map(toIso),
       isExcludedFromAutomaticAssignment: d.isExcludedFromAutomaticAssignment ?? false,
@@ -92,7 +92,7 @@ export function createTestFileJson(opts: CreateTestFileOptions): string {
       doctors: opts.doctors.map((d) => ({
         id: d.id,
         name: d.name,
-        vacationDates: (d.vacationDates ?? []).map(toIso),
+        freeDates: (d.freeDates ?? []).map(toIso),
         preAssignedWorkDates: preAssignedByDoctor.get(d.id) ?? [],
         excludedDates: (d.excludedDates ?? []).map(toIso),
         isExcludedFromAutomaticAssignment: d.isExcludedFromAutomaticAssignment ?? false,

@@ -16,7 +16,7 @@ describe('Schedule Generator', () => {
         {
           id: 'doc1',
           name: 'Dr. Smith',
-          vacationDates: [],
+          freeDates: [],
           preAssignedWorkDates: [],
           excludedDates: [],
           isExcludedFromAutomaticAssignment: false,
@@ -24,7 +24,7 @@ describe('Schedule Generator', () => {
         {
           id: 'doc2',
           name: 'Dr. Johnson',
-          vacationDates: [],
+          freeDates: [],
           preAssignedWorkDates: [],
           excludedDates: [],
           isExcludedFromAutomaticAssignment: false,
@@ -32,7 +32,7 @@ describe('Schedule Generator', () => {
         {
           id: 'doc3',
           name: 'Dr. Williams',
-          vacationDates: [],
+          freeDates: [],
           preAssignedWorkDates: [],
           excludedDates: [],
           isExcludedFromAutomaticAssignment: false,
@@ -134,7 +134,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [preAssignedDate1, preAssignedDate2],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -164,13 +164,13 @@ describe('Schedule Generator', () => {
 
   describe('Vacation Dates Constraint', () => {
     it('should not assign work on vacation dates', () => {
-      const vacationDate = new Date('2024-01-15');
+      const freeDay = new Date('2024-01-15');
       const data = createBaseScheduleData({
         doctors: [
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [vacationDate],
+            freeDates: [freeDay],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -181,16 +181,16 @@ describe('Schedule Generator', () => {
       const result = generateSchedule(data);
       expect(result.schedule).toBeDefined();
 
-      const vacationEntries = result.schedule!.entries.filter(
-        e => e.doctorId === 'doc1' && isSameDay(e.date, vacationDate)
+      const freeEntries = result.schedule!.entries.filter(
+        e => e.doctorId === 'doc1' && isSameDay(e.date, freeDay)
       );
 
-      expect(vacationEntries).toHaveLength(1);
-      expect(vacationEntries[0].assignment).toBe('Vacation');
+      expect(freeEntries).toHaveLength(1);
+      expect(freeEntries[0].assignment).toBe('Free');
     });
 
     it('should create vacation entries for all vacation dates', () => {
-      const vacationDates = [
+      const freeDates = [
         new Date('2024-01-10'),
         new Date('2024-01-15'),
         new Date('2024-01-20'),
@@ -201,7 +201,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates,
+            freeDates,
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -212,12 +212,12 @@ describe('Schedule Generator', () => {
       const result = generateSchedule(data);
       expect(result.schedule).toBeDefined();
 
-      vacationDates.forEach(vacDate => {
-        const vacationEntry = result.schedule!.entries.find(
-          e => e.doctorId === 'doc1' && isSameDay(e.date, vacDate)
+      freeDates.forEach(freeDay => {
+        const freeEntry = result.schedule!.entries.find(
+          e => e.doctorId === 'doc1' && isSameDay(e.date, freeDay)
         );
-        expect(vacationEntry).toBeDefined();
-        expect(vacationEntry!.assignment).toBe('Vacation');
+        expect(freeEntry).toBeDefined();
+        expect(freeEntry!.assignment).toBe('Free');
       });
     });
   });
@@ -230,7 +230,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [excludedDate],
             isExcludedFromAutomaticAssignment: false,
@@ -263,7 +263,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates,
             isExcludedFromAutomaticAssignment: false,
@@ -290,7 +290,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [new Date('2024-01-10'), new Date('2024-01-11')],
+            freeDates: [new Date('2024-01-10'), new Date('2024-01-11')],
             preAssignedWorkDates: [],
             excludedDates: [new Date('2024-01-15'), new Date('2024-01-20')],
             isExcludedFromAutomaticAssignment: false,
@@ -302,12 +302,12 @@ describe('Schedule Generator', () => {
       expect(result.schedule).toBeDefined();
 
       // Verify no work on vacation dates
-      const workOnVacation = result.schedule!.entries.find(
+      const workOnFreeDay = result.schedule!.entries.find(
         e => e.doctorId === 'doc1' &&
              isSameDay(e.date, new Date('2024-01-10')) &&
              (e.assignment === 'Work' || e.assignment === 'Pre-assigned')
       );
-      expect(workOnVacation).toBeUndefined();
+      expect(workOnFreeDay).toBeUndefined();
 
       // Verify no work on excluded dates
       const workOnExcluded = result.schedule!.entries.find(
@@ -329,7 +329,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates,
             isExcludedFromAutomaticAssignment: false,
@@ -337,7 +337,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -367,7 +367,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates,
             isExcludedFromAutomaticAssignment: false,
@@ -402,7 +402,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [preAssignedDate],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -428,7 +428,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [conflictDate],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -436,7 +436,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [conflictDate],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -462,7 +462,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: true,
@@ -470,7 +470,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -495,7 +495,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [preAssignedDate],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: true,
@@ -522,7 +522,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -530,7 +530,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -538,7 +538,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc3',
             name: 'Dr. Williams',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -575,7 +575,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [
+            freeDates: [
               new Date('2024-01-10'),
               new Date('2024-01-11'),
               new Date('2024-01-12'),
@@ -589,7 +589,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -654,7 +654,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -754,7 +754,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [new Date('2024-01-15')],
+            freeDates: [new Date('2024-01-15')],
             preAssignedWorkDates: [new Date('2024-01-14'), new Date('2024-01-16')],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -796,7 +796,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -804,7 +804,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -875,7 +875,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [new Date('2024-01-10'), new Date('2024-01-11')],
+            freeDates: [new Date('2024-01-10'), new Date('2024-01-11')],
             preAssignedWorkDates: [new Date('2024-01-05')],
             excludedDates: [new Date('2024-01-20')],
             isExcludedFromAutomaticAssignment: false,
@@ -883,7 +883,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [new Date('2024-01-15')],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -898,10 +898,10 @@ describe('Schedule Generator', () => {
       const entries = result.schedule!.entries;
 
       // Check vacation entries
-      const doc1VacationEntries = entries.filter(
-        e => e.doctorId === 'doc1' && e.assignment === 'Vacation'
+      const doc1FreeEntries = entries.filter(
+        e => e.doctorId === 'doc1' && e.assignment === 'Free'
       );
-      expect(doc1VacationEntries.length).toBe(2);
+      expect(doc1FreeEntries.length).toBe(2);
 
       // Check pre-assigned entries
       const preAssignedEntries = entries.filter(
@@ -955,7 +955,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: preAssignedDates,
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -963,7 +963,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1018,7 +1018,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: preAssignedDates,
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1026,7 +1026,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1079,7 +1079,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: preAssignedDates,
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1087,7 +1087,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1137,7 +1137,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: preAssignedDates,
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1145,7 +1145,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1200,7 +1200,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc1',
             name: 'Dr. Smith',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [...janPreAssigned, ...febPreAssigned],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1208,7 +1208,7 @@ describe('Schedule Generator', () => {
           {
             id: 'doc2',
             name: 'Dr. Johnson',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1260,7 +1260,7 @@ describe('Schedule Generator', () => {
     it('computeUnitCoverageForDate returns empty array on weekends', () => {
       const saturday = new Date('2024-01-06'); // Saturday
       const doctors: DoctorFormFieldInput[] = [
-        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        { id: 'd1', name: 'A', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
       ];
       const result = computeUnitCoverageForDate(saturday, doctors, baseUnits, []);
       expect(result).toEqual([]);
@@ -1269,8 +1269,8 @@ describe('Schedule Generator', () => {
     it('computeUnitCoverageForDate reports tracked vs ignored units', () => {
       const monday = new Date('2024-01-08'); // Monday
       const doctors: DoctorFormFieldInput[] = [
-        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
-        { id: 'd2', name: 'B', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
+        { id: 'd1', name: 'A', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        { id: 'd2', name: 'B', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
       ];
       const result = computeUnitCoverageForDate(monday, doctors, baseUnits, []);
       const ward = result.find((c) => c.unitId === 'ward');
@@ -1285,8 +1285,8 @@ describe('Schedule Generator', () => {
     it('computeUnitCoverageForDate subtracts the candidate for look-ahead', () => {
       const tuesday = new Date('2024-01-09'); // Tuesday
       const doctors: DoctorFormFieldInput[] = [
-        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
-        { id: 'd2', name: 'B', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        { id: 'd1', name: 'A', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        { id: 'd2', name: 'B', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
       ];
       const withoutSubtract = computeUnitCoverageForDate(tuesday, doctors, baseUnits, []);
       const withSubtract = computeUnitCoverageForDate(tuesday, doctors, baseUnits, [], { subtractDoctorId: 'd1' });
@@ -1300,7 +1300,7 @@ describe('Schedule Generator', () => {
       const tuesday = new Date('2024-01-09');
       const monday = new Date('2024-01-08');
       const doctors: DoctorFormFieldInput[] = [
-        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [monday], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        { id: 'd1', name: 'A', freeDates: [], preAssignedWorkDates: [monday], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
       ];
       const result = computeUnitCoverageForDate(tuesday, doctors, baseUnits, []);
       const ward = result.find((c) => c.unitId === 'ward');
@@ -1311,8 +1311,8 @@ describe('Schedule Generator', () => {
     it('generateSchedule: post-call hard rule (no consecutive on-call days) regardless of minInterval', () => {
       const data = buildWithUnits(
         [
-          { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
-          { id: 'd2', name: 'B', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd1', name: 'A', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd2', name: 'B', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
         ],
         [{ id: 'ward', name: 'Ward', minPostCallCoverage: 1 }],
         { minIntervalBetweenWorkDays: 0 },
@@ -1348,7 +1348,7 @@ describe('Schedule Generator', () => {
           {
             id: 'd1',
             name: 'A',
-            vacationDates: [new Date('2024-01-01'), new Date('2024-01-02')],
+            freeDates: [new Date('2024-01-01'), new Date('2024-01-02')],
             preAssignedWorkDates: [],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1357,7 +1357,7 @@ describe('Schedule Generator', () => {
           {
             id: 'd2',
             name: 'B',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [new Date('2024-01-03')],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1386,7 +1386,7 @@ describe('Schedule Generator', () => {
           {
             id: 'd1',
             name: 'A',
-            vacationDates: [],
+            freeDates: [],
             preAssignedWorkDates: [new Date('2024-01-01')],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1405,7 +1405,7 @@ describe('Schedule Generator', () => {
       // 1 doctor in a unit with min 0. Post-call is fine (no constraint).
       const data = buildWithUnits(
         [
-          { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
+          { id: 'd1', name: 'A', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
         ],
         [{ id: 'consult', name: 'Consulta', minPostCallCoverage: 0 }],
         { startDate: new Date('2024-01-01'), endDate: new Date('2024-01-10') },
@@ -1420,7 +1420,7 @@ describe('Schedule Generator', () => {
       // an undercoverage warning on Saturday (cobertura is solo L-V).
       const data = buildWithUnits(
         [
-          { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd1', name: 'A', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
         ],
         [{ id: 'ward', name: 'Ward', minPostCallCoverage: 1 }],
         { startDate: new Date('2024-01-05'), endDate: new Date('2024-01-12'), minIntervalBetweenWorkDays: 1 },
@@ -1443,7 +1443,7 @@ describe('Schedule Generator', () => {
       const endDate = new Date('2024-01-10');
       const units: Unit[] = [{ id: 'u', name: 'Ward', minPostCallCoverage: 1 }];
       const doctors: DoctorFormFieldInput[] = [
-        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'u' },
+        { id: 'd1', name: 'A', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'u' },
       ];
       // d1 on call Monday Jan 1. The post-call days (Tue, Wed, Thu, Fri)
       // all undercovered.
@@ -1470,7 +1470,7 @@ describe('Schedule Generator', () => {
         { id: 'admin', name: 'Admin', minPostCallCoverage: 0 },
       ];
       const doctors: DoctorFormFieldInput[] = [
-        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
+        { id: 'd1', name: 'A', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
       ];
       const entries: ScheduleEntry[] = [];
       const warnings = analyzeUnitCoverage(entries, doctors, units, startDate, endDate);
@@ -1492,8 +1492,8 @@ describe('Schedule Generator', () => {
         // Two doctors in the unit — by themselves they'd always cover
         // via the alternating post-call pattern, so a holiday in the
         // middle of the week has no visible effect.
-        { id: 'd1', name: 'Dr. A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
-        { id: 'd2', name: 'Dr. B', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        { id: 'd1', name: 'Dr. A', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        { id: 'd2', name: 'Dr. B', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
       ];
       return { startDate, endDate, units, doctors };
     }
@@ -1513,7 +1513,7 @@ describe('Schedule Generator', () => {
       // The holiday should mask the under-coverage on Wed only, not on
       // the rest of the weekdays — but since Wed is the only day d2 is
       // off, the rest of the week is still covered by d1.
-      doctors[1].vacationDates = [new Date('2024-01-03'), new Date('2024-01-04'), new Date('2024-01-05')];
+      doctors[1].freeDates = [new Date('2024-01-03'), new Date('2024-01-04'), new Date('2024-01-05')];
       const warnings = analyzeUnitCoverage([], doctors, units, startDate, endDate, [holiday]);
       const holidayWarnings = warnings.filter((w) => format(w.params.date as Date, 'yyyy-MM-dd') === '2024-01-03');
       expect(holidayWarnings, 'no under-coverage warning should be emitted for a holiday').toEqual([]);
@@ -1528,8 +1528,8 @@ describe('Schedule Generator', () => {
       // Wed is a holiday, so the warning should fire for Thu and Fri but
       // not for Wed.
       units[0].minPostCallCoverage = 2;
-      doctors[0].vacationDates = [new Date('2024-01-03'), new Date('2024-01-04'), new Date('2024-01-05')];
-      doctors[1].vacationDates = [new Date('2024-01-03'), new Date('2024-01-04'), new Date('2024-01-05')];
+      doctors[0].freeDates = [new Date('2024-01-03'), new Date('2024-01-04'), new Date('2024-01-05')];
+      doctors[1].freeDates = [new Date('2024-01-03'), new Date('2024-01-04'), new Date('2024-01-05')];
       const warnings = analyzeUnitCoverage([], doctors, units, startDate, endDate, [holiday]);
 
       const warningDates = new Set(warnings.map((w) => format(w.params.date as Date, 'yyyy-MM-dd')));
@@ -1542,7 +1542,7 @@ describe('Schedule Generator', () => {
       const doctor: DoctorFormFieldInput = {
         id: 'd1',
         name: 'Dr. A',
-        vacationDates: [],
+        freeDates: [],
         preAssignedWorkDates: [],
         excludedDates: [],
         isExcludedFromAutomaticAssignment: false,
@@ -1559,7 +1559,7 @@ describe('Schedule Generator', () => {
       const doctor: DoctorFormFieldInput = {
         id: 'd1',
         name: 'Dr. A',
-        vacationDates: [],
+        freeDates: [],
         preAssignedWorkDates: [],
         excludedDates: [],
         isExcludedFromAutomaticAssignment: false,
@@ -1586,7 +1586,7 @@ describe('Schedule Generator', () => {
           {
             id: 'd1',
             name: 'Dr. A',
-            vacationDates: [new Date('2024-01-01')],
+            freeDates: [new Date('2024-01-01')],
             preAssignedWorkDates: [new Date('2024-01-03')],
             excludedDates: [],
             isExcludedFromAutomaticAssignment: false,
@@ -1615,7 +1615,7 @@ describe('Schedule Generator', () => {
         startDate: new Date('2024-01-01'),
         endDate: new Date('2024-01-31'),
         doctors: [
-          { id: 'd1', name: 'Dr. A', vacationDates: [], preAssignedWorkDates: [new Date('2024-01-03')], excludedDates: [], isExcludedFromAutomaticAssignment: false },
+          { id: 'd1', name: 'Dr. A', freeDates: [], preAssignedWorkDates: [new Date('2024-01-03')], excludedDates: [], isExcludedFromAutomaticAssignment: false },
         ],
         holidays: [new Date('2024-01-03')],
         units: [],

@@ -39,7 +39,7 @@ const makeFormValues = (): ScheduleFormValues =>
       {
         id: 'doc1',
         name: 'Dr. Smith',
-        vacationDates: [new Date('2024-01-15T00:00:00.000Z')],
+        freeDates: [new Date('2024-01-15T00:00:00.000Z')],
         preAssignedWorkDates: [new Date('2024-01-10T00:00:00.000Z')],
         excludedDates: [],
         isExcludedFromAutomaticAssignment: false,
@@ -60,7 +60,7 @@ const makeSchedule = (): Schedule => ({
     {
       date: new Date('2024-01-02T00:00:00.000Z'),
       doctorId: 'doc2',
-      assignment: 'Vacation',
+      assignment: 'Free',
       dayOfWeek: 'Tuesday',
       isFixed: true,
     },
@@ -98,11 +98,11 @@ describe('serializeScheduleFormValues', () => {
     expect(serialized.endDate).toBe('2024-01-31T00:00:00.000Z');
   });
 
-  it('converts doctor vacationDates to ISO strings', () => {
+  it('converts doctor freeDates to ISO strings', () => {
     const values = makeFormValues();
     const serialized = serializeScheduleFormValues(values);
-    expect(serialized.doctors[0].vacationDates.every((d) => typeof d === 'string')).toBe(true);
-    expect(serialized.doctors[0].vacationDates[0]).toBe('2024-01-15T00:00:00.000Z');
+    expect(serialized.doctors[0].freeDates.every((d) => typeof d === 'string')).toBe(true);
+    expect(serialized.doctors[0].freeDates[0]).toBe('2024-01-15T00:00:00.000Z');
   });
 
   it('converts doctor preAssignedWorkDates to ISO strings', () => {
@@ -155,7 +155,7 @@ describe('deserializeScheduleFormValues', () => {
     const serialized = serializeScheduleFormValues(makeFormValues());
     const deserialized = deserializeScheduleFormValues(serialized);
     const doc = deserialized.doctors[0];
-    expect(doc.vacationDates.every((d) => d instanceof Date)).toBe(true);
+    expect(doc.freeDates.every((d) => d instanceof Date)).toBe(true);
     expect(doc.preAssignedWorkDates.every((d) => d instanceof Date)).toBe(true);
     expect(doc.excludedDates.every((d) => d instanceof Date)).toBe(true);
   });
@@ -169,8 +169,8 @@ describe('deserializeScheduleFormValues', () => {
   it('round-trips doctor vacation dates correctly', () => {
     const original = makeFormValues();
     const roundTripped = deserializeScheduleFormValues(serializeScheduleFormValues(original));
-    expect(roundTripped.doctors[0].vacationDates[0].getTime()).toBe(
-      original.doctors[0].vacationDates[0].getTime(),
+    expect(roundTripped.doctors[0].freeDates[0].getTime()).toBe(
+      original.doctors[0].freeDates[0].getTime(),
     );
   });
 
@@ -211,7 +211,7 @@ describe('serializeSchedule', () => {
     const serialized = serializeSchedule(schedule);
     expect(serialized.entries[0].assignment).toBe('Work');
     expect(serialized.entries[0].doctorId).toBe('doc1');
-    expect(serialized.entries[1].assignment).toBe('Vacation');
+    expect(serialized.entries[1].assignment).toBe('Free');
   });
 
   it('preserves isFixed flag on entries', () => {
@@ -555,7 +555,7 @@ describe('serializeScheduleFormValues with units', () => {
         {
           id: 'doc1',
           name: 'Dr. Smith',
-          vacationDates: [],
+          freeDates: [],
           preAssignedWorkDates: [],
           excludedDates: [],
           isExcludedFromAutomaticAssignment: false,
@@ -599,7 +599,7 @@ describe('deserializeScheduleFormValues with units', () => {
         {
           id: 'doc1',
           name: 'Dr. Smith',
-          vacationDates: [],
+          freeDates: [],
           preAssignedWorkDates: [],
           excludedDates: [],
           isExcludedFromAutomaticAssignment: false,

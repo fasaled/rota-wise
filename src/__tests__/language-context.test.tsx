@@ -55,7 +55,7 @@ describe('useLanguage', () => {
         const value = result.current.t('page.toast.scheduleWarning.description', {
           doctorName: 'Dr. Smith',
         });
-        expect(value).toBe('Dr. Smith is scheduled to work on a vacation day.');
+        expect(value).toBe('Dr. Smith is scheduled to work on a free day.');
       });
     });
 

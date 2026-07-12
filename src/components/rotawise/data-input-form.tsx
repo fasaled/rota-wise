@@ -13,7 +13,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { CalendarIcon, DoctorsIcon, VacationIcon, PreAssignedIcon, CalendarXIcon, Clock3Icon } from '@/components/icons';
+import { CalendarIcon, DoctorsIcon, FreeDayIcon, PreAssignedIcon, CalendarXIcon, Clock3Icon } from '@/components/icons';
 import { format, eachDayOfInterval } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import type { ScheduleFormValues, Unit } from '@/lib/types';
@@ -50,7 +50,7 @@ const unitSchema = z.object({
 const doctorSchema = z.object({
   id: z.string().default(() => generateId()),
   name: z.string().min(1, { message: "Name is required." }),
-  vacationDates: z.array(z.date()).default([]),
+  freeDates: z.array(z.date()).default([]),
   preAssignedWorkDates: z.array(z.date()).default([]),
   excludedDates: z.array(z.date()).default([]),
   isExcludedFromAutomaticAssignment: z.boolean().optional().default(false),
@@ -151,7 +151,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                  ? initialValues.doctors.map(doc => ({
                      id: doc.id || generateId(),
                      name: doc.name || '',
-                     vacationDates: doc.vacationDates || [],
+                     freeDates: doc.freeDates || [],
                      preAssignedWorkDates: doc.preAssignedWorkDates || [],
                      excludedDates: doc.excludedDates || [],
                      isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
@@ -167,7 +167,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
 
     useImperativeHandle(ref, () => form, [form]);
 
-    const { fields, append, remove, move } = useFieldArray({
+    const { fields, append, remove, move, replace } = useFieldArray({
     control: form.control,
     name: "doctors",
   });
@@ -193,6 +193,27 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialValues, form, replaceUnits]);
+
+    // Same workaround for doctors: `useFieldArray` does not always pick
+    // up `defaultValues` on remount when loading a file, so we force-sync.
+    React.useEffect(() => {
+      const incoming = initialValues?.doctors ?? [];
+      const current = (form.getValues('doctors') as ScheduleFormValues['doctors']) ?? [];
+      const sameLength = incoming.length === current.length;
+      const sameIds = sameLength && incoming.every((d, i) => d.id && d.id === current[i]?.id);
+      if (!sameIds) {
+        replace(incoming.map(doc => ({
+          id: doc.id || generateId(),
+          name: doc.name || '',
+          freeDates: doc.freeDates || [],
+          preAssignedWorkDates: doc.preAssignedWorkDates || [],
+          excludedDates: doc.excludedDates || [],
+          isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+          unitId: (doc as { unitId?: string }).unitId || '',
+        })));
+      }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialValues, form, replace]);
 
     // `useFieldArray` doesn't always pick up the initial values from
     // `defaultValues` on the very first render after a remount (the form
@@ -708,12 +729,12 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                   )}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <Label htmlFor={`doctors.${index}.vacationDates`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5"><VacationIcon className="w-3.5 h-3.5 text-emerald-500"/>{t('form.vacationDates')}</Label>
+                      <Label htmlFor={`doctors.${index}.freeDates`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5"><FreeDayIcon className="w-3.5 h-3.5 text-emerald-500"/>{t('form.freeDates')}</Label>
                       <Controller
-                        name={`doctors.${index}.vacationDates`}
+                        name={`doctors.${index}.freeDates`}
                         control={form.control}
                                   render={({ field: controllerDateField }) => {
-                                    const pickerKey = `${docField.id}-vacationDates`;
+                                    const pickerKey = `${docField.id}-freeDates`;
                                     return (
                                       <Popover
                                         open={openPopoverKey === pickerKey}
@@ -904,7 +925,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
               type="button"
               variant="outline"
               className="mt-4 w-full border-dashed border-2 text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-primary/5 transition-colors h-11"
-              onClick={() => append({ id: generateId(), name: '', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: '' })}
+              onClick={() => append({ id: generateId(), name: '', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: '' })}
             >
               <Plus className="h-4 w-4 mr-2" />
               {t('form.addDoctor')}
