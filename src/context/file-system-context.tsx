@@ -8,7 +8,7 @@ import React, {
   useEffect,
   type ReactNode,
 } from 'react';
-import type { AppFileData } from '@/lib/types';
+import { CURRENT_FILE_VERSION, type AppFileData } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,7 +49,7 @@ function detectFileSystemSupport(): boolean {
 
 function makeEmptyFileData(): AppFileData {
   return {
-    fileVersion: 1,
+    fileVersion: CURRENT_FILE_VERSION,
     versions: [],
     schedule: {
       entries: [],
@@ -62,6 +62,7 @@ function makeEmptyFileData(): AppFileData {
       startDate: new Date().toISOString(),
       endDate: new Date().toISOString(),
       doctors: [],
+      units: [],
     } as unknown as AppFileData['formValues'],
     scheduleWarnings: [],
   };
@@ -72,7 +73,7 @@ async function readFileData(file: File): Promise<AppFileData> {
   const parsed = JSON.parse(text);
   // Migrate old format: add missing fields so both .json and .rw work
   return {
-    fileVersion: 1,
+    fileVersion: CURRENT_FILE_VERSION,
     versions: [],
     ...parsed,
   } as AppFileData;

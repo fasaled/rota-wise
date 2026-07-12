@@ -5,6 +5,7 @@ import type {
   SerializedScheduleFormValues,
   SerializedSchedule,
 } from './types';
+import type { Unit } from './types';
 
 const VERSIONS_STORAGE_KEY = 'rotawiseVersions';
 
@@ -133,6 +134,9 @@ export function deleteVersionFromArray(
 export function serializeScheduleFormValues(
   values: ScheduleFormValues,
 ): SerializedScheduleFormValues {
+  const holidays = ((values as { holidays?: Date[] }).holidays ?? []).map(
+    (d) => (d instanceof Date ? d.toISOString() : (d as string)),
+  );
   return {
     ...values,
     startDate:
@@ -143,6 +147,7 @@ export function serializeScheduleFormValues(
       values.endDate instanceof Date
         ? values.endDate.toISOString()
         : (values.endDate as string),
+    holidays,
     doctors: values.doctors.map((d) => ({
       ...d,
       vacationDates: d.vacationDates.map((date) =>
@@ -165,11 +170,22 @@ export function deserializeScheduleFormValues(
     ...values,
     startDate: new Date(values.startDate),
     endDate: new Date(values.endDate),
+    units: ((values as { units?: Unit[] }).units ?? []).map((u) => ({
+      id: u.id,
+      name: u.name,
+      minPostCallCoverage: u.minPostCallCoverage,
+    })),
+    // fileVersion 1 files do not have holidays; default to [] for backward compat.
+    holidays: ((values as { holidays?: string[] }).holidays ?? []).map(
+      (s) => new Date(s),
+    ),
     doctors: values.doctors.map((d) => ({
       ...d,
       vacationDates: d.vacationDates.map((s) => new Date(s)),
       preAssignedWorkDates: d.preAssignedWorkDates.map((s) => new Date(s)),
       excludedDates: d.excludedDates.map((s) => new Date(s)),
+      // fileVersion 1 files do not have unitId; default to '' for backward compat.
+      unitId: d.unitId ?? '',
     })),
   } as ScheduleFormValues;
 }

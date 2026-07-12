@@ -3,7 +3,7 @@ import React, { useRef } from 'react';
 import { FolderOpen, FilePlus2, Layers } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 import { useFileSystem } from '@/context/file-system-context';
-import type { AppFileData } from '@/lib/types';
+import { CURRENT_FILE_VERSION, type AppFileData } from '@/lib/types';
 
 interface StartupScreenProps {
   onFileReady: (data: AppFileData, convertedFromJson?: boolean) => void;
@@ -41,7 +41,7 @@ export function StartupScreen({ onFileReady, onLoadAsPreassigned, onError }: Sta
     reader.onload = (ev) => {
       try {
         const parsed = JSON.parse(ev.target?.result as string);
-        onLoadAsPreassigned({ fileVersion: 1, versions: [], ...parsed } as AppFileData);
+        onLoadAsPreassigned({ fileVersion: CURRENT_FILE_VERSION, versions: [], ...parsed } as AppFileData);
       } catch {
         onError(t('file.openError'));
       }

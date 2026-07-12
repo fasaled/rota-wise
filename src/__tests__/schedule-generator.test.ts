@@ -1,5 +1,5 @@
-import { generateSchedule } from '../lib/schedule-generator';
-import type { ScheduleFormValues, ScheduleEntry, DoctorFormFieldInput } from '../lib/types';
+import { generateSchedule, computeUnitCoverageForDate, analyzeUnitCoverage, isDoctorAvailableOnDate } from '../lib/schedule-generator';
+import type { ScheduleFormValues, ScheduleEntry, DoctorFormFieldInput, Unit, UnitCoverage } from '../lib/types';
 import { addDays, subDays, differenceInCalendarDays, isSameDay, format } from 'date-fns';
 
 describe('Schedule Generator', () => {
@@ -1234,6 +1234,397 @@ describe('Schedule Generator', () => {
         w => w.key === 'warnings.exceededMonthlyLimit' && w.params?.month === '2024-01'
       );
       expect(janWarning).toBeDefined();
+    });
+  });
+
+  describe('Unit Coverage (post-call)', () => {
+    const baseUnits: Unit[] = [
+      { id: 'ward', name: 'Planta A', minPostCallCoverage: 1 },
+      { id: 'consult', name: 'Consulta', minPostCallCoverage: 0 },
+    ];
+
+    const buildWithUnits = (
+      doctors: DoctorFormFieldInput[],
+      units: Unit[] = baseUnits,
+      overrides: Partial<ScheduleFormValues> = {},
+    ): ScheduleFormValues => ({
+      numberOfDoctors: doctors.length,
+      startDate: new Date('2024-01-01'),
+      endDate: new Date('2024-01-31'),
+      minIntervalBetweenWorkDays: 1,
+      doctors,
+      units,
+      ...overrides,
+    } as ScheduleFormValues);
+
+    it('computeUnitCoverageForDate returns empty array on weekends', () => {
+      const saturday = new Date('2024-01-06'); // Saturday
+      const doctors: DoctorFormFieldInput[] = [
+        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+      ];
+      const result = computeUnitCoverageForDate(saturday, doctors, baseUnits, []);
+      expect(result).toEqual([]);
+    });
+
+    it('computeUnitCoverageForDate reports tracked vs ignored units', () => {
+      const monday = new Date('2024-01-08'); // Monday
+      const doctors: DoctorFormFieldInput[] = [
+        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        { id: 'd2', name: 'B', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
+      ];
+      const result = computeUnitCoverageForDate(monday, doctors, baseUnits, []);
+      const ward = result.find((c) => c.unitId === 'ward');
+      const consult = result.find((c) => c.unitId === 'consult');
+      expect(ward?.status).toBe('tracked');
+      expect(ward?.available).toBe(1);
+      expect(ward?.isCovered).toBe(true); // 1 >= 1
+      expect(consult?.status).toBe('ignored');
+      expect(consult?.isCovered).toBe(true);
+    });
+
+    it('computeUnitCoverageForDate subtracts the candidate for look-ahead', () => {
+      const tuesday = new Date('2024-01-09'); // Tuesday
+      const doctors: DoctorFormFieldInput[] = [
+        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        { id: 'd2', name: 'B', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+      ];
+      const withoutSubtract = computeUnitCoverageForDate(tuesday, doctors, baseUnits, []);
+      const withSubtract = computeUnitCoverageForDate(tuesday, doctors, baseUnits, [], { subtractDoctorId: 'd1' });
+      const wardWithout = withoutSubtract.find((c) => c.unitId === 'ward');
+      const wardWith = withSubtract.find((c) => c.unitId === 'ward');
+      expect(wardWithout?.available).toBe(2);
+      expect(wardWith?.available).toBe(1);
+    });
+
+    it('computeUnitCoverageForDate marks post-call doctors unavailable', () => {
+      const tuesday = new Date('2024-01-09');
+      const monday = new Date('2024-01-08');
+      const doctors: DoctorFormFieldInput[] = [
+        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [monday], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+      ];
+      const result = computeUnitCoverageForDate(tuesday, doctors, baseUnits, []);
+      const ward = result.find((c) => c.unitId === 'ward');
+      expect(ward?.available).toBe(0);
+      expect(ward?.isCovered).toBe(false);
+    });
+
+    it('generateSchedule: post-call hard rule (no consecutive on-call days) regardless of minInterval', () => {
+      const data = buildWithUnits(
+        [
+          { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd2', name: 'B', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        ],
+        [{ id: 'ward', name: 'Ward', minPostCallCoverage: 1 }],
+        { minIntervalBetweenWorkDays: 0 },
+      );
+      const result = generateSchedule(data);
+      const workEntries = result.schedule!.entries.filter(
+        (e) => e.assignment === 'Work' || e.assignment === 'Pre-assigned',
+      );
+      const byDoc = new Map<string, Date[]>();
+      for (const e of workEntries) {
+        const arr = byDoc.get(e.doctorId) ?? [];
+        arr.push(e.date);
+        byDoc.set(e.doctorId, arr);
+      }
+      for (const [, dates] of byDoc) {
+        dates.sort((a, b) => a.getTime() - b.getTime());
+        for (let i = 1; i < dates.length; i++) {
+          const diff = differenceInCalendarDays(dates[i], dates[i - 1]);
+          // Post-call always forces >= 1 day gap, even when minInterval = 0
+          expect(diff).toBeGreaterThanOrEqual(2);
+        }
+      }
+    });
+
+    it('generateSchedule: pre-assignment on D+1 disqualifies a candidate for D', () => {
+      // d1 is on vacation Mon, so d1 cannot be picked for Mon. d2 is the only
+      // candidate for Mon, gets picked. On Tue, d2 is on post-call from Mon
+      // AND d2 is pre-assigned to Wed, so d2 must NOT be picked for Tue
+      // (pre-assignment on next day). d1 is on vacation Tue, so Tue gets 'Off'.
+      // The test verifies d2 is never on Tue (regardless of randomness on Mon).
+      const data = buildWithUnits(
+        [
+          {
+            id: 'd1',
+            name: 'A',
+            vacationDates: [new Date('2024-01-01'), new Date('2024-01-02')],
+            preAssignedWorkDates: [],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+            unitId: 'ward',
+          },
+          {
+            id: 'd2',
+            name: 'B',
+            vacationDates: [],
+            preAssignedWorkDates: [new Date('2024-01-03')],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+            unitId: 'ward',
+          },
+        ],
+        [{ id: 'ward', name: 'Ward', minPostCallCoverage: 1 }],
+        { minIntervalBetweenWorkDays: 1, startDate: new Date('2024-01-01'), endDate: new Date('2024-01-05') },
+      );
+      const result = generateSchedule(data);
+      const tueWorkEntries = result.schedule!.entries.filter(
+        (e) =>
+          isSameDay(e.date, new Date('2024-01-02')) &&
+          (e.assignment === 'Work' || e.assignment === 'Pre-assigned'),
+      );
+      // d2 must NEVER be on Tue.
+      expect(tueWorkEntries.some((e) => e.doctorId === 'd2')).toBe(false);
+    });
+
+    it('generateSchedule: postCallUncovered warning emitted when post-call day has < min available', () => {
+      // 1 doctor in a unit with min 1, pre-assigned to Mon. Mon gets a Work
+      // entry, Tue the unit is undercovered (d1 on post-call), so a
+      // postCallUncovered warning is expected.
+      const data = buildWithUnits(
+        [
+          {
+            id: 'd1',
+            name: 'A',
+            vacationDates: [],
+            preAssignedWorkDates: [new Date('2024-01-01')],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+            unitId: 'ward',
+          },
+        ],
+        [{ id: 'ward', name: 'Ward', minPostCallCoverage: 1 }],
+        { startDate: new Date('2024-01-01'), endDate: new Date('2024-01-05'), minIntervalBetweenWorkDays: 1 },
+      );
+      const result = generateSchedule(data);
+      const cov = result.warnings?.filter((w) => w.key === 'warnings.postCallUncovered');
+      expect(cov && cov.length).toBeGreaterThan(0);
+    });
+
+    it('generateSchedule: no postCallUncovered warning when unit has min 0', () => {
+      // 1 doctor in a unit with min 0. Post-call is fine (no constraint).
+      const data = buildWithUnits(
+        [
+          { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
+        ],
+        [{ id: 'consult', name: 'Consulta', minPostCallCoverage: 0 }],
+        { startDate: new Date('2024-01-01'), endDate: new Date('2024-01-10') },
+      );
+      const result = generateSchedule(data);
+      const cov = result.warnings?.filter((w) => w.key === 'warnings.postCallUncovered') ?? [];
+      expect(cov.length).toBe(0);
+    });
+
+    it('generateSchedule: post-call warning respects weekend gaps (no coverage check on Saturday)', () => {
+      // A unit with 1 doctor. Putting him on call Friday should NOT cause
+      // an undercoverage warning on Saturday (cobertura is solo L-V).
+      const data = buildWithUnits(
+        [
+          { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        ],
+        [{ id: 'ward', name: 'Ward', minPostCallCoverage: 1 }],
+        { startDate: new Date('2024-01-05'), endDate: new Date('2024-01-12'), minIntervalBetweenWorkDays: 1 },
+      );
+      const result = generateSchedule(data);
+      const friday = result.schedule!.entries.find(
+        (e) => isSameDay(e.date, new Date('2024-01-05')) && (e.assignment === 'Work' || e.assignment === 'Pre-assigned'),
+      );
+      // He should be on call Friday (the only available weekday before the weekend).
+      expect(friday?.doctorId).toBe('d1');
+      // Saturday should not generate a coverage warning (it's a weekend).
+      const saturdayWarning = result.warnings?.find(
+        (w) => w.key === 'warnings.postCallUncovered' && w.params?.date && isSameDay(new Date(w.params.date as string | number | Date), new Date('2024-01-06')),
+      );
+      expect(saturdayWarning).toBeUndefined();
+    });
+
+    it('analyzeUnitCoverage: emits one warning per (date, unit) undercoverage', () => {
+      const startDate = new Date('2024-01-01');
+      const endDate = new Date('2024-01-10');
+      const units: Unit[] = [{ id: 'u', name: 'Ward', minPostCallCoverage: 1 }];
+      const doctors: DoctorFormFieldInput[] = [
+        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'u' },
+      ];
+      // d1 on call Monday Jan 1. The post-call days (Tue, Wed, Thu, Fri)
+      // all undercovered.
+      const entries: ScheduleEntry[] = [
+        { date: new Date('2024-01-01'), doctorId: 'd1', assignment: 'Work', dayOfWeek: 'Monday' },
+      ];
+      const warnings = analyzeUnitCoverage(entries, doctors, units, startDate, endDate);
+      // Tue (Jan 2) should be the only one (d1 is on post-call Tue, no entry
+      // needed to trigger the helper's previous-day check).
+      expect(warnings.length).toBe(1);
+      for (const w of warnings) {
+        expect(w.key).toBe('warnings.postCallUncovered');
+        expect(w.params?.unit).toBe('Ward');
+        expect(w.params?.min).toBe(1);
+        expect(w.params?.available).toBe(0);
+      }
+    });
+
+    it('analyzeUnitCoverage: returns empty when no units are tracked', () => {
+      const startDate = new Date('2024-01-01');
+      const endDate = new Date('2024-01-10');
+      const units: Unit[] = [
+        { id: 'consult', name: 'Consulta', minPostCallCoverage: 0 },
+        { id: 'admin', name: 'Admin', minPostCallCoverage: 0 },
+      ];
+      const doctors: DoctorFormFieldInput[] = [
+        { id: 'd1', name: 'A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
+      ];
+      const entries: ScheduleEntry[] = [];
+      const warnings = analyzeUnitCoverage(entries, doctors, units, startDate, endDate);
+      expect(warnings).toEqual([]);
+    });
+
+    // -----------------------------------------------------------------
+    // Holidays: dates treated like weekends (no coverage, break the
+    // post-call / pre-call chain).
+    // -----------------------------------------------------------------
+
+    function makeHolidaysCoverageFixture(holidays: Date[]) {
+      const startDate = new Date('2024-01-01'); // Mon
+      const endDate = new Date('2024-01-31');
+      const units: Unit[] = [
+        { id: 'ward', name: 'Planta A', minPostCallCoverage: 1 },
+      ];
+      const doctors: DoctorFormFieldInput[] = [
+        // Two doctors in the unit — by themselves they'd always cover
+        // via the alternating post-call pattern, so a holiday in the
+        // middle of the week has no visible effect.
+        { id: 'd1', name: 'Dr. A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        { id: 'd2', name: 'Dr. B', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+      ];
+      return { startDate, endDate, units, doctors };
+    }
+
+    it('computeUnitCoverageForDate returns empty for a holiday', () => {
+      const { startDate, units, doctors } = makeHolidaysCoverageFixture([]);
+      const holiday = new Date('2024-01-03'); // Wed
+      const result = computeUnitCoverageForDate(holiday, doctors, units, [], { holidays: [holiday] });
+      expect(result).toEqual([]);
+    });
+
+    it('analyzeUnitCoverage skips holidays — no warnings emitted for a tracked unit on a holiday', () => {
+      const { startDate, endDate, units, doctors } = makeHolidaysCoverageFixture([]);
+      const holiday = new Date('2024-01-03'); // Wed
+      // Bump d2 onto vacation for the rest of the week so without the
+      // holiday exemption the unit WOULD be flagged as undercovered.
+      // The holiday should mask the under-coverage on Wed only, not on
+      // the rest of the weekdays — but since Wed is the only day d2 is
+      // off, the rest of the week is still covered by d1.
+      doctors[1].vacationDates = [new Date('2024-01-03'), new Date('2024-01-04'), new Date('2024-01-05')];
+      const warnings = analyzeUnitCoverage([], doctors, units, startDate, endDate, [holiday]);
+      const holidayWarnings = warnings.filter((w) => format(w.params.date as Date, 'yyyy-MM-dd') === '2024-01-03');
+      expect(holidayWarnings, 'no under-coverage warning should be emitted for a holiday').toEqual([]);
+    });
+
+    it('analyzeUnitCoverage still flags non-holiday weekdays that are undercovered', () => {
+      const { startDate, endDate, units, doctors } = makeHolidaysCoverageFixture([]);
+      const holiday = new Date('2024-01-03'); // Wed
+      // Bump min up to 2 so the unit is genuinely undercovered whenever
+      // any one of the two doctors is unavailable. d1 has Wed-Fri off,
+      // d2 has Wed-Fri off → every Wed, Thu, Fri is undercovered. Only
+      // Wed is a holiday, so the warning should fire for Thu and Fri but
+      // not for Wed.
+      units[0].minPostCallCoverage = 2;
+      doctors[0].vacationDates = [new Date('2024-01-03'), new Date('2024-01-04'), new Date('2024-01-05')];
+      doctors[1].vacationDates = [new Date('2024-01-03'), new Date('2024-01-04'), new Date('2024-01-05')];
+      const warnings = analyzeUnitCoverage([], doctors, units, startDate, endDate, [holiday]);
+
+      const warningDates = new Set(warnings.map((w) => format(w.params.date as Date, 'yyyy-MM-dd')));
+      expect(warningDates.has('2024-01-03'), 'holiday Wed should NOT be flagged').toBe(false);
+      expect(warningDates.has('2024-01-04'), 'Thu should be flagged (not a holiday)').toBe(true);
+      expect(warningDates.has('2024-01-05'), 'Fri should be flagged (not a holiday)').toBe(true);
+    });
+
+    it('post-call check skips a holiday between two shifts (Mon→holiday→Wed does NOT make Wed a post-call day)', () => {
+      const doctor: DoctorFormFieldInput = {
+        id: 'd1',
+        name: 'Dr. A',
+        vacationDates: [],
+        preAssignedWorkDates: [],
+        excludedDates: [],
+        isExcludedFromAutomaticAssignment: false,
+      };
+      // Mon (Jan 1) = Work, Tue (Jan 2) = holiday, Wed (Jan 3) — is d1 available?
+      const entries: ScheduleEntry[] = [
+        { date: new Date('2024-01-01'), doctorId: 'd1', assignment: 'Work', dayOfWeek: 'Monday' },
+      ];
+      const available = isDoctorAvailableOnDate(doctor, new Date('2024-01-03'), entries, [new Date('2024-01-02')]);
+      expect(available, 'holiday between two shifts should break the post-call chain').toBe(true);
+    });
+
+    it('post-call check does NOT skip when the previous day is a regular work day', () => {
+      const doctor: DoctorFormFieldInput = {
+        id: 'd1',
+        name: 'Dr. A',
+        vacationDates: [],
+        preAssignedWorkDates: [],
+        excludedDates: [],
+        isExcludedFromAutomaticAssignment: false,
+      };
+      // Tue (Jan 2) = Work, Wed (Jan 3) — NOT available (doctor on post-call).
+      // Holidays are next week, so they do NOT break the chain.
+      const entries: ScheduleEntry[] = [
+        { date: new Date('2024-01-02'), doctorId: 'd1', assignment: 'Work', dayOfWeek: 'Tuesday' },
+      ];
+      const available = isDoctorAvailableOnDate(doctor, new Date('2024-01-03'), entries, [new Date('2024-01-08')]);
+      expect(available, 'regular work day as previous day should still mark the doctor on post-call').toBe(false);
+    });
+
+    it('pre-assignment on a holiday does NOT block the previous day (so algorithm can assign the holiday)', () => {
+      // Scenario: d1 is on vacation on Mon (so no post-call chain from Mon),
+      // and pre-assigned to Wed (a holiday). The algorithm should be able
+      // to assign d1 on Tue because the holiday pre-assignment does NOT
+      // chain (Wed is a free day, like a weekend).
+      const data = createBaseScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31'),
+        minIntervalBetweenWorkDays: 1,
+        doctors: [
+          {
+            id: 'd1',
+            name: 'Dr. A',
+            vacationDates: [new Date('2024-01-01')],
+            preAssignedWorkDates: [new Date('2024-01-03')],
+            excludedDates: [],
+            isExcludedFromAutomaticAssignment: false,
+          },
+        ],
+        holidays: [new Date('2024-01-03')],
+        // No units → no unit coverage constraints in play.
+        units: [],
+      });
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+      // d1 should have a Work (auto) or Pre-assigned entry on Tue Jan 2.
+      // The only thing that could block Tue is the Wed pre-assignment, and
+      // the holiday exemption should make that NOT block.
+      const tueEntry = result.schedule!.entries.find(
+        (e) => isSameDay(e.date, new Date('2024-01-02')) && e.doctorId === 'd1' && (e.assignment === 'Work' || e.assignment === 'Pre-assigned'),
+      );
+      expect(tueEntry, 'd1 should be assignable on Tue despite Wed being a holiday pre-assignment').toBeDefined();
+    });
+
+    it('holiday pre-assignment is still honored (manual work on the holiday)', () => {
+      // The user pre-assigned d1 to a holiday — that entry must survive
+      // the generation pass (i.e. the holiday counts as a work day for
+      // pre-assignment, just not for coverage).
+      const data = createBaseScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31'),
+        doctors: [
+          { id: 'd1', name: 'Dr. A', vacationDates: [], preAssignedWorkDates: [new Date('2024-01-03')], excludedDates: [], isExcludedFromAutomaticAssignment: false },
+        ],
+        holidays: [new Date('2024-01-03')],
+        units: [],
+      });
+      const result = generateSchedule(data);
+      const wedEntry = result.schedule!.entries.find(
+        (e) => isSameDay(e.date, new Date('2024-01-03')) && e.doctorId === 'd1' && e.assignment === 'Pre-assigned',
+      );
+      expect(wedEntry, 'the manual pre-assignment on the holiday should be preserved').toBeDefined();
     });
   });
 }); 

@@ -7,6 +7,9 @@
 
 [test]
 # bun test picks up tsconfig.json paths automatically (@/* → src/*)
-# No transform needed — bun handles TypeScript natively
+# No transform needed — bun handles TypeScript natively.
 timeout = 10000
 preload = ["./src/__tests__/setup.ts"]
+# Only pick up unit/integration tests under src/. The e2e/ directory uses
+# @playwright/test's `test.describe` and must be run with `bun run e2e`.
+include = ["src/__tests__/**"]

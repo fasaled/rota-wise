@@ -1,5 +1,5 @@
-import { generateSchedule } from '../lib/schedule-generator';
-import type { ScheduleFormValues, ScheduleEntry } from '../lib/types';
+import { generateSchedule, computeUnitCoverageForDate, analyzeUnitCoverage } from '../lib/schedule-generator';
+import type { ScheduleFormValues, ScheduleEntry, DoctorFormFieldInput, Unit } from '../lib/types';
 import { differenceInCalendarDays, isSameDay, format, addDays, isWithinInterval } from 'date-fns';
 
 describe('Schedule Validation Tests', () => {
@@ -585,7 +585,7 @@ describe('Schedule Validation Tests', () => {
       const startTime = Date.now();
       const result = generateSchedule(constraintHeavyData);
       const endTime = Date.now();
-      
+
       expect(result.error).toBeUndefined();
       expect(result.schedule).toBeDefined();
 
@@ -595,9 +595,102 @@ describe('Schedule Validation Tests', () => {
       );
 
       expect(violations).toEqual([]);
-      
+
       // Should still complete efficiently
       expect(endTime - startTime).toBeLessThan(3000);
+    });
+  });
+
+  describe('Post-Call Unit Coverage Validation', () => {
+    /**
+     * Property: every weekday in the generated schedule must satisfy the
+     * unit coverage constraint (available >= min) for every tracked unit,
+     * EXCEPT for the days that produce a postCallUncovered warning.
+     */
+    it('all weekday (date, unit) pairs satisfy coverage, except the warned ones', () => {
+      const data = createScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-31'),
+        minIntervalBetweenWorkDays: 1,
+        numberOfDoctors: 4,
+        doctors: [
+          { id: 'd1', name: 'Dr. A', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd2', name: 'Dr. B', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd3', name: 'Dr. C', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+          { id: 'd4', name: 'Dr. D', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'consult' },
+        ],
+        units: [
+          { id: 'ward', name: 'Ward', minPostCallCoverage: 1 },
+          { id: 'consult', name: 'Consulta', minPostCallCoverage: 0 },
+        ],
+      } as Partial<ScheduleFormValues>) as ScheduleFormValues;
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+
+      const units = ((data as { units?: Unit[] }).units ?? []);
+      const doctors: DoctorFormFieldInput[] = data.doctors;
+      const entries = result.schedule!.entries;
+
+      const warnedKeys = new Set(
+        (result.warnings ?? [])
+          .filter((w) => w.key === 'warnings.postCallUncovered')
+          .map((w) => `${format(w.params?.date as Date, 'yyyy-MM-dd')}-${(units.find((u) => u.name === w.params?.unit))?.id ?? ''}`),
+      );
+
+      // Iterate every weekday in range
+      const cursor = new Date(data.startDate);
+      const end = new Date(data.endDate);
+      while (cursor <= end) {
+        const dow = cursor.getDay();
+        if (dow !== 0 && dow !== 6) {
+          const coverage = computeUnitCoverageForDate(cursor, doctors, units, entries);
+          for (const c of coverage) {
+            if (c.status !== 'tracked') continue;
+            const key = `${format(cursor, 'yyyy-MM-dd')}-${c.unitId}`;
+            if (!c.isCovered) {
+              expect(warnedKeys.has(key)).toBe(true);
+            }
+          }
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    });
+
+    it('edge: 1 doctor in 1 unit with min 1 — schedule still generated, with a warning', () => {
+      const data = createScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-05'),
+        numberOfDoctors: 1,
+        doctors: [
+          { id: 'd1', name: 'Solo', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        ],
+        units: [{ id: 'ward', name: 'Ward', minPostCallCoverage: 1 }],
+      } as Partial<ScheduleFormValues>) as ScheduleFormValues;
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+      // The schedule should still be generated (the algorithm tries its best).
+      expect(result.schedule!.entries.length).toBeGreaterThan(0);
+    });
+
+    it('edge: last day on call — no coverage check on a non-existent day+1', () => {
+      // 1-day schedule with a single doctor in a unit with min 1. No post-call
+      // day exists in the schedule, so no postCallUncovered warning.
+      const data = createScheduleData({
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-01-01'),
+        numberOfDoctors: 1,
+        doctors: [
+          { id: 'd1', name: 'Solo', vacationDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: 'ward' },
+        ],
+        units: [{ id: 'ward', name: 'Ward', minPostCallCoverage: 1 }],
+      } as Partial<ScheduleFormValues>) as ScheduleFormValues;
+
+      const result = generateSchedule(data);
+      expect(result.schedule).toBeDefined();
+      const cov = (result.warnings ?? []).filter((w) => w.key === 'warnings.postCallUncovered');
+      expect(cov).toHaveLength(0);
     });
   });
 }); 

@@ -1,5 +1,5 @@
-import type { ScheduleFormValues, Schedule, ScheduleEntry, DoctorFormFieldInput } from "./types";
-import { isSameDay, format, differenceInCalendarDays, eachDayOfInterval as eachDayOfIntervalDateFns, startOfMonth, endOfMonth } from 'date-fns';
+import type { ScheduleFormValues, Schedule, ScheduleEntry, DoctorFormFieldInput, Unit, UnitCoverage } from "./types";
+import { isSameDay, format, differenceInCalendarDays, eachDayOfInterval as eachDayOfIntervalDateFns, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 
 const dayKeyToSpanish: { [key: string]: string } = {
@@ -39,12 +39,118 @@ export interface ScheduleWarning {
   params?: Record<string, any>;
 }
 
+// A doctor is "available" on a given date when they are:
+//   - not on vacation on that date
+//   - not on an excluded date
+//   - not on post-call (i.e. they were not on call/work/pre-assigned the previous day)
+//   - not "skip" status (isExcludedFromAutomaticAssignment is intentionally NOT
+//     checked here: a doctor marked as excluded can still be available to satisfy
+//     unit coverage, the algorithm will simply never auto-pick them).
+//
+// `entries` is the current schedule. `doctor.preAssignedWorkDates` is also
+// consulted for the post-call check so the helper works correctly when called
+// directly (without the full schedule having been generated yet).
+export function isDoctorAvailableOnDate(
+  doctor: DoctorFormFieldInput,
+  date: Date,
+  entries: ScheduleEntry[],
+  holidays: Date[] = [],
+): boolean {
+  if (isDateInArray(date, doctor.vacationDates)) return false;
+  if (isDateInArray(date, doctor.excludedDates || [])) return false;
+
+  // A holiday "breaks" the post-call chain: even if the doctor had a Work
+  // entry on the previous day, they're not considered on post-call today
+  // because they had a free day in between. This matches the "holidays
+  // are like weekends" semantics.
+  const previousDay = addDays(date, -1);
+  const previousDayIsHoliday = holidays.some((h) => isSameDay(h, previousDay));
+  const onPostCall =
+    !previousDayIsHoliday &&
+    (entries.some(
+      (e) =>
+        e.doctorId === doctor.id &&
+        (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+        isSameDay(e.date, previousDay),
+    ) ||
+      (doctor.preAssignedWorkDates ?? []).some((d) => isSameDay(d, previousDay)));
+  if (onPostCall) return false;
+
+  return true;
+}
+
+/**
+ * Compute per-unit coverage status for a single date. Only weekdays (Mon-Fri) are
+ * considered; weekends return an empty array. The on-call doctor for the same day
+ * is still counted as available in their unit (they are "present" in the unit, just
+ * also on call). Doctors on post-call (i.e. worked the previous day) are excluded.
+ *
+ * If `subtractDoctorId` is provided, that doctor is removed from the count — used
+ * by the algorithm to look ahead one day: "if I put X on call today, will X's unit
+ * still meet coverage tomorrow?"
+ */
+export function computeUnitCoverageForDate(
+  date: Date,
+  doctors: DoctorFormFieldInput[],
+  units: Unit[],
+  entries: ScheduleEntry[],
+  options: { subtractDoctorId?: string; holidays?: Date[] } = {},
+): UnitCoverage[] {
+  const dayOfWeek = date.getDay(); // 0 = Sun, 6 = Sat
+  if (dayOfWeek === 0 || dayOfWeek === 6) return [];
+  // Holidays are treated like weekends for coverage purposes: no coverage
+  // is required. The check uses day-level (not time-level) comparison.
+  if (options.holidays?.some((h) => isSameDay(h, date))) return [];
+
+  const result: UnitCoverage[] = [];
+  for (const unit of units) {
+    const status: 'tracked' | 'ignored' = unit.minPostCallCoverage > 0 ? 'tracked' : 'ignored';
+    if (status === 'ignored') {
+      // Still emit a row so the calendar can show a neutral dot for untracked units.
+      result.push({
+        unitId: unit.id,
+        unitName: unit.name,
+        min: unit.minPostCallCoverage,
+        available: doctors.filter((d) => d.unitId === unit.id).length,
+        isCovered: true,
+        status: 'ignored',
+      });
+      continue;
+    }
+
+    let available = 0;
+    for (const doctor of doctors) {
+      if (doctor.unitId !== unit.id) continue;
+      if (options.subtractDoctorId && doctor.id === options.subtractDoctorId) continue;
+      if (isDoctorAvailableOnDate(doctor, date, entries, options.holidays)) available++;
+    }
+
+    result.push({
+      unitId: unit.id,
+      unitName: unit.name,
+      min: unit.minPostCallCoverage,
+      available,
+      isCovered: available >= unit.minPostCallCoverage,
+      status: 'tracked',
+    });
+  }
+  return result;
+}
+
 export function generateSchedule(
   data: ScheduleFormValues,
   existingFixedEntries?: ScheduleEntry[]
 ): { schedule?: Schedule; error?: string; warnings?: ScheduleWarning[] } {
   try {
     const { doctors: doctorInputs, startDate, endDate, minIntervalBetweenWorkDays = 1, globalMonthlyShiftLimit } = data;
+    // Units are optional in the form (fileVersion 1 files don't have them). Default to [].
+    const rawUnits = (data as { units?: Unit[] }).units ?? [];
+    const units: Unit[] = rawUnits.map((u) => ({
+      id: u.id,
+      name: u.name,
+      minPostCallCoverage: u.minPostCallCoverage,
+    }));
+    const unitsById: Map<string, Unit> = new Map(units.map((u) => [u.id, u]));
     const warnings: ScheduleWarning[] = [];
 
     const doctorsWithIds: DoctorFormFieldInput[] = doctorInputs.map(doc => ({
@@ -54,7 +160,11 @@ export function generateSchedule(
         preAssignedWorkDates: ensureDateArray(doc.preAssignedWorkDates),
         excludedDates: ensureDateArray(doc.excludedDates),
         isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+        unitId: (doc as { unitId?: string }).unitId || undefined,
     }));
+
+    const rawHolidays = (data as { holidays?: Date[] }).holidays ?? [];
+    const holidays: Date[] = rawHolidays.map((d) => (d instanceof Date ? d : new Date(d)));
 
     const preAssignmentCalendarDateConflicts = new Map<string, { doctors: string[]; conflictDate: Date }>();
     doctorsWithIds.forEach(doctor => {
@@ -246,9 +356,63 @@ export function generateSchedule(
             allWorkDates.push(...currentlyAssignedWorkDates);
 
             for (const workDate of allWorkDates) {
+              // A holiday is not a "work day" for the min-interval check:
+              // it's a free day, so the gap between a shift and a holiday
+              // pre-assignment does not violate the spacing rule. This
+              // mirrors the post-call / pre-call semantics: holidays break
+              // the spacing chain.
+              if (holidays.some((h) => isSameDay(h, workDate))) continue;
               const daysDiff = Math.abs(differenceInCalendarDays(currentDate, workDate));
               if (daysDiff <= minIntervalBetweenWorkDays) {
                 return false;
+              }
+            }
+
+            // Post-call hard rule (independent of minInterval): the doctor must not
+            // be on post-call the day they would go on call. A doctor is on post-call
+            // on D iff they had a Work/Pre-assigned entry on D-1, *and* D-1 is a
+            // working day. A holiday between two shifts breaks the post-call chain
+            // (the doctor had a free day in between, just like a weekend).
+            const previousDay = addDays(currentDate, -1);
+            const previousDayIsHoliday = holidays.some((h) => isSameDay(h, previousDay));
+            const onPostCall =
+              !previousDayIsHoliday &&
+              allWorkDates.some((d) => isSameDay(d, previousDay));
+            if (onPostCall) return false;
+
+            // Pre-assignment conflict: if the doctor is pre-assigned to D+1, putting
+            // them on call today would force a post-call conflict with that pre-assignment.
+            // The user's plan was to drop the candidate for D in this case (preferred
+            // over silently breaking the pre-assignment). Same "holiday breaks the
+            // chain" rule applies symmetrically: a holiday pre-assignment does NOT
+            // block today, because the holiday itself is a free day.
+            const nextDay = addDays(currentDate, 1);
+            const nextDayIsHoliday = holidays.some((h) => isSameDay(h, nextDay));
+            const preAssignedOnNextDay =
+              !nextDayIsHoliday &&
+              allWorkDates.some((d) => isSameDay(d, nextDay));
+            if (preAssignedOnNextDay) return false;
+
+            // Unit coverage look-ahead: if the doctor belongs to a unit that tracks
+            // coverage, and D+1 is a working day (not a holiday), the unit must
+            // still meet its minimum if we were to put this doctor on call today
+            // (because the doctor would be on post-call D+1, reducing the available
+            // count by 1). Holidays are skipped inside computeUnitCoverageForDate
+            // so passing `holidays` is enough to opt them out of the look-ahead.
+            if (doc.unitId) {
+              const unit = unitsById.get(doc.unitId);
+              if (unit && unit.minPostCallCoverage > 0) {
+                const nextDayCoverage = computeUnitCoverageForDate(
+                  nextDay,
+                  doctorsWithIds,
+                  units,
+                  mockEntries,
+                  { subtractDoctorId: doc.id, holidays },
+                );
+                const myUnitCoverage = nextDayCoverage.find((c) => c.unitId === doc.unitId);
+                if (myUnitCoverage && myUnitCoverage.available < unit.minPostCallCoverage) {
+                  return false;
+                }
               }
             }
 
@@ -385,6 +549,9 @@ export function generateSchedule(
 
     const brokenConstraints = analyzeBrokenConstraints(mockEntries, doctorsWithIds, minIntervalBetweenWorkDays, globalMonthlyShiftLimit, startDate, finalEndDate);
     warnings.push(...brokenConstraints);
+
+    const coverageWarnings = analyzeUnitCoverage(mockEntries, doctorsWithIds, units, startDate, finalEndDate, holidays);
+    warnings.push(...coverageWarnings);
 
     return {
       schedule: {
@@ -596,6 +763,62 @@ export function analyzeBrokenConstraints(
       });
     }
   });
+
+  return warnings;
+}
+
+/**
+ * Post-generation coverage analysis. Iterates over every weekday in the schedule
+ * range, computes unit coverage, and emits a `warnings.postCallUncovered` warning
+ * for each (date, unit) pair where available doctors are below the unit's minimum.
+ *
+ * Also emits `warnings.postCallPreAssignmentConflict` for pre-assigned on-calls
+ * that, combined with the post-call rule, would leave their unit undercovered on
+ * the following weekday.
+ */
+export function analyzeUnitCoverage(
+  entries: ScheduleEntry[],
+  doctors: DoctorFormFieldInput[],
+  units: Unit[],
+  startDate: Date,
+  endDate: Date,
+  holidays: Date[] = [],
+): ScheduleWarning[] {
+  const warnings: ScheduleWarning[] = [];
+  if (units.length === 0) return warnings;
+
+  const trackedUnits = units.filter((u) => u.minPostCallCoverage > 0);
+  if (trackedUnits.length === 0) return warnings;
+
+  const cursor = new Date(startDate);
+  const end = new Date(endDate);
+  const seenKeys = new Set<string>();
+
+  while (cursor <= end) {
+    const dayOfWeek = cursor.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isHoliday = holidays.some((h) => isSameDay(h, cursor));
+    if (!isWeekend && !isHoliday) {
+      const coverage = computeUnitCoverageForDate(cursor, doctors, units, entries, { holidays });
+      for (const c of coverage) {
+        if (c.status !== 'tracked') continue;
+        if (c.isCovered) continue;
+        const key = `${format(cursor, 'yyyy-MM-dd')}-${c.unitId}`;
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        warnings.push({
+          key: 'warnings.postCallUncovered',
+          params: {
+            date: new Date(cursor),
+            unit: c.unitName,
+            available: c.available,
+            min: c.min,
+          },
+        });
+      }
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
 
   return warnings;
 }

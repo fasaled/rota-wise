@@ -523,8 +523,91 @@ describe('localStorage-backed schedule versions', () => {
       expect(found!.name).toBe('Find Me');
     });
 
-    it('returns undefined when id not found', () => {
-      expect(getScheduleVersion('nonexistent')).toBeUndefined();
-    });
+  it('returns undefined when id not found', () => {
+    expect(getScheduleVersion('nonexistent')).toBeUndefined();
   });
+});
+
+// ---------------------------------------------------------------------------
+// Units and fileVersion 2 migration
+// ---------------------------------------------------------------------------
+
+describe('serializeScheduleFormValues with units', () => {
+  it('preserves the units array', () => {
+    const values = {
+      ...makeFormValues(),
+      units: [
+        { id: 'u1', name: 'Planta A', minPostCallCoverage: 1 },
+        { id: 'u2', name: 'Consulta', minPostCallCoverage: 0 },
+      ],
+    } as unknown as ScheduleFormValues;
+    const serialized = serializeScheduleFormValues(values);
+    expect(serialized.units).toHaveLength(2);
+    expect(serialized.units![0]).toEqual({ id: 'u1', name: 'Planta A', minPostCallCoverage: 1 });
+    expect(serialized.units![1]).toEqual({ id: 'u2', name: 'Consulta', minPostCallCoverage: 0 });
+  });
+
+  it('preserves the unitId on each doctor', () => {
+    const values = {
+      ...makeFormValues(),
+      units: [{ id: 'u1', name: 'Planta A', minPostCallCoverage: 1 }],
+      doctors: [
+        {
+          id: 'doc1',
+          name: 'Dr. Smith',
+          vacationDates: [],
+          preAssignedWorkDates: [],
+          excludedDates: [],
+          isExcludedFromAutomaticAssignment: false,
+          unitId: 'u1',
+        },
+      ],
+    } as unknown as ScheduleFormValues;
+    const serialized = serializeScheduleFormValues(values);
+    expect(serialized.doctors[0].unitId).toBe('u1');
+  });
+});
+
+describe('deserializeScheduleFormValues with units', () => {
+  it('round-trips units correctly', () => {
+    const values = {
+      ...makeFormValues(),
+      units: [{ id: 'u1', name: 'Planta A', minPostCallCoverage: 1 }],
+    } as unknown as ScheduleFormValues;
+    const roundTripped = deserializeScheduleFormValues(serializeScheduleFormValues(values));
+    expect(roundTripped.units).toHaveLength(1);
+    expect((roundTripped.units as { id: string }[])[0].id).toBe('u1');
+  });
+
+  it('defaults units to empty array when missing (fileVersion 1 migration)', () => {
+    const serialized = {
+      ...serializeScheduleFormValues(makeFormValues()),
+      units: undefined,
+    } as unknown as Parameters<typeof deserializeScheduleFormValues>[0];
+    const deserialized = deserializeScheduleFormValues(serialized);
+    expect(deserialized.units).toEqual([]);
+  });
+
+  it('defaults each doctor unitId to empty string when missing', () => {
+    // Build a serialized form values object where each doctor omits unitId
+    // (fileVersion 1 legacy).
+    const legacySerialized = {
+      numberOfDoctors: 1,
+      startDate: '2024-01-01T00:00:00.000Z',
+      endDate: '2024-01-31T00:00:00.000Z',
+      doctors: [
+        {
+          id: 'doc1',
+          name: 'Dr. Smith',
+          vacationDates: [],
+          preAssignedWorkDates: [],
+          excludedDates: [],
+          isExcludedFromAutomaticAssignment: false,
+        },
+      ],
+    } as unknown as Parameters<typeof deserializeScheduleFormValues>[0];
+    const deserialized = deserializeScheduleFormValues(legacySerialized);
+    expect(deserialized.doctors[0].unitId).toBe('');
+  });
+});
 });

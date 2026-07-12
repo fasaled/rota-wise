@@ -5,9 +5,9 @@ import { createPortal } from 'react-dom';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, parseISO, addDays, differenceInCalendarDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, CalendarDays as CalendarIconLucide, Lock, Unlock, X, Check, Briefcase } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarDays as CalendarIconLucide, Lock, Unlock, X, Check, Briefcase, Star } from 'lucide-react';
 import { CalendarFilterBar, type ActiveFilter } from './calendar-filter-bar';
-import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry } from '@/lib/types';
+import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry, Unit, UnitCoverage } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { VacationIcon, PreAssignedIcon, WorkIcon, ExcludedIcon } from '@/components/icons';
 import { useLanguage } from '@/context/language-context';
@@ -29,6 +29,8 @@ import {
 interface ScheduleCalendarViewProps {
   schedule: Schedule;
   doctors: DoctorProfile[];
+  units: Unit[];
+  holidays?: Date[];
   onUpdateScheduleEntry: (updatedEntry: ScheduleEntry, oldDate?: Date) => void;
   onSwapScheduleEntries?: (entry1: ScheduleEntry, entry2: ScheduleEntry, oldDate1?: Date, oldDate2?: Date) => void;
   onArbitraryScheduleEntry?: (updatedEntry: ScheduleEntry) => void;
@@ -87,6 +89,8 @@ interface DayCellProps {
   minIntervalBetweenWorkDays: number;
   openSelectorDate: string | null;
   onOpenSelectorChange: (key: string | null) => void;
+  unitCoverageForDay: UnitCoverage[];
+  isHoliday: boolean;
 }
 
 // One cell of the calendar grid. Extracted as a real React component so that
@@ -105,6 +109,8 @@ const DayCell: React.FC<DayCellProps> = ({
   minIntervalBetweenWorkDays,
   openSelectorDate,
   onOpenSelectorChange,
+  unitCoverageForDay,
+  isHoliday,
 }) => {
   const { t, currentDateFnsLocale } = useLanguage();
   const triggerButtonRef = useRef<HTMLDivElement>(null);
@@ -139,12 +145,22 @@ const DayCell: React.FC<DayCellProps> = ({
     <Fragment>
       <DroppableDayCell
         day={day}
+        isHoliday={isHoliday}
         onDayClick={(e) => e.stopPropagation()}
       >
         {/* Top line: date number and lock button */}
         <div className="text-xs md:text-sm mb-1 flex items-center justify-between gap-1">
-          <span className={cn(dateTextClasses, todayMarkerClasses, "shrink-0")}>
+          <span className={cn(dateTextClasses, todayMarkerClasses, "shrink-0 flex items-center gap-0.5")}>
             {format(day.date, 'd')}
+            {isHoliday && (
+              <span
+                className="inline-flex shrink-0"
+                title={t('calendar.holiday.tooltip')}
+                aria-label={t('calendar.holiday.tooltip')}
+              >
+                <Star className="h-3 w-3 text-amber-500" />
+              </span>
+            )}
           </span>
           {workEntryForDay && !isPreAssigned && onToggleEntryFixed && (
             <button
@@ -160,6 +176,50 @@ const DayCell: React.FC<DayCellProps> = ({
             </button>
           )}
         </div>
+        {/* Unit coverage dots: hidden on weekends AND on holidays. Holidays
+            are like weekends for coverage purposes, so we don't render
+            the dots — the day already shows visually as a holiday via the
+            star icon + background. */}
+        {!isHoliday && unitCoverageForDay.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 mb-1" aria-label={t('calendar.coverage.legend')}>
+            {unitCoverageForDay.map((c) => {
+              const color =
+                c.status === 'ignored'
+                  ? 'bg-zinc-300 dark:bg-zinc-600'
+                  : c.isCovered
+                    ? 'bg-emerald-500'
+                    : 'bg-rose-500';
+              // The tooltip is just the available/minimum ratio. The dot
+              // colour (green / red / grey) already conveys the status;
+              // adding explanatory text on top of that is redundant.
+              const tooltip =
+                c.status === 'ignored'
+                  ? t('calendar.coverage.tooltipUntracked', { unit: c.unitName })
+                  : t(
+                      c.isCovered
+                        ? 'calendar.coverage.tooltipCovered'
+                        : 'calendar.coverage.tooltipUncovered',
+                      { unit: c.unitName, available: c.available, min: c.min },
+                    );
+              return (
+                <span
+                  key={c.unitId}
+                  // The dot itself is only 8×8px which is hard to hover; the
+                  // `p-1` halo and `cursor-help` give the user a generous hit
+                  // target and signal that the dot is informational, without
+                  // changing the visual size of the dot.
+                  className={cn(
+                    "relative inline-flex h-2 w-2 cursor-help items-center justify-center rounded-full ring-1 ring-black/5 dark:ring-white/10",
+                    "before:absolute before:inset-[-6px] before:content-['']",
+                    color,
+                  )}
+                  title={tooltip}
+                  aria-label={tooltip}
+                />
+              );
+            })}
+          </div>
+        )}
         {/* Second line: doctor name as chip */}
         {workEntryForDay ? (
           isPreAssigned ? (
@@ -335,11 +395,12 @@ const DraggableWorkEntry: React.FC<DraggableWorkEntryProps> = ({
 
 interface DroppableDayCellProps {
   day: DayDetails;
+  isHoliday: boolean;
   children: React.ReactNode;
   onDayClick: (e: React.MouseEvent) => void;
 }
 
-const DroppableDayCell: React.FC<DroppableDayCellProps> = ({ day, children, onDayClick }) => {
+const DroppableDayCell: React.FC<DroppableDayCellProps> = ({ day, isHoliday, children, onDayClick }) => {
   const dropId = `day-${day.date.getTime()}`;
   const { setNodeRef, isOver } = useDroppable({
     id: dropId,
@@ -359,7 +420,7 @@ const DroppableDayCell: React.FC<DroppableDayCellProps> = ({ day, children, onDa
       className={cn(
         cellBaseClasses,
         day.isCurrentMonth
-          ? isWeekend ? 'bg-muted/40' : 'bg-card'
+          ? isWeekend || isHoliday ? 'bg-muted/40' : 'bg-card'
           : 'bg-muted/30 [&>*]:opacity-60',
         day.isToday && 'border-primary/50 ring-1 ring-primary/30',
         "cursor-pointer hover:border-primary/40 hover:shadow-sm transition-[border-color,box-shadow] duration-200",
@@ -639,6 +700,8 @@ const DayDoctorDropdown: React.FC<DayDoctorDropdownProps> = ({
 const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     schedule,
     doctors,
+    units,
+    holidays = [],
     onUpdateScheduleEntry,
     onSwapScheduleEntries,
     onArbitraryScheduleEntry,
@@ -853,6 +916,61 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     return new Map(doctors.map(doc => [doc.id, doc]));
   }, [doctors]);
 
+    // Pre-compute per-day unit coverage. Keyed by yyyy-MM-dd.
+    // The helper handles the post-call subtraction (a doctor who worked yesterday
+    // is on post-call today and is not counted as available for their unit).
+    // For dynamic recalculation, we depend on the schedule entries, the doctors
+    // list, the units list, and the holidays list.
+    const unitCoverageByDate = useMemo(() => {
+      const map = new Map<string, UnitCoverage[]>();
+      if (units.length === 0) return map;
+      const cursor = new Date(schedule.startDate);
+      const end = new Date(schedule.endDate);
+      // Use allScheduleEntries for the post-call check, since that is the full set.
+      while (cursor <= end) {
+        const dayOfWeek = cursor.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const isHoliday = holidays.some((h) => isSameDay(h, cursor));
+        if (!isWeekend && !isHoliday) {
+          const coverage: UnitCoverage[] = [];
+          for (const unit of units) {
+            const status: 'tracked' | 'ignored' = unit.minPostCallCoverage > 0 ? 'tracked' : 'ignored';
+            let available = 0;
+            for (const doctor of doctors) {
+              if (doctor.unitId !== unit.id) continue;
+              const onVacation = doctor.vacationDates.some((v) => isSameDay(v, cursor));
+              if (onVacation) continue;
+              const onExcluded = (doctor.excludedDates || []).some((v) => isSameDay(v, cursor));
+              if (onExcluded) continue;
+              const previousDay = addDays(cursor, -1);
+              const previousDayIsHoliday = holidays.some((h) => isSameDay(h, previousDay));
+              const onPostCall =
+                !previousDayIsHoliday &&
+                allScheduleEntries.some(
+                  (e) =>
+                    e.doctorId === doctor.id &&
+                    (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
+                    isSameDay(e.date, previousDay),
+                );
+              if (onPostCall) continue;
+              available++;
+            }
+            coverage.push({
+              unitId: unit.id,
+              unitName: unit.name,
+              min: unit.minPostCallCoverage,
+              available,
+              isCovered: available >= unit.minPostCallCoverage,
+              status,
+            });
+          }
+          map.set(format(cursor, 'yyyy-MM-dd'), coverage);
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return map;
+    }, [units, doctors, allScheduleEntries, schedule.startDate, schedule.endDate, holidays]);
+
   const daysInMonth = useMemo(() : DayDetails[] => {
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
@@ -911,9 +1029,10 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         isCurrentMonth: isSameMonth(date, currentMonth),
         isToday: isSameDay(date, new Date()),
         assignments: entriesForDay,
+        unitCoverage: unitCoverageByDate.get(format(date, 'yyyy-MM-dd')),
       };
     });
-  }, [currentMonth, schedule.entries, activeFilters, currentDateFnsLocale, doctors]);
+  }, [currentMonth, schedule.entries, activeFilters, currentDateFnsLocale, doctors, unitCoverageByDate]);
 
   const nextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
   const prevMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
@@ -1021,6 +1140,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                     minIntervalBetweenWorkDays={minIntervalBetweenWorkDays}
                     openSelectorDate={openSelectorDate}
                     onOpenSelectorChange={setOpenSelectorDate}
+                    unitCoverageForDay={day.unitCoverage ?? []}
+                    isHoliday={holidays.some((h) => isSameDay(h, day.date))}
                   />
                 ))}
               </div>
@@ -1057,6 +1178,19 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             <ExcludedIcon className="w-3 h-3 shrink-0" />
             {t('calendar.legend.excluded')}
           </span>
+          {units.length > 0 && (
+            <>
+              <span className="text-muted-foreground/40">|</span>
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                {t('calendar.legend.covered')}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <span className="inline-block h-2 w-2 rounded-full bg-rose-500" />
+                {t('calendar.legend.uncovered')}
+              </span>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>

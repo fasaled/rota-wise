@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import type {
-  Schedule,
-  ScheduleFormValues,
-  DoctorProfile,
-  ScheduleEntry,
-  AppFileData,
-  SerializedDoctorFormFieldInput,
-  DoctorFormFieldInput,
+import {
+  CURRENT_FILE_VERSION,
+  type Schedule,
+  type ScheduleFormValues,
+  type DoctorProfile,
+  type ScheduleEntry,
+  type AppFileData,
+  type SerializedDoctorFormFieldInput,
+  type DoctorFormFieldInput,
+  type Unit,
+  type UnitCoverage,
 } from '@/lib/types';
+import { computeUnitCoverageForDate } from '@/lib/schedule-generator';
 import { type UseFormReturn } from 'react-hook-form';
 import DataInputForm from '@/components/rotawise/data-input-form';
 const ScheduleCalendarView = lazy(() => import('@/components/rotawise/schedule-calendar-view'));
@@ -56,7 +60,7 @@ import { format, isSameDay, differenceInCalendarDays, startOfMonth, endOfMonth, 
 import { useLanguage } from '@/context/language-context';
 import { useFileSystem } from '@/context/file-system-context';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { type ScheduleWarning, analyzeBrokenConstraints } from '@/lib/schedule-generator';
+import { type ScheduleWarning, analyzeBrokenConstraints, analyzeUnitCoverage } from '@/lib/schedule-generator';
 import { useScheduleWorker } from '@/hooks/use-schedule-worker';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { useInfoBar, type InfoBarMessage } from '@/hooks/use-info-bar';
@@ -76,10 +80,12 @@ type ActiveTab = 'config' | 'calendar' | 'weekly' | 'monthly';
 function computeScheduleWarnings(
   schedule: Schedule | null,
   doctorsProfiles: DoctorProfile[],
+  units: Unit[],
   currentMinInterval: number,
   language: string,
   currentDateFnsLocale: Locale,
   t: (key: string, params?: Record<string, any>) => string,
+  holidays: Date[] = [],
 ): string[] {
   if (!schedule) return [];
 
@@ -94,6 +100,17 @@ function computeScheduleWarnings(
       schedule.startDate,
       schedule.endDate,
       language,
+    ),
+  );
+
+  rawWarnings.push(
+    ...analyzeUnitCoverage(
+      schedule.entries,
+      doctorsProfiles,
+      units,
+      schedule.startDate,
+      schedule.endDate,
+      holidays,
     ),
   );
 
@@ -213,6 +230,7 @@ function deserializeAppFileData(data: AppFileData): {
         preAssignedWorkDates: (doc.preAssignedWorkDates || []).map((d: string) => new Date(d)),
         excludedDates: (doc.excludedDates || []).map((d: string) => new Date(d)),
         isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+        unitId: doc.unitId || '',
       }));
 
       formValues = {
@@ -222,6 +240,11 @@ function deserializeAppFileData(data: AppFileData): {
         minIntervalBetweenWorkDays: data.formValues.minIntervalBetweenWorkDays || 1,
         globalMonthlyShiftLimit: data.formValues.globalMonthlyShiftLimit,
         doctors: formDoctors,
+        units: (data.formValues.units || []).map((u) => ({
+          id: u.id,
+          name: u.name,
+          minPostCallCoverage: u.minPostCallCoverage,
+        })),
       };
     }
   }
@@ -276,11 +299,20 @@ function buildAppFileData(
       preAssignedWorkDates: (doc.preAssignedWorkDates || []).map((d) => d.toISOString()),
       excludedDates: (doc.excludedDates || []).map((d) => d.toISOString()),
       isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+      unitId: doc.unitId || undefined,
     })),
-  } as AppFileData['formValues'];
+    units: ((formValues as { units?: Unit[] } | undefined)?.units ?? []).map((u) => ({
+      id: u.id,
+      name: u.name,
+      minPostCallCoverage: u.minPostCallCoverage,
+    })),
+    holidays: ((formValues as { holidays?: Date[] } | undefined)?.holidays ?? []).map(
+      (d) => (d instanceof Date ? d.toISOString() : (d as string)),
+    ),
+  } as unknown as AppFileData['formValues'];
 
   return {
-    fileVersion: 1,
+    fileVersion: CURRENT_FILE_VERSION,
     versions,
     schedule: serializedSchedule,
     doctorsProfiles: serializedDoctors,
@@ -311,6 +343,8 @@ export default function RotawisePage() {
   // Core schedule state
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [doctorsProfiles, setDoctorsProfiles] = useState<DoctorProfile[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [holidays, setHolidays] = useState<Date[]>([]);
   const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
   const [warningsCollapsed, setWarningsCollapsed] = useState(true);
   const [calendarFilters, setCalendarFilters] = useState<ActiveFilter[]>([]);
@@ -364,13 +398,15 @@ export default function RotawisePage() {
       computeScheduleWarnings(
         schedule,
         doctorsProfiles,
+        units,
         currentMinInterval,
         language,
         currentDateFnsLocale,
         t,
+        holidays,
       ),
     );
-  }, [schedule, doctorsProfiles, currentMinInterval, language, currentDateFnsLocale, t]);
+  }, [schedule, doctorsProfiles, units, currentMinInterval, language, currentDateFnsLocale, t, holidays]);
 
   // ---------------------------------------------------------------------------
   // Auto-save to file (debounced)
@@ -420,6 +456,12 @@ export default function RotawisePage() {
     const hasEntries = !!s && s.entries.length > 0;
     setSchedule(s);
     setDoctorsProfiles(hasEntries ? dp : []);
+    setUnits((fv?.units as Unit[] | undefined) ?? []);
+    setHolidays(
+      ((fv as { holidays?: Date[] | string[] } | undefined)?.holidays ?? []).map(
+        (d) => (d instanceof Date ? d : new Date(d)),
+      ),
+    );
     setScheduleWarnings(sw);
     setCurrentMinInterval(cmi);
     if (fv) {
@@ -505,6 +547,12 @@ export default function RotawisePage() {
             preAssignedWorkDates: d.preAssignedWorkDates,
             excludedDates: d.excludedDates,
             isExcludedFromAutomaticAssignment: d.isExcludedFromAutomaticAssignment,
+            unitId: d.unitId || '',
+          })),
+          units: (rawData.formValues.units || []).map((u) => ({
+            id: u.id,
+            name: u.name,
+            minPostCallCoverage: u.minPostCallCoverage,
           })),
         };
         setLoadedFormValues(fv);
@@ -547,8 +595,15 @@ export default function RotawisePage() {
       preAssignedWorkDates: doc.preAssignedWorkDates,
       excludedDates: doc.excludedDates || [],
       isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+      unitId: doc.unitId || undefined,
     }));
     setDoctorsProfiles(profiles);
+    const formUnits: Unit[] = ((data as { units?: Unit[] }).units ?? []).map((u) => ({
+      id: u.id,
+      name: u.name,
+      minPostCallCoverage: u.minPostCallCoverage,
+    }));
+    setUnits(formUnits);
 
     const existingFixedEntries = schedule?.entries.filter((e) => e.isFixed) || [];
     const result = await generate(data, existingFixedEntries);
@@ -1003,13 +1058,62 @@ export default function RotawisePage() {
     }
     setLoadedFormValues(values);
 
-    // Immediately sync doctorsProfiles with form doctors
-    const formDoctorIds = new Set(values.doctors.map((d) => d.id).filter(Boolean));
-    if (formDoctorIds.size === 0) {
+    // Sync doctorsProfiles with the form's doctors. We must do a full
+    // update (not just a filter-by-id) so that fields like `unitId`,
+    // `vacationDates`, etc. propagate to the coverage/dots computation
+    // immediately when the user edits the roster.
+    const formDoctorsById = new Map<string, DoctorFormFieldInput>(
+      values.doctors.filter((d) => !!d.id).map((d) => [d.id as string, d]),
+    );
+    if (formDoctorsById.size === 0) {
       setDoctorsProfiles([]);
     } else {
-      setDoctorsProfiles((prev) => prev.filter((p) => formDoctorIds.has(p.id)));
+      setDoctorsProfiles((prev) => {
+        // Keep the existing profile for each form doctor (to preserve order
+        // and avoid churn) but refresh all mutable fields from the form.
+        const refreshed: DoctorProfile[] = [];
+        const seen = new Set<string>();
+        for (const formDoc of values.doctors) {
+          if (!formDoc.id) continue;
+          seen.add(formDoc.id);
+          refreshed.push({
+            id: formDoc.id,
+            name: formDoc.name,
+            vacationDates: formDoc.vacationDates,
+            preAssignedWorkDates: formDoc.preAssignedWorkDates,
+            excludedDates: formDoc.excludedDates || [],
+            isExcludedFromAutomaticAssignment: formDoc.isExcludedFromAutomaticAssignment || false,
+            unitId: formDoc.unitId || undefined,
+          });
+        }
+        // Preserve any profile from prev that was in the form (safety net).
+        for (const p of prev) {
+          if (seen.has(p.id)) continue;
+          if (formDoctorsById.has(p.id)) {
+            seen.add(p.id);
+            refreshed.push(p);
+          }
+        }
+
+        return refreshed;
+      });
     }
+
+    // Sync units so coverage/dots reflect the latest list.
+    const formUnits: Unit[] = ((values as { units?: Unit[] }).units ?? []).map((u) => ({
+      id: u.id,
+      name: u.name,
+      minPostCallCoverage: u.minPostCallCoverage,
+    }));
+    setUnits(formUnits);
+
+    // Sync holidays the same way units are synced: the form is the source
+    // of truth, and we need them in state for `computeScheduleWarnings`,
+    // `buildAppFileData`, and the calendar's coverage memo.
+    const rawFormHolidays = (values as { holidays?: Date[] | string[] }).holidays ?? [];
+    setHolidays(
+      rawFormHolidays.map((d) => (d instanceof Date ? d : new Date(d))),
+    );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1374,6 +1478,8 @@ export default function RotawisePage() {
                   <ScheduleCalendarView
                     schedule={schedule}
                     doctors={doctorsProfiles}
+                    units={units}
+                    holidays={holidays}
                     onUpdateScheduleEntry={handleUpdateScheduleEntry}
                     onSwapScheduleEntries={handleSwapScheduleEntries}
                     onArbitraryScheduleEntry={handleArbitraryScheduleEntry}
