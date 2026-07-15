@@ -131,7 +131,7 @@
   "calendar.coverage.legend": "Unit coverage dots",
   "calendar.coverage.tooltipCovered": "{unit}: {available}/{min}",
   "calendar.coverage.tooltipUncovered": "{unit}: {available}/{min}",
-  "calendar.coverage.tooltipUntracked": "{unit}: not tracked",
+  "calendar.coverage.tooltipUntracked": "{unit}: no coverage needed",
   "calendar.excludedDay.tooltip": "{doctorName} has this day excluded",
   "calendar.scheduleFor": "Schedule for {date}",
   "calendar.assignment.off": "Off",

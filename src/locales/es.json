@@ -128,7 +128,7 @@
   "calendar.coverage.legend": "Puntos de cobertura por unidad",
   "calendar.coverage.tooltipCovered": "{unit}: {available}/{min}",
   "calendar.coverage.tooltipUncovered": "{unit}: {available}/{min}",
-  "calendar.coverage.tooltipUntracked": "{unit}: no se trackea",
+  "calendar.coverage.tooltipUntracked": "{unit}: No necesita cobertura",
   "calendar.excludedDay.tooltip": "{doctorName} tiene este día excluido",
   "calendar.scheduleFor": "Horario para {date}",
   "calendar.assignment.off": "Libre",
