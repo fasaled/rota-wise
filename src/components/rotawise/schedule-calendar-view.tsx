@@ -432,6 +432,7 @@ const DraggableWorkEntry: React.FC<DraggableWorkEntryProps> = ({
         !onEdit ? "cursor-default" : isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
         isDragging && "shadow-lg"
       )}
+      data-tour="calendar-chip"
       onClick={(e) => {
         e.stopPropagation();
         onEdit?.(e);
@@ -1265,7 +1266,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
           <CardTitle className="text-xl font-semibold flex items-center gap-2">
             <CalendarIconLucide className="w-5 h-5 text-primary shrink-0" /> {t('calendar.title')}
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-tour="month-nav">
             <Button variant="outline" size="icon" onClick={prevMonth} aria-label={t('calendar.previousMonth')}>
               <ChevronLeft className="h-5 w-5" />
             </Button>
@@ -1312,7 +1313,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-1.5">
+              <div className="grid grid-cols-7 gap-1.5" data-tour="calendar-grid">
                 {daysInMonth.map((day) => (
                   <DayCell
                     key={day.date.toString()}
@@ -1353,7 +1354,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             ) : null}
           </DragOverlay>
         </DndContext>
-        <div className="mt-4 pt-3 border-t flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+        <div className="mt-4 pt-3 border-t flex flex-wrap items-center gap-x-3 gap-y-2 text-xs" data-tour="legend">
           <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Work')}>
             <WorkIcon className="w-3 h-3 shrink-0" />
             {t('calendar.legend.work')}

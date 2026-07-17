@@ -135,7 +135,7 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange, isM
   ].filter(o => searchText === '' || o.label.toLowerCase().includes(searchText.toLowerCase()));
 
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div ref={containerRef} className="relative w-full" data-tour="filter-bar">
 
       {/* Search bar */}
       <div

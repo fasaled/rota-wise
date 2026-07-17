@@ -52,6 +52,7 @@ import {
   ChevronUp,
   Download,
   Sheet,
+  HelpCircle,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -69,6 +70,7 @@ import { useScheduleWorker } from '@/hooks/use-schedule-worker';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { useInfoBar, type InfoBarMessage } from '@/hooks/use-info-bar';
 import { useHistory } from '@/hooks/use-history';
+import { useMetadataModeTour } from '@/hooks/use-metadata-mode-tour';
 import { type ActiveFilter } from '@/components/rotawise/calendar-filter-bar';
 
 // ---------------------------------------------------------------------------
@@ -358,6 +360,7 @@ export default function RotawisePage() {
   const { messages, addMessage, dismissMessage } = useInfoBar();
   const { push: historyPush, undo: historyUndo, canUndo } = useHistory();
   const { generate } = useScheduleWorker();
+  const startMetadataModeTour = useMetadataModeTour();
 
   // Core schedule state
   const [schedule, setSchedule] = useState<Schedule | null>(null);
@@ -1483,7 +1486,7 @@ export default function RotawisePage() {
           {/* Command bar */}
           <header className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border bg-card shrink-0 shadow-sm">
             {/* File info */}
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0" data-tour="metadata-header">
               <File className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="text-sm font-medium text-foreground truncate">
                 {fileName ?? t('file.noFileOpen')}
@@ -1511,6 +1514,23 @@ export default function RotawisePage() {
                 </span>
               )}
             </div>
+
+            {/* Guided tour launcher — only visible in metadata mode */}
+            {isMetadataMode && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    void startMetadataModeTour();
+                  }}
+                  title={t('page.metadataTour.tooltip')}
+                >
+                  <HelpCircle className="h-3.5 w-3.5 mr-1.5" />
+                  <span className="hidden md:inline">{t('page.metadataTour.button')}</span>
+                </Button>
+              </div>
+            )}
 
             {/* Action buttons — desktop/tablet. Hidden in metadata mode
                 (the autosave handles persistence; no generate / save / etc.). */}
