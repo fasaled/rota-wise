@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs';
+import ExcelJS, { type WorksheetProtection } from 'exceljs';
 import {
   format,
   startOfMonth,
@@ -437,9 +437,36 @@ export async function extractExcelMetadata(
 }
 
 /**
+ * Derive a deterministic password from the schedule data so that cells
+ * cannot be modified directly in Excel. The password is a deterrent, not
+ * security — the same input always produces the same output, so Rotawise
+ * can regenerate valid xlsx files without knowing a user-chosen secret.
+ */
+export function deriveProtectPassword(
+  schedule: Schedule,
+  doctorsProfiles: DoctorProfile[],
+  units: SerializedUnit[],
+): string {
+  const data = [
+    schedule.startDate.toISOString(),
+    schedule.endDate.toISOString(),
+    schedule.entries.length.toString(),
+    doctorsProfiles.map((d) => `${d.id}:${d.unitId ?? ''}`).join(','),
+    units.map((u) => `${u.id}:${u.minPostCallCoverage}`).join(','),
+  ].join('|');
+  let h = 0;
+  for (let i = 0; i < data.length; i++) {
+    h = ((h << 5) - h) + data.charCodeAt(i);
+    h |= 0;
+  }
+  return `rw${h.toString(36)}`;
+}
+
+/**
  * Build the .xlsx as an in-memory ArrayBuffer. The workbook contains
  * monthly calendar sheets plus hidden metadata sheets for re-opening
- * the schedule in Rotawise.
+ * the schedule in Rotawise. All sheets are protected so cells cannot
+ * be edited directly — users must use Rotawise to modify data.
  */
 export async function buildWorkbookBuffer(
   schedule: Schedule,
@@ -454,6 +481,19 @@ export async function buildWorkbookBuffer(
   workbook.lastModifiedBy = 'Rotawise';
   populateMonthlySheets(workbook, schedule, doctorsProfiles, holidays, locale);
   populateMetadataSheets(workbook, schedule, doctorsProfiles, units, holidays);
+
+  const password = deriveProtectPassword(schedule, doctorsProfiles, units);
+  const protectOptions: Partial<WorksheetProtection> = {
+    selectLockedCells: true,
+    selectUnlockedCells: true,
+    spinCount: 10000,
+  };
+  const promises: Promise<void>[] = [];
+  workbook.eachSheet((sheet) => {
+    promises.push(sheet.protect(password, protectOptions));
+  });
+  await Promise.all(promises);
+
   return workbook.xlsx.writeBuffer() as Promise<ArrayBuffer>;
 }
 
