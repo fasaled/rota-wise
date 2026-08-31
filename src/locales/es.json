@@ -248,6 +248,7 @@
   "startup.subtitle": "Abre un fichero de horario para empezar, o crea uno nuevo.",
   "startup.openFile": "Abrir fichero",
   "startup.openFileDescription": "Abre un fichero de horario .rw, .json o .xlsx",
+  "startup.openFileDescriptionRw": "Abre un fichero de horario .rw o .json",
   "startup.createNewFile": "Crear nuevo fichero",
   "startup.createNewFileDescription": "Empieza un horario nuevo y guárdalo como fichero .rw",
 

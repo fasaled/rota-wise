@@ -251,6 +251,7 @@
   "startup.subtitle": "Open a schedule file to get started, or create a new one.",
   "startup.openFile": "Open file",
   "startup.openFileDescription": "Open a .rw, .json or .xlsx schedule file",
+  "startup.openFileDescriptionRw": "Open a .rw or .json schedule file",
   "startup.createNewFile": "Create new file",
   "startup.createNewFileDescription": "Start a new schedule and save it as a .rw file",
 

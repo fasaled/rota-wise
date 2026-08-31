@@ -14,6 +14,7 @@ import {
 } from '@/lib/types';
 import { computeUnitCoverageForDate } from '@/lib/schedule-generator';
 import { extractExcelMetadata } from '@/lib/export-excel';
+import { ENABLE_EXCEL } from '@/lib/features';
 import { type UseFormReturn } from 'react-hook-form';
 import DataInputForm from '@/components/rotawise/data-input-form';
 const ScheduleCalendarView = lazy(() => import('@/components/rotawise/schedule-calendar-view'));
@@ -508,6 +509,7 @@ export default function RotawisePage() {
   }, []);
 
   const handleFileReady = useCallback((data: AppFileData, _convertedFromJson?: boolean, isExcel?: boolean) => {
+    if (isExcel && !ENABLE_EXCEL) return;
     hydrateFromFileData(data);
     setIsFileSessionActive(true);
     if (isExcel) {
@@ -585,7 +587,7 @@ export default function RotawisePage() {
       const file = e.dataTransfer?.files?.[0];
       if (!file) return;
 
-      if (file.name.toLowerCase().endsWith('.xlsx')) {
+      if (ENABLE_EXCEL && file.name.toLowerCase().endsWith('.xlsx')) {
         const item = e.dataTransfer?.items?.[0];
         const handlePromise: Promise<FileSystemFileHandle | null> =
           item && 'getAsFileSystemHandle' in item
@@ -610,6 +612,7 @@ export default function RotawisePage() {
 
   const openAndLoadExcelFromFile = useCallback(
     async (file: File, draggedHandle?: FileSystemFileHandle) => {
+      if (!ENABLE_EXCEL) return;
       try {
         const buffer = await file.arrayBuffer();
         const payload = await extractExcelMetadata(buffer);
@@ -1337,6 +1340,7 @@ export default function RotawisePage() {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const handleExportExcel = async () => {
+    if (!ENABLE_EXCEL) return;
     if (!schedule || !doctorsProfiles.length) {
       addMessage({
         severity: 'error',
@@ -1593,6 +1597,7 @@ export default function RotawisePage() {
                     <FileText className="h-4 w-4 mr-2" />
                     {t('page.exportWord')}
                   </DropdownMenuItem>
+                  {ENABLE_EXCEL && (
                   <DropdownMenuItem
                     onClick={handleExportExcel}
                     disabled={isBusy || isExportingExcel}
@@ -1600,6 +1605,7 @@ export default function RotawisePage() {
                     <Sheet className="h-4 w-4 mr-2" />
                     {t('page.exportExcel')}
                   </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -1672,10 +1678,12 @@ export default function RotawisePage() {
                     <FileText className="h-4 w-4 mr-2" />
                     {t('page.exportWord')}
                   </DropdownMenuItem>
+                  {ENABLE_EXCEL && (
                   <DropdownMenuItem onClick={handleExportExcel} disabled={!schedule || isBusy}>
                     <Sheet className="h-4 w-4 mr-2" />
                     {t('page.exportExcel')}
                   </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => setShowClearScheduleDialog(true)}

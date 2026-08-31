@@ -20,6 +20,7 @@ import type {
   ExcelMetadataPayload,
   ScheduleEntry,
 } from './types';
+import { ENABLE_EXCEL } from './features';
 
 interface ExportExcelParams {
   schedule: Schedule;
@@ -334,6 +335,7 @@ export async function extractExcelMetadata(
   buffer: ArrayBuffer,
   _locale?: Locale,
 ): Promise<ExcelMetadataPayload | null> {
+  if (!ENABLE_EXCEL) return null;
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
 
@@ -509,6 +511,7 @@ export async function writeExcelToHandle(
   holidays: Date[],
   locale: Locale,
 ): Promise<void> {
+  if (!ENABLE_EXCEL) return;
   const buffer = await buildWorkbookBuffer(
     schedule,
     doctorsProfiles,
@@ -537,6 +540,7 @@ export async function exportExcel({
   fileName,
   locale,
 }: ExportExcelParams): Promise<void> {
+  if (!ENABLE_EXCEL) return;
   const buffer = await buildWorkbookBuffer(
     schedule,
     doctorsProfiles,

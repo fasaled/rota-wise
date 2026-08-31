@@ -20,6 +20,7 @@ import {
   type DoctorProfile,
 } from '@/lib/types';
 import { writeExcelToHandle, extractExcelMetadata } from '@/lib/export-excel';
+import { ENABLE_EXCEL } from '@/lib/features';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -221,6 +222,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         if (!launchParams.files || launchParams.files.length === 0) return;
         try {
           const handle = launchParams.files[0];
+          if (!ENABLE_EXCEL && handle.name.toLowerCase().endsWith('.xlsx')) return;
           const file = await handle.getFile();
           const data = await readFileData(file);
           setFileHandleState(handle);
@@ -304,7 +306,9 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
           {
             description: 'Rotawise files',
             accept: {
-              'application/x-rotawise': ['.rw', '.xlsx'],
+              'application/x-rotawise': ENABLE_EXCEL
+                ? ['.rw', '.xlsx']
+                : ['.rw'],
               'application/json': ['.json'],
             },
           },
@@ -315,6 +319,9 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       const fileName = handle.name.toLowerCase();
 
       if (fileName.endsWith('.xlsx')) {
+        if (!ENABLE_EXCEL) {
+          throw new Error('Opening .xlsx files is disabled.');
+        }
         // XLSX path — extract metadata, return without setting handle (no auto-save)
         const file = await handle.getFile();
         const buffer = await file.arrayBuffer();
@@ -430,6 +437,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
   );
 
   const openExcelMetadata = useCallback(async () => {
+    if (!ENABLE_EXCEL) return null;
     if (!isSupported) return null;
     const win = window as typeof window & {
       showOpenFilePicker: (opts?: object) => Promise<FileSystemFileHandle[]>;
@@ -478,6 +486,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
       holidays: Date[],
       locale: Locale,
     ) => {
+      if (!ENABLE_EXCEL) return;
       if (!fileHandle) return;
       // writeExcelToHandle expects a `Schedule` (with Date objects) but
       // we receive a `SerializedSchedule` from the metadata payload; the
