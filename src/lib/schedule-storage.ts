@@ -5,7 +5,7 @@ import type {
   SerializedScheduleFormValues,
   SerializedSchedule,
 } from './types';
-import type { Unit } from './types';
+import type { Unit, UnitCoverAssignment, SerializedUnitCoverAssignment } from './types';
 
 const VERSIONS_STORAGE_KEY = 'rotawiseVersions';
 
@@ -148,6 +148,12 @@ export function serializeScheduleFormValues(
         ? values.endDate.toISOString()
         : (values.endDate as string),
     holidays,
+    units: ((values as { units?: Unit[] }).units ?? []).map((u) => ({
+      id: u.id,
+      name: u.name,
+      minPostCallCoverage: u.minPostCallCoverage,
+      alliedUnitIds: u.alliedUnitIds ?? [],
+    })),
     doctors: values.doctors.map((d) => ({
       ...d,
       freeDates: d.freeDates.map((date) =>
@@ -159,8 +165,31 @@ export function serializeScheduleFormValues(
       excludedDates: d.excludedDates.map((date) =>
         date instanceof Date ? date.toISOString() : (date as string),
       ),
+      coverAssignments: serializeCoverAssignments(d.coverAssignments),
     })),
   } as SerializedScheduleFormValues;
+}
+
+function serializeCoverAssignments(
+  raw: UnitCoverAssignment[] | undefined,
+): SerializedUnitCoverAssignment[] {
+  return (raw ?? []).map((a) => ({
+    id: a.id,
+    targetUnitId: a.targetUnitId,
+    startDate: a.startDate instanceof Date ? a.startDate.toISOString() : (a.startDate as unknown as string),
+    endDate: a.endDate instanceof Date ? a.endDate.toISOString() : (a.endDate as unknown as string),
+  }));
+}
+
+function deserializeCoverAssignments(
+  raw: SerializedUnitCoverAssignment[] | undefined,
+): UnitCoverAssignment[] {
+  return (raw ?? []).map((a) => ({
+    id: a.id,
+    targetUnitId: a.targetUnitId,
+    startDate: new Date(a.startDate),
+    endDate: new Date(a.endDate),
+  }));
 }
 
 export function deserializeScheduleFormValues(
@@ -174,6 +203,7 @@ export function deserializeScheduleFormValues(
       id: u.id,
       name: u.name,
       minPostCallCoverage: u.minPostCallCoverage,
+      alliedUnitIds: u.alliedUnitIds ?? [],
     })),
     // fileVersion 1 files do not have holidays; default to [] for backward compat.
     holidays: ((values as { holidays?: string[] }).holidays ?? []).map(
@@ -187,6 +217,7 @@ export function deserializeScheduleFormValues(
         ...d,
         // fileVersion 1 files do not have unitId; default to '' for backward compat.
         unitId: d.unitId ?? '',
+        coverAssignments: deserializeCoverAssignments(d.coverAssignments),
         freeDates: freeDatesRaw.map((s: string) => new Date(s)),
         preAssignedWorkDates: d.preAssignedWorkDates.map((s: string) => new Date(s)),
         excludedDates: d.excludedDates.map((s: string) => new Date(s)),

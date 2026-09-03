@@ -23,6 +23,7 @@ import type {
   Schedule,
   ScheduleVersion,
   SerializedScheduleFormValues,
+  Unit,
 } from '../lib/types';
 
 // ---------------------------------------------------------------------------
@@ -543,8 +544,8 @@ describe('serializeScheduleFormValues with units', () => {
     } as unknown as ScheduleFormValues;
     const serialized = serializeScheduleFormValues(values);
     expect(serialized.units).toHaveLength(2);
-    expect(serialized.units![0]).toEqual({ id: 'u1', name: 'Planta A', minPostCallCoverage: 1 });
-    expect(serialized.units![1]).toEqual({ id: 'u2', name: 'Consulta', minPostCallCoverage: 0 });
+    expect(serialized.units![0]).toEqual({ id: 'u1', name: 'Planta A', minPostCallCoverage: 1, alliedUnitIds: [] });
+    expect(serialized.units![1]).toEqual({ id: 'u2', name: 'Consulta', minPostCallCoverage: 0, alliedUnitIds: [] });
   });
 
   it('preserves the unitId on each doctor', () => {
@@ -586,6 +587,50 @@ describe('deserializeScheduleFormValues with units', () => {
     } as unknown as Parameters<typeof deserializeScheduleFormValues>[0];
     const deserialized = deserializeScheduleFormValues(serialized);
     expect(deserialized.units).toEqual([]);
+  });
+
+  it('round-trips alliedUnitIds and coverAssignments', () => {
+    const values = {
+      ...makeFormValues(),
+      units: [
+        { id: 'u1', name: 'Planta A', minPostCallCoverage: 1, alliedUnitIds: ['u2'] },
+        { id: 'u2', name: 'Planta B', minPostCallCoverage: 1, alliedUnitIds: ['u1'] },
+      ],
+      doctors: [
+        {
+          id: 'doc1',
+          name: 'Dr. Smith',
+          freeDates: [],
+          preAssignedWorkDates: [],
+          excludedDates: [],
+          isExcludedFromAutomaticAssignment: false,
+          unitId: 'u1',
+          coverAssignments: [
+            {
+              id: 'c1',
+              targetUnitId: 'u2',
+              startDate: new Date('2024-01-08T00:00:00.000Z'),
+              endDate: new Date('2024-01-12T00:00:00.000Z'),
+            },
+          ],
+        },
+      ],
+    } as unknown as ScheduleFormValues;
+    const roundTripped = deserializeScheduleFormValues(serializeScheduleFormValues(values));
+    expect((roundTripped.units as Unit[])[0].alliedUnitIds).toEqual(['u2']);
+    expect(roundTripped.doctors[0].coverAssignments).toHaveLength(1);
+    expect(roundTripped.doctors[0].coverAssignments![0].targetUnitId).toBe('u2');
+    expect(roundTripped.doctors[0].coverAssignments![0].startDate).toBeInstanceOf(Date);
+  });
+
+  it('defaults alliedUnitIds and coverAssignments when missing (fileVersion 2 migration)', () => {
+    const serialized = {
+      ...serializeScheduleFormValues(makeFormValues()),
+      units: [{ id: 'u1', name: 'Planta A', minPostCallCoverage: 1 }],
+    } as unknown as Parameters<typeof deserializeScheduleFormValues>[0];
+    const deserialized = deserializeScheduleFormValues(serialized);
+    expect((deserialized.units as Unit[])[0].alliedUnitIds).toEqual([]);
+    expect(deserialized.doctors[0].coverAssignments).toEqual([]);
   });
 
   it('defaults each doctor unitId to empty string when missing', () => {

@@ -1,7 +1,7 @@
 
 
 import React, { forwardRef, useImperativeHandle } from 'react';
-import { useForm, useFieldArray, useWatch, Controller, UseFormReturn } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, Controller, UseFormReturn, Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -16,9 +16,9 @@ import { Separator } from '@/components/ui/separator';
 import { CalendarIcon, DoctorsIcon, FreeDayIcon, PreAssignedIcon, CalendarXIcon, Clock3Icon } from '@/components/icons';
 import { format, eachDayOfInterval } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
-import type { ScheduleFormValues, Unit } from '@/lib/types';
+import type { ScheduleFormValues, Unit, UnitCoverAssignment } from '@/lib/types';
 import { cn, generateId } from '@/lib/utils';
-import { Trash2, Plus, GripVertical, Building2 } from 'lucide-react';
+import { Trash2, Plus, GripVertical, Building2, Link2 } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 
 import {
@@ -44,6 +44,14 @@ const unitSchema = z.object({
   id: z.string().default(() => generateId()),
   name: z.string().min(1, { message: "Unit name is required." }),
   minPostCallCoverage: z.coerce.number().int().min(0, "Minimum coverage cannot be negative.").max(20, "Minimum coverage cannot exceed 20.").default(0),
+  alliedUnitIds: z.array(z.string()).default([]),
+});
+
+const coverAssignmentSchema = z.object({
+  id: z.string().default(() => generateId()),
+  targetUnitId: z.string().default(''),
+  startDate: z.date(),
+  endDate: z.date(),
 });
 
 // Schema for a single doctor
@@ -55,6 +63,7 @@ const doctorSchema = z.object({
   excludedDates: z.array(z.date()).default([]),
   isExcludedFromAutomaticAssignment: z.boolean().optional().default(false),
   unitId: z.string().optional().default(''),
+  coverAssignments: z.array(coverAssignmentSchema).default([]),
 });
 
 // Main form schema
@@ -131,6 +140,184 @@ const SortableDoctorItem = ({ id, children, isDraggingOverlay }: SortableDoctorI
   );
 };
 
+function CoverAssignmentsEditor({
+  doctorIndex,
+  doctorId,
+  doctorUnitId,
+  control,
+  units,
+  startDate,
+  endDate,
+  onChanged,
+}: {
+  doctorIndex: number;
+  doctorId: string;
+  doctorUnitId?: string;
+  control: Control<ScheduleFormValues>;
+  units: Unit[];
+  startDate?: Date;
+  endDate?: Date;
+  onChanged: () => void;
+}) {
+  const { t, currentDateFnsLocale } = useLanguage();
+  const [openPopoverKey, setOpenPopoverKey] = React.useState<string | null>(null);
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: `doctors.${doctorIndex}.coverAssignments` as `doctors.${number}.coverAssignments`,
+  });
+  const destinationUnits = units.filter((u) => u.id && u.id !== doctorUnitId);
+
+  if (destinationUnits.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+        <Link2 className="w-3.5 h-3.5 text-primary" />
+        {t('form.doctor.coverAssignments')}
+      </Label>
+      <p className="text-[11px] text-muted-foreground">{t('form.doctor.coverAssignmentsHelp')}</p>
+      <div className="space-y-2">
+        {fields.map((field, assignmentIndex) => (
+          <div
+            key={field.id}
+            className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 items-end rounded-md border border-border/70 p-2"
+          >
+            <div>
+              <Label className="text-[11px] text-muted-foreground">{t('form.doctor.coverAssignments.target')}</Label>
+              <Controller
+                name={`doctors.${doctorIndex}.coverAssignments.${assignmentIndex}.targetUnitId`}
+                control={control}
+                render={({ field: targetField }) => (
+                  <Select
+                    value={targetField.value || ''}
+                    onValueChange={(v) => {
+                      targetField.onChange(v);
+                      onChanged();
+                    }}
+                  >
+                    <SelectTrigger
+                      className="mt-1"
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
+                      <SelectValue placeholder={t('form.doctor.coverAssignments.target')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {destinationUnits.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name || t('form.units.name')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">{t('form.doctor.coverAssignments.dates')}</Label>
+              <Controller
+                name={`doctors.${doctorIndex}.coverAssignments.${assignmentIndex}.startDate`}
+                control={control}
+                render={({ field: startField }) => (
+                  <Controller
+                    name={`doctors.${doctorIndex}.coverAssignments.${assignmentIndex}.endDate`}
+                    control={control}
+                    render={({ field: endField }) => {
+                      const pickerKey = `${doctorId}-cover-${field.id}`;
+                      const rangeLabel =
+                        startField.value && endField.value
+                          ? t('form.doctor.coverAssignments.dateRange', {
+                              start: format(startField.value, 'P', { locale: currentDateFnsLocale }),
+                              end: format(endField.value, 'P', { locale: currentDateFnsLocale }),
+                            })
+                          : t('form.doctor.coverAssignments.pickDates');
+                      return (
+                        <Popover
+                          open={openPopoverKey === pickerKey}
+                          onOpenChange={(isOpen) => setOpenPopoverKey(isOpen ? pickerKey : null)}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full justify-start text-left font-normal mt-1"
+                              onPointerDown={(e) => e.stopPropagation()}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {rangeLabel}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+                            <div onPointerDown={(e) => e.stopPropagation()}>
+                              <Calendar
+                                mode="range"
+                                selected={{
+                                  from: startField.value,
+                                  to: endField.value,
+                                }}
+                                onSelect={(range: DateRange | undefined) => {
+                                  if (range?.from) startField.onChange(range.from);
+                                  endField.onChange(range?.to ?? range?.from);
+                                  onChanged();
+                                }}
+                                locale={currentDateFnsLocale}
+                                disabled={(date) => {
+                                  if (startDate && date < startDate) return true;
+                                  if (endDate && date > endDate) return true;
+                                  return false;
+                                }}
+                                fromDate={startDate}
+                                toDate={endDate}
+                                initialFocus
+                              />
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      );
+                    }}
+                  />
+                )}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => {
+                remove(assignmentIndex);
+                onChanged();
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="border-dashed"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={() => {
+          const defaultDate = startDate ?? new Date();
+          append({
+            id: generateId(),
+            targetUnitId: destinationUnits[0]?.id ?? '',
+            startDate: defaultDate,
+            endDate: defaultDate,
+          } as UnitCoverAssignment);
+          onChanged();
+        }}
+      >
+        <Plus className="h-3.5 w-3.5 mr-1.5" />
+        {t('form.doctor.coverAssignments.add')}
+      </Button>
+    </div>
+  );
+}
+
 const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFormProps>(
   (props, ref) => {
     const { onSubmit, isLoading, initialValues, onValuesChange } = props;
@@ -156,9 +343,15 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                      excludedDates: doc.excludedDates || [],
                      isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
                      unitId: (doc as { unitId?: string }).unitId || '',
+                     coverAssignments: (doc as { coverAssignments?: UnitCoverAssignment[] }).coverAssignments ?? [],
                    }))
                  : [],
-      units: (initialValues as { units?: Array<{ id: string; name: string; minPostCallCoverage: number }> } | undefined)?.units ?? [],
+      units: ((initialValues as { units?: Unit[] } | undefined)?.units ?? []).map((u) => ({
+        id: u.id,
+        name: u.name,
+        minPostCallCoverage: u.minPostCallCoverage,
+        alliedUnitIds: u.alliedUnitIds ?? [],
+      })),
       holidays: (initialValues as { holidays?: Date[] } | undefined)?.holidays ?? [],
     },
   });
@@ -189,7 +382,12 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
       const sameLength = incoming.length === current.length;
       const sameIds = sameLength && incoming.every((u, i) => u.id === current[i]?.id);
       if (!sameIds) {
-        replaceUnits(incoming);
+        replaceUnits(incoming.map((u) => ({
+          id: u.id,
+          name: u.name,
+          minPostCallCoverage: u.minPostCallCoverage,
+          alliedUnitIds: u.alliedUnitIds ?? [],
+        })));
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialValues, form, replaceUnits]);
@@ -210,6 +408,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
           excludedDates: doc.excludedDates || [],
           isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
           unitId: (doc as { unitId?: string }).unitId || '',
+          coverAssignments: (doc as { coverAssignments?: UnitCoverAssignment[] }).coverAssignments ?? [],
         })));
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -228,7 +427,12 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
     const watchedUnitsRaw = useWatch({
       control: form.control,
       name: 'units',
-      defaultValue: (initialValues as { units?: Unit[] } | undefined)?.units ?? [],
+      defaultValue: ((initialValues as { units?: Unit[] } | undefined)?.units ?? []).map((u) => ({
+        id: u.id,
+        name: u.name,
+        minPostCallCoverage: u.minPostCallCoverage,
+        alliedUnitIds: u.alliedUnitIds ?? [],
+      })),
     });
     const watchedUnits = (Array.isArray(watchedUnitsRaw) ? watchedUnitsRaw : []) as Unit[];
     // Fallback chain: watched value → useFieldArray's tracked fields →
@@ -727,6 +931,18 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                       />
                     </div>
                   )}
+                  {unitsForSelect.length > 0 && (
+                    <CoverAssignmentsEditor
+                      doctorIndex={index}
+                      doctorId={docField.id}
+                      doctorUnitId={form.watch(`doctors.${index}.unitId`)}
+                      control={form.control}
+                      units={unitsForSelect}
+                      startDate={form.getValues('startDate')}
+                      endDate={form.getValues('endDate')}
+                      onChanged={triggerValuesChange}
+                    />
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <Label htmlFor={`doctors.${index}.freeDates`} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5"><FreeDayIcon className="w-3.5 h-3.5 text-emerald-500"/>{t('form.freeDates')}</Label>
@@ -925,7 +1141,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
               type="button"
               variant="outline"
               className="mt-4 w-full border-dashed border-2 text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-primary/5 transition-colors h-11"
-              onClick={() => append({ id: generateId(), name: '', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: '' })}
+              onClick={() => append({ id: generateId(), name: '', freeDates: [], preAssignedWorkDates: [], excludedDates: [], isExcludedFromAutomaticAssignment: false, unitId: '', coverAssignments: [] })}
             >
               <Plus className="h-4 w-4 mr-2" />
               {t('form.addDoctor')}
@@ -980,6 +1196,24 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                         variant="ghost"
                         size="icon"
                         onClick={() => {
+                          const units = (form.getValues('units') as Unit[]) ?? [];
+                          const removedId = units[unitIndex]?.id;
+                          if (removedId) {
+                            units.forEach((u, i) => {
+                              if (i === unitIndex) return;
+                              const nextAllies = (u.alliedUnitIds ?? []).filter((id) => id !== removedId);
+                              if (nextAllies.length !== (u.alliedUnitIds ?? []).length) {
+                                form.setValue(`units.${i}.alliedUnitIds`, nextAllies);
+                              }
+                            });
+                            const doctors = form.getValues('doctors') ?? [];
+                            doctors.forEach((doc, i) => {
+                              const next = (doc.coverAssignments ?? []).filter((a) => a.targetUnitId !== removedId);
+                              if (next.length !== (doc.coverAssignments ?? []).length) {
+                                form.setValue(`doctors.${i}.coverAssignments`, next);
+                              }
+                            });
+                          }
                           removeUnit(unitIndex);
                           triggerValuesChange();
                         }}
@@ -1040,6 +1274,58 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                           <p className="text-[11px] text-muted-foreground mt-1">{t('form.units.minPostCallCoverageHelp')}</p>
                         </div>
                       </div>
+                      {unitsForSelect.length > 1 && (
+                        <div>
+                          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                            <Link2 className="w-3.5 h-3.5 text-primary" />
+                            {t('form.units.alliedUnits')}
+                          </Label>
+                          <p className="text-[11px] text-muted-foreground mt-1 mb-2">{t('form.units.alliedUnitsHelp')}</p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-2">
+                            {unitsForSelect
+                              .filter((u) => u.id !== form.watch(`units.${unitIndex}.id`))
+                              .map((other) => {
+                                const thisId = form.watch(`units.${unitIndex}.id`);
+                                const allied = (form.watch(`units.${unitIndex}.alliedUnitIds`) ?? []).includes(other.id);
+                                return (
+                                  <label
+                                    key={other.id}
+                                    className="flex items-center gap-2 text-sm"
+                                  >
+                                    <Checkbox
+                                      checked={allied}
+                                      onCheckedChange={(checked) => {
+                                        const units = (form.getValues('units') as Unit[]) ?? [];
+                                        const next = units.map((u) => {
+                                          if (u.id === thisId) {
+                                            const set = new Set(u.alliedUnitIds ?? []);
+                                            if (checked) set.add(other.id);
+                                            else set.delete(other.id);
+                                            return { ...u, alliedUnitIds: Array.from(set) };
+                                          }
+                                          if (u.id === other.id) {
+                                            const set = new Set(u.alliedUnitIds ?? []);
+                                            if (checked) set.add(thisId);
+                                            else set.delete(thisId);
+                                            return { ...u, alliedUnitIds: Array.from(set) };
+                                          }
+                                          return u;
+                                        });
+                                        replaceUnits(next);
+                                        triggerValuesChange();
+                                      }}
+                                      onPointerDown={(e) => e.stopPropagation()}
+                                    />
+                                    <span>{other.name || t('form.units.name')}</span>
+                                  </label>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+                      {unitsForSelect.length <= 1 && (
+                        <p className="text-[11px] text-muted-foreground">{t('form.units.alliedUnitsEmpty')}</p>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -1057,7 +1343,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
               variant="outline"
               className="mt-4 w-full border-dashed border-2 text-muted-foreground hover:text-foreground hover:border-primary/50 hover:bg-primary/5 transition-colors h-11"
               onClick={() => {
-                appendUnit({ id: generateId(), name: '', minPostCallCoverage: 1 });
+                appendUnit({ id: generateId(), name: '', minPostCallCoverage: 1, alliedUnitIds: [] });
                 triggerValuesChange();
               }}
             >

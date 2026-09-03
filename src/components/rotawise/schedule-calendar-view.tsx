@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, CalendarDays as CalendarIconLucide, Lock, Unlock, X, Check, Briefcase, Star } from 'lucide-react';
 import { CalendarFilterBar, type ActiveFilter } from './calendar-filter-bar';
 import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry, Unit, UnitCoverage } from '@/lib/types';
+import { computeUnitCoverageForDate } from '@/lib/schedule-generator';
 import { cn } from '@/lib/utils';
 import { FreeDayIcon, PreAssignedIcon, WorkIcon, ExcludedIcon } from '@/components/icons';
 import { useLanguage } from '@/context/language-context';
@@ -221,15 +222,19 @@ const DayCell: React.FC<DayCellProps> = ({
               // The tooltip is just the available/minimum ratio. The dot
               // colour (green / amber / red / grey) already conveys the
               // status; adding explanatory text on top of that is redundant.
+              const allies =
+                c.alliedUnitNames && c.alliedUnitNames.length > 0
+                  ? ` (${t('calendar.coverage.tooltipAllies', { allies: c.alliedUnitNames.join(', ') })})`
+                  : '';
               const tooltip =
-                c.status === 'ignored'
+                (c.status === 'ignored'
                   ? t('calendar.coverage.tooltipUntracked', { unit: c.unitName })
                   : t(
                       c.isCovered
                         ? 'calendar.coverage.tooltipCovered'
                         : 'calendar.coverage.tooltipUncovered',
                       { unit: c.unitName, available: c.available, min: c.min },
-                    );
+                    )) + allies;
               return (
                 <span
                   key={c.unitId}
@@ -1120,36 +1125,13 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
         const isHoliday = holidays.some((h) => isSameDay(h, cursor));
         if (!isWeekend && !isHoliday) {
-          const coverage: UnitCoverage[] = [];
-          for (const unit of units) {
-            const status: 'tracked' | 'ignored' = unit.minPostCallCoverage > 0 ? 'tracked' : 'ignored';
-            let available = 0;
-            for (const doctor of doctors) {
-              if (doctor.unitId !== unit.id) continue;
-              const onFreeDay = doctor.freeDates.some((v) => isSameDay(v, cursor));
-              if (onFreeDay) continue;
-              const previousDay = addDays(cursor, -1);
-              const previousDayIsHoliday = holidays.some((h) => isSameDay(h, previousDay));
-              const onPostCall =
-                !previousDayIsHoliday &&
-                allScheduleEntries.some(
-                  (e) =>
-                    e.doctorId === doctor.id &&
-                    (e.assignment === 'Work' || e.assignment === 'Pre-assigned') &&
-                    isSameDay(e.date, previousDay),
-                );
-              if (onPostCall) continue;
-              available++;
-            }
-            coverage.push({
-              unitId: unit.id,
-              unitName: unit.name,
-              min: unit.minPostCallCoverage,
-              available,
-              isCovered: available >= unit.minPostCallCoverage,
-              status,
-            });
-          }
+          const coverage = computeUnitCoverageForDate(
+            cursor,
+            doctors,
+            units,
+            allScheduleEntries,
+            { holidays },
+          );
           map.set(format(cursor, 'yyyy-MM-dd'), coverage);
         }
         cursor.setDate(cursor.getDate() + 1);

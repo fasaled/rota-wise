@@ -10,6 +10,8 @@ import {
   type DoctorFormFieldInput,
   type Unit,
   type UnitCoverage,
+  type UnitCoverAssignment,
+  type SerializedUnitCoverAssignment,
   type ExcelMetadataPayload,
 } from '@/lib/types';
 import { computeUnitCoverageForDate } from '@/lib/schedule-generator';
@@ -190,6 +192,38 @@ function computeScheduleWarnings(
 const toLocalDate = (s: string): Date =>
   s.includes('T') ? new Date(s) : new Date(s + 'T00:00:00');
 
+const deserializeCoverAssignments = (
+  raw: SerializedUnitCoverAssignment[] | undefined,
+): UnitCoverAssignment[] =>
+  (raw ?? []).map((a) => ({
+    id: a.id,
+    targetUnitId: a.targetUnitId,
+    startDate: toLocalDate(a.startDate),
+    endDate: toLocalDate(a.endDate),
+  }));
+
+const serializeCoverAssignments = (
+  raw: UnitCoverAssignment[] | undefined,
+): SerializedUnitCoverAssignment[] =>
+  (raw ?? []).map((a) => ({
+    id: a.id,
+    targetUnitId: a.targetUnitId,
+    startDate: a.startDate instanceof Date ? a.startDate.toISOString() : (a.startDate as unknown as string),
+    endDate: a.endDate instanceof Date ? a.endDate.toISOString() : (a.endDate as unknown as string),
+  }));
+
+const normalizeUnit = (u: {
+  id: string;
+  name: string;
+  minPostCallCoverage: number;
+  alliedUnitIds?: string[];
+}): Unit => ({
+  id: u.id,
+  name: u.name,
+  minPostCallCoverage: u.minPostCallCoverage,
+  alliedUnitIds: u.alliedUnitIds ?? [],
+});
+
 function deserializeAppFileData(data: AppFileData): {
   schedule: Schedule | null;
   doctorsProfiles: DoctorProfile[];
@@ -237,6 +271,7 @@ function deserializeAppFileData(data: AppFileData): {
         preAssignedWorkDates: (p.preAssignedWorkDates || []).map((d: string) => toLocalDate(d)),
         excludedDates: (p.excludedDates || []).map((d: string) => toLocalDate(d)),
         isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
+        coverAssignments: deserializeCoverAssignments(p.coverAssignments),
       }));
     }
 
@@ -250,6 +285,7 @@ function deserializeAppFileData(data: AppFileData): {
         excludedDates: (doc.excludedDates || []).map((d: string) => toLocalDate(d)),
         isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
         unitId: doc.unitId || '',
+        coverAssignments: deserializeCoverAssignments(doc.coverAssignments),
       }));
 
       formValues = {
@@ -259,11 +295,8 @@ function deserializeAppFileData(data: AppFileData): {
         minIntervalBetweenWorkDays: data.formValues.minIntervalBetweenWorkDays || 1,
         globalMonthlyShiftLimit: data.formValues.globalMonthlyShiftLimit,
         doctors: formDoctors,
-        units: (data.formValues.units || []).map((u) => ({
-          id: u.id,
-          name: u.name,
-          minPostCallCoverage: u.minPostCallCoverage,
-        })),
+        units: (data.formValues.units || []).map(normalizeUnit),
+        holidays: (data.formValues.holidays || []).map((d: string) => toLocalDate(d)),
       };
     }
   }
@@ -302,6 +335,7 @@ function buildAppFileData(
         preAssignedWorkDates: p.preAssignedWorkDates.map((d) => d.toISOString()),
         excludedDates: (p.excludedDates || []).map((d) => d.toISOString()),
         isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
+        coverAssignments: serializeCoverAssignments(p.coverAssignments),
       }))
     : [];
 
@@ -319,12 +353,9 @@ function buildAppFileData(
       excludedDates: (doc.excludedDates || []).map((d) => d.toISOString()),
       isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
       unitId: doc.unitId || undefined,
+      coverAssignments: serializeCoverAssignments(doc.coverAssignments),
     })),
-    units: ((formValues as { units?: Unit[] } | undefined)?.units ?? []).map((u) => ({
-      id: u.id,
-      name: u.name,
-      minPostCallCoverage: u.minPostCallCoverage,
-    })),
+    units: ((formValues as { units?: Unit[] } | undefined)?.units ?? []).map(normalizeUnit),
     holidays: ((formValues as { holidays?: Date[] } | undefined)?.holidays ?? []).map(
       (d) => (d instanceof Date ? d.toISOString() : (d as string)),
     ),
@@ -654,6 +685,7 @@ export default function RotawisePage() {
             freeDates: d.freeDates.map((v) => toLocalDate(v)),
             preAssignedWorkDates: (d.preAssignedWorkDates ?? []).map((v) => toLocalDate(v)),
             excludedDates: (d.excludedDates ?? []).map((v) => toLocalDate(v)),
+            coverAssignments: deserializeCoverAssignments(d.coverAssignments),
           }),
         );
         setSchedule(deserializedSchedule);
@@ -711,13 +743,10 @@ export default function RotawisePage() {
       excludedDates: doc.excludedDates || [],
       isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
       unitId: doc.unitId || undefined,
+      coverAssignments: doc.coverAssignments ?? [],
     }));
     setDoctorsProfiles(profiles);
-    const formUnits: Unit[] = ((data as { units?: Unit[] }).units ?? []).map((u) => ({
-      id: u.id,
-      name: u.name,
-      minPostCallCoverage: u.minPostCallCoverage,
-    }));
+    const formUnits: Unit[] = ((data as { units?: Unit[] }).units ?? []).map(normalizeUnit);
     setUnits(formUnits);
 
     const existingFixedEntries = schedule?.entries.filter((e) => e.isFixed) || [];
@@ -1268,6 +1297,7 @@ export default function RotawisePage() {
             excludedDates: formDoc.excludedDates || [],
             isExcludedFromAutomaticAssignment: formDoc.isExcludedFromAutomaticAssignment || false,
             unitId: formDoc.unitId || undefined,
+            coverAssignments: formDoc.coverAssignments ?? [],
           });
         }
         // Preserve any profile from prev that was in the form (safety net).
@@ -1284,11 +1314,7 @@ export default function RotawisePage() {
     }
 
     // Sync units so coverage/dots reflect the latest list.
-    const formUnits: Unit[] = ((values as { units?: Unit[] }).units ?? []).map((u) => ({
-      id: u.id,
-      name: u.name,
-      minPostCallCoverage: u.minPostCallCoverage,
-    }));
+    const formUnits: Unit[] = ((values as { units?: Unit[] }).units ?? []).map(normalizeUnit);
     setUnits(formUnits);
 
     // Sync holidays the same way units are synced: the form is the source

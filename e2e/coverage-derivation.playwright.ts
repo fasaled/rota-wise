@@ -215,4 +215,57 @@ test.describe('unitId round-trip', () => {
   });
 });
 
+test.describe('allied units and vacation cover', () => {
+  test('two allied units with min 1 and 2 doctors produce no red dots', async ({ page }) => {
+    const file = createTestFileJson({
+      units: [
+        { id: 'u1', name: 'Planta A', minPostCallCoverage: 1, alliedUnitIds: ['u2'] },
+        { id: 'u2', name: 'Planta B', minPostCallCoverage: 1, alliedUnitIds: ['u1'] },
+      ],
+      doctors: [
+        { id: 'd1', name: 'Dr. A', unitId: 'u1' },
+        { id: 'd2', name: 'Dr. B', unitId: 'u2' },
+      ],
+      scheduleRange: { start: '2024-01-01', end: '2024-01-31' },
+      preAssignedWork: [{ doctorId: 'd1', date: FIRST_WEEKDAY }],
+    });
+
+    await mockFileSystemAccess(page, JSON.parse(file));
+    await openAppAndLoadFile(page);
+
+    const coverage = await readCoverageState(page);
+    expect(coverage.red, 'allied units should cover each other on the post-call day').toBe(0);
+    expect(coverage.green).toBeGreaterThan(0);
+  });
+
+  test('vacation cover leaves the origin unit undercovered', async ({ page }) => {
+    const file = createTestFileJson({
+      units: [
+        { id: 'u1', name: 'Planta A', minPostCallCoverage: 1 },
+        { id: 'u2', name: 'Planta B', minPostCallCoverage: 1 },
+      ],
+      doctors: [
+        { id: 'd1', name: 'Dr. A', unitId: 'u1' },
+        {
+          id: 'd2',
+          name: 'Dr. B',
+          unitId: 'u2',
+          coverAssignments: [
+            { id: 'c1', targetUnitId: 'u1', startDate: '2024-01-01', endDate: '2024-01-31' },
+          ],
+        },
+      ],
+      scheduleRange: { start: '2024-01-01', end: '2024-01-31' },
+      preAssignedWork: [{ doctorId: 'd1', date: FIRST_WEEKDAY }],
+    });
+
+    await mockFileSystemAccess(page, JSON.parse(file));
+    await openAppAndLoadFile(page);
+
+    const coverage = await readCoverageState(page);
+    expect(coverage.red, 'origin unit B has nobody after reassignment').toBeGreaterThan(0);
+    expect(coverage.warnings).toBeGreaterThan(0);
+  });
+});
+
 

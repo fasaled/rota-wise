@@ -307,13 +307,14 @@ function populateMetadataSheets(
   // _rw_units
   {
     const sheet = workbook.addWorksheet(UNITS_SHEET, hidden);
-    const h = ['id', 'name', 'minPostCallCoverage'];
+    const h = ['id', 'name', 'minPostCallCoverage', 'alliedUnitIds'];
     h.forEach((col, i) => { sheet.getRow(1).getCell(i + 1).value = col; });
     units.forEach((u, i) => {
       const row = sheet.getRow(i + 2);
       row.getCell(1).value = u.id;
       row.getCell(2).value = u.name;
       row.getCell(3).value = u.minPostCallCoverage;
+      row.getCell(4).value = (u.alliedUnitIds ?? []).join(',');
     });
   }
 
@@ -402,10 +403,12 @@ export async function extractExcelMetadata(
   if (unitsSheet) {
     unitsSheet.eachRow((row, rowNum) => {
       if (rowNum === 1) return;
+      const alliedRaw = String(row.getCell(4).value ?? '');
       units.push({
         id: row.getCell(1).value as string,
         name: row.getCell(2).value as string,
         minPostCallCoverage: row.getCell(3).value as number,
+        alliedUnitIds: alliedRaw ? alliedRaw.split(',').filter(Boolean) : [],
       });
     });
   }

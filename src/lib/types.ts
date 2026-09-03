@@ -2,12 +2,28 @@ import type { z } from 'zod';
 import type { scheduleFormSchema } from '@/components/rotawise/data-input-form'; // Updated path
 
 // Current file format version. Bump whenever the on-disk shape changes.
-export const CURRENT_FILE_VERSION = 2 as const;
+export const CURRENT_FILE_VERSION = 3 as const;
 
 export interface Unit {
   id: string;
   name: string;
   minPostCallCoverage: number; // 0 = no coverage check (e.g. consultation); >=1 = required weekday coverage
+  // Other units that jointly cover post-call absences with this one.
+  // The alliance is an undirected connected component: A↔B and B↔C means
+  // A, B and C share a pool. Each unit still keeps its own minimum.
+  alliedUnitIds: string[];
+}
+
+/**
+ * Temporary reassignment of a doctor to another unit (typically to cover
+ * vacations). During [startDate, endDate] the doctor counts only toward
+ * `targetUnitId`, not their home `unitId`.
+ */
+export interface UnitCoverAssignment {
+  id: string;
+  targetUnitId: string;
+  startDate: Date;
+  endDate: Date;
 }
 
 export interface Doctor {
@@ -22,6 +38,7 @@ export interface DoctorProfile extends Doctor {
   preAssignedWorkDates: Date[];
   excludedDates: Date[];
   isExcludedFromAutomaticAssignment: boolean;
+  coverAssignments?: UnitCoverAssignment[];
 }
 
 // Input for a single doctor in the form
@@ -33,6 +50,7 @@ export interface DoctorFormFieldInput {
   excludedDates: Date[];
   isExcludedFromAutomaticAssignment: boolean;
   unitId?: string;
+  coverAssignments?: UnitCoverAssignment[];
 }
 
 // Full form input schema type
@@ -77,6 +95,8 @@ export interface UnitCoverage {
   // 'tracked' = the unit has minPostCallCoverage > 0, so a red/green dot is shown.
   // 'ignored' = the unit has minPostCallCoverage === 0, so the dot is grey/neutral.
   status: 'tracked' | 'ignored';
+  // Names of other units in this unit's coverage alliance, if any.
+  alliedUnitNames?: string[];
 }
 
 // --- Types for JSON Serialization/Deserialization ---
@@ -94,20 +114,27 @@ export interface SerializedSchedule extends Omit<Schedule, 'startDate' | 'endDat
   globalMonthlyShiftLimit?: number;
 }
 
-export interface SerializedDoctorProfile extends Omit<DoctorProfile, 'freeDates' | 'preAssignedWorkDates' | 'excludedDates'> {
-  freeDates: string[]; // Array of ISO date strings
-  preAssignedWorkDates: string[]; // Array of ISO date strings
-  excludedDates: string[]; // Array of ISO date strings
-  isExcludedFromAutomaticAssignment: boolean;
-  unitId?: string;
+export interface SerializedUnitCoverAssignment extends Omit<UnitCoverAssignment, 'startDate' | 'endDate'> {
+  startDate: string;
+  endDate: string;
 }
 
-export interface SerializedDoctorFormFieldInput extends Omit<DoctorFormFieldInput, 'freeDates' | 'preAssignedWorkDates' | 'excludedDates'> {
+export interface SerializedDoctorProfile extends Omit<DoctorProfile, 'freeDates' | 'preAssignedWorkDates' | 'excludedDates' | 'coverAssignments'> {
   freeDates: string[]; // Array of ISO date strings
   preAssignedWorkDates: string[]; // Array of ISO date strings
   excludedDates: string[]; // Array of ISO date strings
   isExcludedFromAutomaticAssignment: boolean;
   unitId?: string;
+  coverAssignments?: SerializedUnitCoverAssignment[];
+}
+
+export interface SerializedDoctorFormFieldInput extends Omit<DoctorFormFieldInput, 'freeDates' | 'preAssignedWorkDates' | 'excludedDates' | 'coverAssignments'> {
+  freeDates: string[]; // Array of ISO date strings
+  preAssignedWorkDates: string[]; // Array of ISO date strings
+  excludedDates: string[]; // Array of ISO date strings
+  isExcludedFromAutomaticAssignment: boolean;
+  unitId?: string;
+  coverAssignments?: SerializedUnitCoverAssignment[];
 }
 
 // Units are already JSON-serializable (only primitive fields), so we use the same shape.

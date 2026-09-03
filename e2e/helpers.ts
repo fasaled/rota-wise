@@ -15,6 +15,14 @@ export interface TestUnit {
   id: string;
   name: string;
   minPostCallCoverage: number;
+  alliedUnitIds?: string[];
+}
+
+export interface TestCoverAssignment {
+  id: string;
+  targetUnitId: string;
+  startDate: string;
+  endDate: string;
 }
 
 export interface TestDoctor {
@@ -25,6 +33,7 @@ export interface TestDoctor {
   excludedDates?: string[];
   preAssignedWorkDates?: string[];
   isExcludedFromAutomaticAssignment?: boolean;
+  coverAssignments?: TestCoverAssignment[];
 }
 
 export interface TestPreAssigned {
@@ -83,6 +92,12 @@ export function createTestFileJson(opts: CreateTestFileOptions): string {
       excludedDates: (d.excludedDates ?? []).map(toIso),
       isExcludedFromAutomaticAssignment: d.isExcludedFromAutomaticAssignment ?? false,
       unitId: d.unitId,
+      coverAssignments: (d.coverAssignments ?? []).map((a) => ({
+        id: a.id,
+        targetUnitId: a.targetUnitId,
+        startDate: toIso(a.startDate),
+        endDate: toIso(a.endDate),
+      })),
     })),
     formValues: {
       numberOfDoctors: opts.doctors.length,
@@ -97,8 +112,19 @@ export function createTestFileJson(opts: CreateTestFileOptions): string {
         excludedDates: (d.excludedDates ?? []).map(toIso),
         isExcludedFromAutomaticAssignment: d.isExcludedFromAutomaticAssignment ?? false,
         unitId: d.unitId ?? '',
+        coverAssignments: (d.coverAssignments ?? []).map((a) => ({
+          id: a.id,
+          targetUnitId: a.targetUnitId,
+          startDate: toIso(a.startDate),
+          endDate: toIso(a.endDate),
+        })),
       })),
-      units: opts.units.map((u) => ({ ...u })),
+      units: opts.units.map((u) => ({
+        id: u.id,
+        name: u.name,
+        minPostCallCoverage: u.minPostCallCoverage,
+        alliedUnitIds: u.alliedUnitIds ?? [],
+      })),
       holidays,
     },
     scheduleWarnings: [],
@@ -180,7 +206,7 @@ export async function openAppAndLoadFile(page: Page) {
   (page as unknown as { __e2eMessages: string[] }).__e2eMessages = messages;
 
   await page.goto('/');
-  await page.getByRole('button', { name: /open existing file/i }).click();
+  await page.getByRole('button', { name: /open file/i }).click();
 
   // The nav items are <button> elements with a translated `title`
   // attribute ("Calendar" in en, "Calendario" in es).
