@@ -22,7 +22,6 @@ import type {
   ScheduleFormValues,
   Schedule,
   ScheduleVersion,
-  SerializedScheduleFormValues,
   Unit,
 } from '../lib/types';
 

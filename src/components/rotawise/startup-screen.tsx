@@ -4,26 +4,20 @@ import { FolderOpen, FilePlus2 } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 import { useFileSystem } from '@/context/file-system-context';
 import type { AppFileData } from '@/lib/types';
-import { ENABLE_EXCEL } from '@/lib/features';
 
 interface StartupScreenProps {
-  onFileReady: (data: AppFileData, convertedFromJson?: boolean, isExcel?: boolean) => void;
+  onFileReady: (data: AppFileData, convertedFromJson?: boolean) => void;
   onError: (msg: string) => void;
 }
 
 export function StartupScreen({ onFileReady, onError }: StartupScreenProps) {
   const { t } = useLanguage();
-  const { openAnyFile, openFile, createNewFile } = useFileSystem();
+  const { openFile, createNewFile } = useFileSystem();
 
   async function handleOpen() {
     try {
-      if (!ENABLE_EXCEL) {
-        const result = await openFile();
-        if (result) onFileReady(result.data, result.convertedFromJson, false);
-        return;
-      }
-      const result = await openAnyFile();
-      if (result) onFileReady(result.data, result.convertedFromJson, result.isExcel);
+      const result = await openFile();
+      if (result) onFileReady(result.data, result.convertedFromJson);
     } catch {
       onError(t('file.openError'));
     }
@@ -86,9 +80,7 @@ export function StartupScreen({ onFileReady, onError }: StartupScreenProps) {
             <div className="min-w-0">
               <p className="font-semibold text-white text-sm">{t('startup.openFile')}</p>
               <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-                {ENABLE_EXCEL
-                  ? t('startup.openFileDescription')
-                  : t('startup.openFileDescriptionRw')}
+                {t('startup.openFileDescription')}
               </p>
             </div>
           </button>

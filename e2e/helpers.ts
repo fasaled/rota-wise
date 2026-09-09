@@ -148,6 +148,7 @@ export async function mockFileSystemAccess(page: Page, fileData: AppFileData) {
   const serialized = JSON.stringify(fileData);
 
   await page.addInitScript((payload) => {
+    localStorage.setItem('rotawise-language', 'en');
     const blob = new Blob([payload], { type: 'application/json' });
 
     // Expose the data for tests to inspect.
@@ -224,6 +225,45 @@ export async function openAppAndLoadFile(page: Page) {
   await calendarNav.click();
   // Give the calendar a moment to render its first batch of days.
   await page.waitForTimeout(500);
+}
+
+/** Open the mocked file and wait until the app shell (sidebar) is visible. */
+export async function openAppOnRoster(page: Page) {
+  page.on('console', (msg) => {
+    const bag = (page as unknown as { __e2eMessages?: string[] }).__e2eMessages;
+    bag?.push(`[${msg.type()}] ${msg.text()}`);
+  });
+  page.on('pageerror', (err) => {
+    const bag = (page as unknown as { __e2eMessages?: string[] }).__e2eMessages;
+    bag?.push(`[pageerror] ${err.message}`);
+  });
+  (page as unknown as { __e2eMessages: string[] }).__e2eMessages = [];
+
+  await page.goto('/');
+  await page.getByRole('button', { name: /open file/i }).click();
+  await page.locator('aside.app-sidebar').waitFor({ state: 'visible', timeout: 15_000 });
+  await navButton(page, 'Roster').click();
+  await page.getByText('Schedule parameters').waitFor({ state: 'visible', timeout: 15_000 });
+}
+
+export function navButton(page: Page, title: string) {
+  return page.locator(`aside.app-sidebar button[title="${title}"]`).first();
+}
+
+export async function goToTab(page: Page, title: string) {
+  const btn = navButton(page, title);
+  await btn.waitFor({ state: 'visible' });
+  await page.waitForFunction(
+    (tabTitle) => {
+      const btn = document.querySelector(
+        `aside.app-sidebar button[title="${tabTitle}"]`,
+      ) as HTMLButtonElement | null;
+      return !!btn && !btn.disabled;
+    },
+    title,
+    { timeout: 20_000 },
+  );
+  await btn.click();
 }
 
 // ---------------------------------------------------------------------------

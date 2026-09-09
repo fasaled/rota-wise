@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { scheduleFormSchema } from '@/components/rotawise/data-input-form'; // Updated path
+import type { scheduleFormSchema } from '@/lib/schedule-form-schema';
 
 // Current file format version. Bump whenever the on-disk shape changes.
 export const CURRENT_FILE_VERSION = 3 as const;
@@ -103,7 +103,7 @@ export interface UnitCoverage {
 
 export interface SerializedScheduleEntry extends Omit<ScheduleEntry, 'date' | 'dayOfWeek'> {
   date: string; // ISO date string
-  dayOfWeek?: string; // optional — not stored in xlsx metadata
+  dayOfWeek?: string;
 }
 
 export interface SerializedSchedule extends Omit<Schedule, 'startDate' | 'endDate' | 'entries' | 'minIntervalBetweenWorkDays' | 'globalMonthlyShiftLimit'> {
@@ -156,20 +156,6 @@ export interface PersistedScheduleData {
   formValues: SerializedScheduleFormValues;
   scheduleWarnings?: string[]; // Optional: Added for persisting warnings
   currentMinInterval?: number; // Optional: Added for persisting min interval context
-}
-
-/**
- * Payload stored in the hidden `Metadata` sheet of an exported .xlsx
- * so the calendar can be re-opened by the app. Includes the file version
- * so future migrations are possible.
- */
-export interface ExcelMetadataPayload {
-  fileVersion: 3;
-  schedule: SerializedSchedule;
-  doctorsProfiles: SerializedDoctorProfile[];
-  units: SerializedUnit[];
-  holidays: string[]; // ISO date strings
-  formValues: { minIntervalBetweenWorkDays: number };
 }
 
 export interface ScheduleVersion {

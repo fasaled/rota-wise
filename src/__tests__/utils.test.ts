@@ -7,7 +7,7 @@ describe('cn (class merging)', () => {
   });
 
   it('handles conditional classes with false', () => {
-    expect(cn('foo', false && 'bar', 'baz')).toBe('foo baz');
+    expect(cn('foo', false, 'baz')).toBe('foo baz');
   });
 
   it('handles conditional classes with undefined', () => {

@@ -1,6 +1,6 @@
-import { generateSchedule, computeUnitCoverageForDate, analyzeUnitCoverage } from '../lib/schedule-generator';
+import { generateSchedule, computeUnitCoverageForDate } from '../lib/schedule-generator';
 import type { ScheduleFormValues, ScheduleEntry, DoctorFormFieldInput, Unit } from '../lib/types';
-import { differenceInCalendarDays, isSameDay, format, addDays, isWithinInterval } from 'date-fns';
+import { differenceInCalendarDays, isSameDay, format, addDays } from 'date-fns';
 
 describe('Schedule Validation Tests', () => {
   const createScheduleData = (overrides: Partial<ScheduleFormValues> = {}): ScheduleFormValues => {
@@ -159,7 +159,6 @@ describe('Schedule Validation Tests', () => {
     }
 
     // 7. Date Range Coverage
-    const scheduleInterval = { start: formData.startDate, end: formData.endDate };
     const currentDate = new Date(formData.startDate);
     while (currentDate <= formData.endDate) {
       const hasEntryForDate = schedule.some(e => isSameDay(e.date, currentDate));
@@ -270,7 +269,7 @@ describe('Schedule Validation Tests', () => {
         }),
       ];
 
-      testCases.forEach((testCase, index) => {
+      testCases.forEach((testCase) => {
         const result = generateSchedule(testCase);
         
         expect(result.error).toBeUndefined();

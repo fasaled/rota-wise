@@ -3,7 +3,6 @@
 import React, { forwardRef, useImperativeHandle } from 'react';
 import { useForm, useFieldArray, useWatch, Controller, UseFormReturn, Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +16,7 @@ import { CalendarIcon, DoctorsIcon, FreeDayIcon, PreAssignedIcon, CalendarXIcon,
 import { format, eachDayOfInterval } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import type { ScheduleFormValues, Unit, UnitCoverAssignment } from '@/lib/types';
+import { scheduleFormSchema } from '@/lib/schedule-form-schema';
 import { cn, generateId } from '@/lib/utils';
 import { Trash2, Plus, GripVertical, Building2, Link2 } from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
@@ -38,56 +38,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-
-// Schema for a single unit
-const unitSchema = z.object({
-  id: z.string().default(() => generateId()),
-  name: z.string().min(1, { message: "Unit name is required." }),
-  minPostCallCoverage: z.coerce.number().int().min(0, "Minimum coverage cannot be negative.").max(20, "Minimum coverage cannot exceed 20.").default(0),
-  alliedUnitIds: z.array(z.string()).default([]),
-});
-
-const coverAssignmentSchema = z.object({
-  id: z.string().default(() => generateId()),
-  targetUnitId: z.string().default(''),
-  startDate: z.date(),
-  endDate: z.date(),
-});
-
-// Schema for a single doctor
-const doctorSchema = z.object({
-  id: z.string().default(() => generateId()),
-  name: z.string().min(1, { message: "Name is required." }),
-  freeDates: z.array(z.date()).default([]),
-  preAssignedWorkDates: z.array(z.date()).default([]),
-  excludedDates: z.array(z.date()).default([]),
-  isExcludedFromAutomaticAssignment: z.boolean().optional().default(false),
-  unitId: z.string().optional().default(''),
-  coverAssignments: z.array(coverAssignmentSchema).default([]),
-});
-
-// Main form schema
-export const scheduleFormSchema = z.object({
-  numberOfDoctors: z.union([
-    z.string().transform((val) => val === "" ? 0 : parseInt(val, 10)),
-    z.number()
-  ]).refine((val) => !isNaN(val) && val >= 0 && val <= 20, {
-    message: "Number of doctors must be between 0 and 20, or empty (treated as 0)."
-  }),
-  startDate: z.date({ required_error: "Start date is required." }),
-  endDate: z.date({ required_error: "End date is required." })
-    .refine((data) => data >= new Date(new Date().setHours(0,0,0,0)), {
-      message: "End date must be today or a future date.",
-    }),
-  minIntervalBetweenWorkDays: z.coerce.number().int().min(0, "Minimum interval cannot be negative.").max(30, "Interval cannot exceed 30 days.").optional().default(1),
-  globalMonthlyShiftLimit: z.coerce.number().int().min(0, "Monthly shift limit cannot be negative.").max(31, "Limit cannot exceed 31 days.").optional(),
-  doctors: z.array(doctorSchema).min(0, "Doctor details array cannot be negative."),
-  units: z.array(unitSchema).default([]),
-  holidays: z.array(z.date()).default([]),
-}).refine(data => data.endDate >= data.startDate, {
-  message: "End date cannot be before start date.",
-  path: ["endDate"],
-});
 
 interface DataInputFormProps {
   onSubmit: (data: ScheduleFormValues) => void;
@@ -320,7 +270,7 @@ function CoverAssignmentsEditor({
 
 const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFormProps>(
   (props, ref) => {
-    const { onSubmit, isLoading, initialValues, onValuesChange } = props;
+    const { onSubmit, isLoading: _isLoading, initialValues, onValuesChange } = props;
   const { t, currentDateFnsLocale } = useLanguage();
   const [anchorDates, setAnchorDates] = React.useState<Record<string, Date | null>>({});
     const [openPopoverKey, setOpenPopoverKey] = React.useState<string | null>(null);
@@ -389,7 +339,6 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
           alliedUnitIds: u.alliedUnitIds ?? [],
         })));
       }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialValues, form, replaceUnits]);
 
     // Same workaround for doctors: `useFieldArray` does not always pick
@@ -411,7 +360,6 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
           coverAssignments: (doc as { coverAssignments?: UnitCoverAssignment[] }).coverAssignments ?? [],
         })));
       }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [initialValues, form, replace]);
 
     // `useFieldArray` doesn't always pick up the initial values from

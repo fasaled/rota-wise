@@ -23,4 +23,18 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/react-dom/') || id.includes('/node_modules/scheduler/')) {
+            return 'react';
+          }
+          if (id.includes('/node_modules/react/')) {
+            return 'react';
+          }
+        },
+      },
+    },
+  },
 });

@@ -1,6 +1,6 @@
 import { generateSchedule, computeUnitCoverageForDate, analyzeUnitCoverage, isDoctorAvailableOnDate, getEffectiveUnitId, getAlliedUnitIds, getPostCallDate } from '../lib/schedule-generator';
-import type { ScheduleFormValues, ScheduleEntry, DoctorFormFieldInput, Unit, UnitCoverage } from '../lib/types';
-import { addDays, subDays, differenceInCalendarDays, isSameDay, format } from 'date-fns';
+import type { ScheduleFormValues, ScheduleEntry, DoctorFormFieldInput, Unit } from '../lib/types';
+import { addDays, differenceInCalendarDays, isSameDay, format } from 'date-fns';
 
 describe('Schedule Generator', () => {
   const createBaseScheduleData = (overrides: Partial<ScheduleFormValues> = {}): ScheduleFormValues => {
@@ -62,10 +62,6 @@ describe('Schedule Generator', () => {
       
       // Should have entries for 31 days (January 2024) with 3 doctors each
       // Plus vacation entries as needed
-      const workOrOffEntries = entries.filter(e => 
-        e.assignment === 'Work' || e.assignment === 'Off' || e.assignment === 'Pre-assigned'
-      );
-      
       // Should have at least one entry per day for work assignments
       const uniqueDates = new Set(entries.map(e => format(e.date, 'yyyy-MM-dd')));
       expect(uniqueDates.size).toBe(31); // All days in January
@@ -111,7 +107,7 @@ describe('Schedule Generator', () => {
         doctorWorkDays.get(entry.doctorId)!.push(entry.date);
       });
 
-      doctorWorkDays.forEach((workDays, doctorId) => {
+      doctorWorkDays.forEach((workDays) => {
         workDays.sort((a, b) => a.getTime() - b.getTime());
         
         for (let i = 1; i < workDays.length; i++) {
@@ -749,7 +745,7 @@ describe('Schedule Generator', () => {
         doctorWorkDays.get(entry.doctorId)!.push(entry.date);
       });
 
-      doctorWorkDays.forEach((workDays, doctorId) => {
+      doctorWorkDays.forEach((workDays) => {
         workDays.sort((a, b) => a.getTime() - b.getTime());
         
         for (let i = 1; i < workDays.length; i++) {
@@ -1768,7 +1764,7 @@ describe('Schedule Generator', () => {
     // any weekday. Saturday's post-call is Monday.
     // -----------------------------------------------------------------
 
-    function makeHolidaysCoverageFixture(holidays: Date[]) {
+    function makeHolidaysCoverageFixture(_holidays: Date[]) {
       const startDate = new Date('2024-01-01'); // Mon
       const endDate = new Date('2024-01-31');
       const units: Unit[] = [
@@ -1785,7 +1781,7 @@ describe('Schedule Generator', () => {
     }
 
     it('computeUnitCoverageForDate returns empty for a holiday', () => {
-      const { startDate, units, doctors } = makeHolidaysCoverageFixture([]);
+      const { units, doctors } = makeHolidaysCoverageFixture([]);
       const holiday = new Date('2024-01-03'); // Wed
       const result = computeUnitCoverageForDate(holiday, doctors, units, [], { holidays: [holiday] });
       expect(result).toEqual([]);

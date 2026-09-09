@@ -1,7 +1,7 @@
 
 
 import type React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -46,10 +46,9 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
 }) => {
   const { t, currentDateFnsLocale } = useLanguage();
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(entry?.doctorId || '');
-  const [assignmentType, setAssignmentType] = useState<ScheduleEntry['assignment']>(entry?.assignment || 'Work');
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
-  const isDayBlockedForDoctor = (doctorId: string, targetDate: Date): string | null => {
+  const isDayBlockedForDoctor = useCallback((doctorId: string, targetDate: Date): string | null => {
     const doctor = doctors.find(d => d.id === doctorId);
     if (!doctor) return null;
 
@@ -64,16 +63,14 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
     }
 
     return null;
-  };
+  }, [doctors, t]);
 
   useEffect(() => {
     if (isOpen) { // Reset state when dialog opens
         if (entry) {
             setSelectedDoctorId(entry.doctorId);
-            setAssignmentType('Work');
         } else {
             setSelectedDoctorId(doctors.length > 0 ? doctors[0].id : '');
-            setAssignmentType('Work');
         }
     }
   }, [entry, doctors, isOpen]);
@@ -85,7 +82,7 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
     } else {
       setBlockedReason(null);
     }
-  }, [selectedDoctorId, date, doctors]); 
+  }, [selectedDoctorId, date, isDayBlockedForDoctor]); 
 
   const handleSave = () => {
     if (blockedReason) {
@@ -151,8 +148,6 @@ const ManualAdjustmentDialog: React.FC<ManualAdjustmentDialogProps> = ({
         autoDismissMs: 3000,
     });
   };
-
-  const assignmentTypes: ScheduleEntry['assignment'][] = ['Work']; // Only work assignments allowed
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

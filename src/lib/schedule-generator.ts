@@ -1,5 +1,5 @@
 import type { ScheduleFormValues, Schedule, ScheduleEntry, DoctorFormFieldInput, Unit, UnitCoverage, UnitCoverAssignment } from "./types";
-import { isSameDay, format, differenceInCalendarDays, eachDayOfInterval as eachDayOfIntervalDateFns, startOfMonth, endOfMonth, addDays } from 'date-fns';
+import { isSameDay, format, differenceInCalendarDays, addDays } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 
 const dayKeyToSpanish: { [key: string]: string } = {
@@ -310,7 +310,7 @@ export function generateSchedule(
       });
     }
 
-    let currentDateLoopVar = new Date(startDate);
+    const currentDateLoopVar = new Date(startDate);
     const finalEndDate = new Date(endDate);
 
     const doctorStats: { [doctorId: string]: DoctorWorkloadStats } = {};
@@ -394,7 +394,7 @@ export function generateSchedule(
       }
 
       let dayHasAnyPreAssignment = false;
-      let dayHasFixedAssignment = !!existingFixedEntry;
+      const dayHasFixedAssignment = !!existingFixedEntry;
 
       for (const doctor of doctorsWithIds) {
           if (isDateInArray(currentDate, doctor.preAssignedWorkDates)) {
@@ -532,7 +532,6 @@ export function generateSchedule(
               const stats = doctorStats[doc.id];
               const monthKey = currentMonthKey;
 
-              const totalWorkdays = stats?.totalWorkdays || 0;
               const monthlyWorkdays = stats?.monthlyWorkdays[monthKey] || 0;
 
               const dayOfWeekCount = stats?.workloadByDayOfWeek[dayOfWeekKey] || 0;
@@ -670,7 +669,6 @@ export function analyzeBrokenConstraints(
 ): ScheduleWarning[] {
   const warnings: ScheduleWarning[] = [];
   const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const weekendDayKeys = ['Fri', 'Sat', 'Sun'];
   const preferredDayKeys = ['Thu', 'Fri', 'Sat', 'Sun'];
 
   const allWorkEntries = entries.filter(e => e.assignment === 'Work' || e.assignment === 'Pre-assigned');

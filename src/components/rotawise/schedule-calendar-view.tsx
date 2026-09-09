@@ -38,13 +38,6 @@ interface ScheduleCalendarViewProps {
   minIntervalBetweenWorkDays: number;
   allScheduleEntries: ScheduleEntry[];
   onToggleMonthFixed?: (month: Date, isFixed: boolean) => void;
-  /**
-   * When true, the calendar renders in metadata mode: day locks (Fix Month
-   * button and per-day lock icons) are hidden. The user can still edit
-   * doctor assignments manually, but cannot lock days. Coverage is still
-   * computed and shown via the dots.
-   */
-  isMetadataMode?: boolean;
   onToggleEntryFixed?: (entry: ScheduleEntry, isFixed: boolean) => void;
   onRemoveWorkEntriesForDate?: (date: Date) => void;
   onNotify?: (msg: Omit<InfoBarMessage, 'id'>) => void;
@@ -99,7 +92,6 @@ interface DayCellProps {
   openSelectorDate: string | null;
   onOpenSelectorChange: (key: string | null) => void;
   unitCoverageForDay: UnitCoverage[];
-  isMetadataMode: boolean;
   isHoliday: boolean;
   freeDayOpenDate: string | null;
   onFreeDayOpenChange: (key: string | null) => void;
@@ -125,13 +117,12 @@ const DayCell: React.FC<DayCellProps> = ({
   onOpenSelectorChange,
   unitCoverageForDay,
   isHoliday,
-  isMetadataMode,
   freeDayOpenDate,
   onFreeDayOpenChange,
   onToggleFreeDay,
   allDoctors,
 }) => {
-  const { t, currentDateFnsLocale } = useLanguage();
+  const { t } = useLanguage();
   const triggerButtonRef = useRef<HTMLDivElement>(null);
   const freeDayTriggerRef = useRef<HTMLDivElement>(null);
 
@@ -186,7 +177,7 @@ const DayCell: React.FC<DayCellProps> = ({
               </span>
             )}
           </span>
-          {workEntryForDay && !isPreAssigned && onToggleEntryFixed && !isMetadataMode && (
+          {workEntryForDay && !isPreAssigned && onToggleEntryFixed && (
             <button
               type="button"
               onClick={(e) => {
@@ -256,7 +247,7 @@ const DayCell: React.FC<DayCellProps> = ({
         )}
         {/* Second line: doctor name as chip */}
         {workEntryForDay ? (
-          isPreAssigned && !isMetadataMode ? (
+          isPreAssigned ? (
             <div
               ref={triggerButtonRef}
               className={doctorChipBaseClass}
@@ -437,7 +428,6 @@ const DraggableWorkEntry: React.FC<DraggableWorkEntryProps> = ({
         !onEdit ? "cursor-default" : isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
         isDragging && "shadow-lg"
       )}
-      data-tour="calendar-chip"
       onClick={(e) => {
         e.stopPropagation();
         onEdit?.(e);
@@ -767,7 +757,7 @@ interface FreeDayDoctorSelectorProps {
 
 const FreeDayDoctorSelector: React.FC<FreeDayDoctorSelectorProps> = ({
   doctors,
-  date,
+  date: _date,
   freeDayDoctorIds,
   isOpen,
   triggerRef,
@@ -893,12 +883,11 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     holidays = [],
     onUpdateScheduleEntry,
     onSwapScheduleEntries,
-    onArbitraryScheduleEntry,
+    onArbitraryScheduleEntry: _onArbitraryScheduleEntry,
     minIntervalBetweenWorkDays,
     allScheduleEntries,
     onToggleMonthFixed,
     onToggleEntryFixed,
-    isMetadataMode = false,
     onRemoveWorkEntriesForDate,
     onNotify,
     onToggleFreeDay,
@@ -982,7 +971,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
     }
 
     // Check if the dragged entry is a 'Work' assignment and not fixed (only these can be dragged)
-    const canDragAssignment = draggedEntry.assignment === 'Work' || (draggedEntry.assignment === 'Pre-assigned' && isMetadataMode);
+    const canDragAssignment = draggedEntry.assignment === 'Work';
     if (!canDragAssignment || draggedEntry.isFixed) {
       onNotify?.({ severity: 'error', title: t('calendar.toast.onlyWorkDraggable.title'), description: t('calendar.toast.onlyWorkDraggable.description'), autoDismissMs: 4000 });
       return;
@@ -1014,8 +1003,8 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         return;
       }
 
-      // Prevent swapping with pre-assigned entries (except in metadata mode)
-      if (existingEntryOnTarget.assignment === 'Pre-assigned' && !isMetadataMode) {
+      // Prevent swapping with pre-assigned entries
+      if (existingEntryOnTarget.assignment === 'Pre-assigned') {
         onNotify?.({ severity: 'error', title: t('calendar.toast.cannotSwapWithFixed.title'), description: t('calendar.toast.cannotSwapWithFixed.description'), autoDismissMs: 4000 });
         return;
       }
@@ -1167,10 +1156,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         return assignmentTypes.includes(e.assignment);
       });
 
-      // Synthesize Excluded entries only in normal mode — in metadata mode
-      // the schedule already reflects excluded dates accurately.
-      const excludedEntriesForDay = !isMetadataMode
-        ? doctors
+      const excludedEntriesForDay = doctors
             .filter(doc => doc.excludedDates?.some(exDate => isSameDay(exDate, date)))
             .filter(doc => doctorIds.length === 0 || doctorIds.includes(doc.id))
             .map(doc => ({
@@ -1179,8 +1165,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
               assignment: 'Excluded' as const,
               dayOfWeek: format(date, 'EEEE', { locale: currentDateFnsLocale }),
               isFixed: false,
-            }))
-        : [];
+            }));
 
       const excludedEntriesToShow = assignmentTypes.length === 0 || assignmentTypes.includes('Excluded')
         ? excludedEntriesForDay
@@ -1201,7 +1186,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
         unitCoverage: unitCoverageByDate.get(format(date, 'yyyy-MM-dd')),
       };
     });
-  }, [currentMonth, schedule.entries, activeFilters, currentDateFnsLocale, doctors, unitCoverageByDate, isMetadataMode]);
+  }, [currentMonth, schedule.entries, activeFilters, currentDateFnsLocale, doctors, unitCoverageByDate]);
 
   const nextMonth = () => setCurrentMonth(prev => addMonths(prev, 1));
   const prevMonth = () => setCurrentMonth(prev => subMonths(prev, 1));
@@ -1248,7 +1233,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
           <CardTitle className="text-xl font-semibold flex items-center gap-2">
             <CalendarIconLucide className="w-5 h-5 text-primary shrink-0" /> {t('calendar.title')}
           </CardTitle>
-          <div className="flex items-center gap-2" data-tour="month-nav">
+          <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={prevMonth} aria-label={t('calendar.previousMonth')}>
               <ChevronLeft className="h-5 w-5" />
             </Button>
@@ -1258,7 +1243,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             <Button variant="outline" size="icon" onClick={nextMonth} aria-label={t('calendar.nextMonth')}>
               <ChevronRight className="h-5 w-5" />
             </Button>
-            {onToggleMonthFixed && !isMetadataMode && (
+            {onToggleMonthFixed && (
               <Button
                 variant={monthAllFixed ? "default" : "outline"}
                 size="sm"
@@ -1276,7 +1261,6 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
           doctors={doctors}
           activeFilters={activeFilters}
           onFiltersChange={onFiltersChange}
-          isMetadataMode={isMetadataMode}
         />
       </CardHeader>
       <CardContent className="p-2 sm:p-4">
@@ -1295,7 +1279,7 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-1.5" data-tour="calendar-grid">
+              <div className="grid grid-cols-7 gap-1.5">
                 {daysInMonth.map((day) => (
                   <DayCell
                     key={day.date.toString()}
@@ -1312,7 +1296,6 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
                     onOpenSelectorChange={setOpenSelectorDate}
                     unitCoverageForDay={day.unitCoverage ?? []}
                     isHoliday={holidays.some((h) => isSameDay(h, day.date))}
-                    isMetadataMode={isMetadataMode}
                     freeDayOpenDate={freeDayOpenDate}
                     onFreeDayOpenChange={setFreeDayOpenDate}
                     onToggleFreeDay={onToggleFreeDay}
@@ -1336,27 +1319,23 @@ const ScheduleCalendarView: React.FC<ScheduleCalendarViewProps> = ({
             ) : null}
           </DragOverlay>
         </DndContext>
-        <div className="mt-4 pt-3 border-t flex flex-wrap items-center gap-x-3 gap-y-2 text-xs" data-tour="legend">
+        <div className="mt-4 pt-3 border-t flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
           <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Work')}>
             <WorkIcon className="w-3 h-3 shrink-0" />
             {t('calendar.legend.work')}
           </span>
-          {!isMetadataMode && (
-            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Pre-assigned')}>
-              <PreAssignedIcon className="w-3 h-3 shrink-0" />
-              {t('calendar.legend.preAssigned')}
-            </span>
-          )}
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Pre-assigned')}>
+            <PreAssignedIcon className="w-3 h-3 shrink-0" />
+            {t('calendar.legend.preAssigned')}
+          </span>
           <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md" style={getChipStyle('Free')}>
             <FreeDayIcon className="w-3 h-3 shrink-0" />
             {t('calendar.legend.freeDay')}
           </span>
-          {!isMetadataMode && (
-            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-dashed border-muted-foreground/30 text-muted-foreground">
-              <ExcludedIcon className="w-3 h-3 shrink-0" />
-              {t('calendar.legend.excluded')}
-            </span>
-          )}
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-dashed border-muted-foreground/30 text-muted-foreground">
+            <ExcludedIcon className="w-3 h-3 shrink-0" />
+            {t('calendar.legend.excluded')}
+          </span>
           {units.length > 0 && (
             <>
               <span className="text-muted-foreground/40">|</span>

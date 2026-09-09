@@ -17,7 +17,6 @@ interface CalendarFilterBarProps {
   doctors: DoctorProfile[];
   activeFilters: ActiveFilter[];
   onFiltersChange: (filters: ActiveFilter[]) => void;
-  isMetadataMode?: boolean;
 }
 
 type DropdownLevel = 'root' | 'doctor' | 'assignment';
@@ -49,17 +48,13 @@ const ASSIGNMENT_OPTIONS = [
   },
 ] as const;
 
-export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange, isMetadataMode = false }: CalendarFilterBarProps) {
+export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: CalendarFilterBarProps) {
   const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [level, setLevel] = useState<DropdownLevel>('root');
   const [searchText, setSearchText] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const filteredAssignmentOptions = ASSIGNMENT_OPTIONS.filter(
-    (o) => !isMetadataMode || (o.value !== 'Pre-assigned' && o.value !== 'Excluded'),
-  );
 
   // Close on outside click
   useEffect(() => {
@@ -123,7 +118,7 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange, isM
   };
 
   const getAssignmentChipStyle = (value: string) =>
-    filteredAssignmentOptions.find(o => o.value === value)?.chipStyle;
+    ASSIGNMENT_OPTIONS.find(o => o.value === value)?.chipStyle;
 
   const filteredDoctors = doctors.filter(d =>
     d.name.toLowerCase().includes(searchText.toLowerCase())
@@ -135,7 +130,7 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange, isM
   ].filter(o => searchText === '' || o.label.toLowerCase().includes(searchText.toLowerCase()));
 
   return (
-    <div ref={containerRef} className="relative w-full" data-tour="filter-bar">
+    <div ref={containerRef} className="relative w-full">
 
       {/* Search bar */}
       <div
@@ -285,7 +280,7 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange, isM
                 {t('calendar.filter.back')}
               </button>
               <div className="py-1">
-                {filteredAssignmentOptions.map(({ value, labelKey, Icon, chipStyle }) => {
+                {ASSIGNMENT_OPTIONS.map(({ value, labelKey, Icon, chipStyle }) => {
                   const label = t(labelKey);
                   const checked = activeFilters.some(f => f.type === 'assignment' && f.value === value);
                   return (

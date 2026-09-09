@@ -9,16 +9,11 @@ import {
   type SerializedDoctorFormFieldInput,
   type DoctorFormFieldInput,
   type Unit,
-  type UnitCoverage,
   type UnitCoverAssignment,
   type SerializedUnitCoverAssignment,
-  type ExcelMetadataPayload,
 } from '@/lib/types';
-import { computeUnitCoverageForDate } from '@/lib/schedule-generator';
-import { extractExcelMetadata } from '@/lib/export-excel';
-import { ENABLE_EXCEL } from '@/lib/features';
 import { type UseFormReturn } from 'react-hook-form';
-import DataInputForm from '@/components/rotawise/data-input-form';
+const DataInputForm = lazy(() => import('@/components/rotawise/data-input-form'));
 const ScheduleCalendarView = lazy(() => import('@/components/rotawise/schedule-calendar-view'));
 const ScheduleSummaryTable = lazy(() => import('@/components/rotawise/schedule-summary-table'));
 const MonthlyWorkloadSummaryTable = lazy(() => import('@/components/rotawise/MonthlyWorkloadSummaryTable'));
@@ -54,8 +49,6 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
-  Sheet,
-  HelpCircle,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -73,7 +66,6 @@ import { useScheduleWorker } from '@/hooks/use-schedule-worker';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { useInfoBar, type InfoBarMessage } from '@/hooks/use-info-bar';
 import { useHistory } from '@/hooks/use-history';
-import { useMetadataModeTour } from '@/hooks/use-metadata-mode-tour';
 import { type ActiveFilter } from '@/components/rotawise/calendar-filter-bar';
 
 // ---------------------------------------------------------------------------
@@ -184,11 +176,10 @@ function computeScheduleWarnings(
 // Serialization helpers
 // ---------------------------------------------------------------------------
 
-// Parse a date string that may be date-only (from xlsx metadata) or
-// an ISO 8601 datetime (from .rw files).  Date-only strings like
-// "2024-01-15" must be treated as LOCAL midnight so they match the
-// calendar and Excel visible sheets, which both use local-time dates.
-// ISO strings (which contain 'T') are handled correctly by `new Date`.
+// Parse a date string that may be date-only ("2024-01-15") or an ISO 8601
+// datetime. Date-only strings must be treated as local midnight so they
+// match calendar dates. ISO strings (which contain 'T') are handled by
+// `new Date`.
 const toLocalDate = (s: string): Date =>
   s.includes('T') ? new Date(s) : new Date(s + 'T00:00:00');
 
@@ -385,14 +376,11 @@ export default function RotawisePage() {
     launchQueueData,
     clearLaunchQueueData,
     openFile,
-    setFileHandle,
     saveToFile,
-    saveExcelMetadata,
   } = useFileSystem();
   const { messages, addMessage, dismissMessage } = useInfoBar();
   const { push: historyPush, undo: historyUndo, canUndo } = useHistory();
   const { generate } = useScheduleWorker();
-  const startMetadataModeTour = useMetadataModeTour();
 
   // Core schedule state
   const [schedule, setSchedule] = useState<Schedule | null>(null);
@@ -410,21 +398,9 @@ export default function RotawisePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
   const [dataInputFormKey, setDataInputFormKey] = useState(0);
-  const [numDoctorsInForm, setNumDoctorsInForm] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<ActiveTab>('config');
   const [isFileSessionActive, setIsFileSessionActive] = useState(false);
   const [showClearScheduleDialog, setShowClearScheduleDialog] = useState(false);
-
-  // Metadata mode: opened from an .xlsx export. The app enters a
-  // restricted mode (no sidebar, no auto-generation, no day locks). The
-  // .xlsx is autosaved on every change with a 1s debounce.
-  const [isMetadataMode, setIsMetadataMode] = useState(false);
-  // Status of the latest autosave write. 'saving' shows the spinner
-  // indicator in the header; 'saved' flashes "Saved" briefly;
-  // 'error' shows a red toast.
-  const [autosaveStatus, setAutosaveStatus] = useState<
-    'idle' | 'saving' | 'saved' | 'error'
-  >('idle');
   const [showClearDoctorDetailsDialog, setShowClearDoctorDetailsDialog] = useState(false);
 
   // Refs
@@ -531,84 +507,19 @@ export default function RotawisePage() {
     setCurrentMinInterval(cmi);
     if (fv) {
       setLoadedFormValues(fv);
-      setNumDoctorsInForm(fv.numberOfDoctors || 0);
       setDataInputFormKey((prev) => prev + 1);
     }
     if (hasEntries) setActiveTab('calendar');
     else setActiveTab('config');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleFileReady = useCallback((data: AppFileData, _convertedFromJson?: boolean, isExcel?: boolean) => {
-    if (isExcel && !ENABLE_EXCEL) return;
+  const handleFileReady = useCallback((data: AppFileData, _convertedFromJson?: boolean) => {
     hydrateFromFileData(data);
     setIsFileSessionActive(true);
-    if (isExcel) {
-      setIsMetadataMode(true);
-      setActiveTab('calendar');
-    }
     addMessage({ severity: 'success', title: t('file.opened'), autoDismissMs: 3000 });
   }, [hydrateFromFileData, addMessage, t]);
 
-  // Autosave effect: in metadata mode, write the current state to the
-  // .xlsx file 1 second after the last change. The 1s debounce is long
-  // enough to collapse rapid changes (e.g. dragging a doctor through
-  // multiple days) into a single write, but short enough that the file
-  // stays in sync with what the user sees.
-  useEffect(() => {
-    if (!isMetadataMode) return;
-    if (!schedule) return;
-    setAutosaveStatus('saving');
-    const handle = setTimeout(() => {
-      let cancelled = false;
-      void saveExcelMetadata(
-        schedule as unknown as Parameters<typeof saveExcelMetadata>[0],
-        doctorsProfiles,
-        units,
-        holidays,
-        currentDateFnsLocale,
-      )
-        .then(() => {
-          if (cancelled) return;
-          setAutosaveStatus('saved');
-          setTimeout(() => {
-            if (!cancelled) setAutosaveStatus('idle');
-          }, 2000);
-        })
-        .catch((err: Error) => {
-          if (cancelled) return;
-          setAutosaveStatus('error');
-          addMessage({
-            severity: 'error',
-            title: t('page.toast.errorSavingExcel.title'),
-            description: err.message,
-            autoDismissMs: 5000,
-          });
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, 1000);
-    return () => {
-      clearTimeout(handle);
-    };
-  }, [isMetadataMode, schedule, doctorsProfiles, units, holidays, currentDateFnsLocale, saveExcelMetadata, addMessage, t]);
-
-  // beforeunload: warn the user if the autosave is still in progress.
-  useEffect(() => {
-    if (!isMetadataMode) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      if (autosaveStatus === 'saving') {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [isMetadataMode, autosaveStatus]);
-
-  // Drag-and-drop: global handler for .xlsx files (works everywhere, not
-  // just on the startup screen). .rw / .json drops trigger the file picker.
+  // Drag-and-drop: .rw / .json drops trigger the file picker.
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
@@ -618,14 +529,7 @@ export default function RotawisePage() {
       const file = e.dataTransfer?.files?.[0];
       if (!file) return;
 
-      if (ENABLE_EXCEL && file.name.toLowerCase().endsWith('.xlsx')) {
-        const item = e.dataTransfer?.items?.[0];
-        const handlePromise: Promise<FileSystemFileHandle | null> =
-          item && 'getAsFileSystemHandle' in item
-            ? (item as DataTransferItem & { getAsFileSystemHandle: () => Promise<FileSystemFileHandle | null> }).getAsFileSystemHandle().catch(() => null)
-            : Promise.resolve(null);
-        void handlePromise.then((fh) => openAndLoadExcelFromFile(file, fh ?? undefined));
-      } else if (
+      if (
         file.name.toLowerCase().endsWith('.rw') ||
         file.name.toLowerCase().endsWith('.json')
       ) {
@@ -638,87 +542,7 @@ export default function RotawisePage() {
       window.removeEventListener('dragover', handleDragOver);
       window.removeEventListener('drop', handleDrop);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openFile]);
-
-  const openAndLoadExcelFromFile = useCallback(
-    async (file: File, draggedHandle?: FileSystemFileHandle) => {
-      if (!ENABLE_EXCEL) return;
-      try {
-        const buffer = await file.arrayBuffer();
-        const payload = await extractExcelMetadata(buffer);
-        if (!payload) {
-          addMessage({
-            severity: 'error',
-            title: t('page.toast.invalidExcel.title'),
-            description: t('page.toast.invalidExcel.noMetadata'),
-            autoDismissMs: 5000,
-          });
-          return;
-        }
-        if (payload.fileVersion !== 3) {
-          addMessage({
-            severity: 'error',
-            title: t('page.toast.invalidExcel.title'),
-            description: `Unsupported fileVersion: ${payload.fileVersion}`,
-            autoDismissMs: 5000,
-          });
-          return;
-        }
-        const deserializedSchedule: Schedule = {
-          ...payload.schedule,
-          startDate: toLocalDate(payload.schedule.startDate),
-          endDate: toLocalDate(payload.schedule.endDate),
-          entries: payload.schedule.entries.map((e) => {
-            const date = toLocalDate(e.date);
-            return {
-              ...e,
-              date,
-              dayOfWeek: e.dayOfWeek || date.toLocaleDateString('en-US', { weekday: 'long' }),
-              isFixed: false,
-            };
-          }),
-        };
-        const deserializedDoctors: DoctorProfile[] = payload.doctorsProfiles.map(
-          (d) => ({
-            ...d,
-            freeDates: d.freeDates.map((v) => toLocalDate(v)),
-            preAssignedWorkDates: (d.preAssignedWorkDates ?? []).map((v) => toLocalDate(v)),
-            excludedDates: (d.excludedDates ?? []).map((v) => toLocalDate(v)),
-            coverAssignments: deserializeCoverAssignments(d.coverAssignments),
-          }),
-        );
-        setSchedule(deserializedSchedule);
-        setDoctorsProfiles(deserializedDoctors);
-        setUnits(payload.units);
-        setHolidays(payload.holidays.map((d) => toLocalDate(d)));
-        setCurrentMinInterval(payload.formValues.minIntervalBetweenWorkDays);
-        setLoadedFormValues({
-          minIntervalBetweenWorkDays: payload.formValues.minIntervalBetweenWorkDays,
-          numberOfDoctors: deserializedDoctors.length,
-          doctors: [],
-        });
-        setDataInputFormKey((k) => k + 1);
-        if (draggedHandle) setFileHandle(draggedHandle);
-        setIsMetadataMode(true);
-        setIsFileSessionActive(true);
-        setActiveTab('calendar');
-        addMessage({
-          severity: 'success',
-          title: t('file.opened'),
-          autoDismissMs: 4000,
-        });
-      } catch (err) {
-        addMessage({
-          severity: 'error',
-          title: t('page.toast.invalidExcel.title'),
-          description: (err as Error).message,
-          autoDismissMs: 5000,
-        });
-      }
-    },
-    [addMessage, setFileHandle, t],
-  );
 
   const handleFileError = useCallback((msg: string) => {
     addMessage({ severity: 'error', title: msg, autoDismissMs: 5000 });
@@ -820,7 +644,7 @@ export default function RotawisePage() {
     newEntries.push(updatedEntry);
     const updatedSchedule = { ...schedule, entries: deduplicateEntries(newEntries) };
     setSchedule(updatedSchedule);
-  }, [schedule, historyPush, deduplicateEntries]);
+  }, [schedule, historyPush, doctorsProfiles, scheduleWarnings, currentMinInterval]);
 
   const handleSwapScheduleEntries = useCallback((entry1: ScheduleEntry, entry2: ScheduleEntry, oldDate1?: Date, oldDate2?: Date) => {
     if (!schedule) return;
@@ -952,7 +776,7 @@ export default function RotawisePage() {
 
     setSchedule({ ...schedule, entries: deduplicateEntries(newEntries) });
     pendingMessages.forEach((msg) => addMessage(msg));
-  }, [schedule, historyPush, doctorsProfiles, currentMinInterval, addMessage, t, deduplicateEntries]);
+  }, [schedule, historyPush, doctorsProfiles, scheduleWarnings, currentMinInterval, addMessage, t]);
 
   const handleUpdateScheduleEntry = useCallback((updatedEntry: ScheduleEntry, oldDate?: Date) => {
     if (!schedule) return;
@@ -1077,7 +901,7 @@ export default function RotawisePage() {
     const updatedSchedule = { ...schedule, entries: deduplicateEntries(newEntries) };
     setSchedule(updatedSchedule);
     pendingMessages.forEach((msg) => addMessage(msg));
-  }, [schedule, historyPush, doctorsProfiles, currentMinInterval, addMessage, t, language, currentDateFnsLocale]);
+  }, [schedule, historyPush, doctorsProfiles, scheduleWarnings, currentMinInterval, addMessage, t]);
 
   // ---------------------------------------------------------------------------
   // Toggle month fixed
@@ -1110,7 +934,7 @@ export default function RotawisePage() {
         : t('page.toast.monthUnfixed.description', { month: format(month, 'MMMM yyyy', { locale: currentDateFnsLocale }) }),
       autoDismissMs: 3000,
     });
-  }, [schedule, historyPush, addMessage, t, currentDateFnsLocale]);
+  }, [schedule, historyPush, doctorsProfiles, scheduleWarnings, currentMinInterval, addMessage, t, currentDateFnsLocale]);
 
   // ---------------------------------------------------------------------------
   // Toggle isFixed on a single entry
@@ -1132,7 +956,7 @@ export default function RotawisePage() {
     });
 
     setSchedule({ ...schedule, entries: updatedEntries });
-  }, [schedule, historyPush]);
+  }, [schedule, historyPush, doctorsProfiles, scheduleWarnings, currentMinInterval]);
 
   // ---------------------------------------------------------------------------
   // Remove all Work entries for a specific date
@@ -1147,7 +971,7 @@ export default function RotawisePage() {
     );
 
     setSchedule({ ...schedule, entries: newEntries });
-  }, [schedule, historyPush]);
+  }, [schedule, historyPush, doctorsProfiles, scheduleWarnings, currentMinInterval]);
 
   // ---------------------------------------------------------------------------
   // Toggle free day from calendar
@@ -1157,7 +981,6 @@ export default function RotawisePage() {
     if (!schedule) return;
     historyPush({ schedule, doctorsProfiles, scheduleWarnings, currentMinInterval });
 
-    const dateStr = date.toISOString().split('T')[0];
     const doctor = doctorsProfiles.find(d => d.id === doctorId);
     if (!doctor) return;
 
@@ -1244,7 +1067,6 @@ export default function RotawisePage() {
       const current = formRef.current.getValues();
       const reset: ScheduleFormValues = { ...current, numberOfDoctors: 0, doctors: [] };
       formRef.current.reset(reset);
-      setNumDoctorsInForm(0);
       setLoadedFormValues(reset);
       setDoctorsProfiles([]);
       if (fileHandle) {
@@ -1266,9 +1088,6 @@ export default function RotawisePage() {
   // ---------------------------------------------------------------------------
 
   const handleLiveFormValuesChange = useCallback((values: ScheduleFormValues) => {
-    if (typeof values.numberOfDoctors === 'number') {
-      setNumDoctorsInForm(values.numberOfDoctors);
-    }
     setLoadedFormValues(values);
 
     // Sync doctorsProfiles with the form's doctors. We must do a full
@@ -1324,7 +1143,6 @@ export default function RotawisePage() {
     setHolidays(
       rawFormHolidays.map((d) => (d instanceof Date ? d : new Date(d))),
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -1360,42 +1178,6 @@ export default function RotawisePage() {
       });
     } finally {
       setIsExportingWord(false);
-    }
-  };
-
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
-
-  const handleExportExcel = async () => {
-    if (!ENABLE_EXCEL) return;
-    if (!schedule || !doctorsProfiles.length) {
-      addMessage({
-        severity: 'error',
-        title: t('page.toast.noScheduleToExport.title'),
-        description: t('page.toast.noScheduleToExport.description'),
-        autoDismissMs: 4000,
-      });
-      return;
-    }
-    setIsExportingExcel(true);
-    try {
-      const { exportExcel } = await import('@/lib/export-excel');
-      await exportExcel({
-        schedule,
-        doctorsProfiles,
-        units,
-        holidays,
-        fileName,
-        locale: currentDateFnsLocale,
-      });
-    } catch (err) {
-      addMessage({
-        severity: 'error',
-        title: t('page.toast.errorSavingExcel.title'),
-        description: (err as Error).message,
-        autoDismissMs: 5000,
-      });
-    } finally {
-      setIsExportingExcel(false);
     }
   };
 
@@ -1466,9 +1248,7 @@ export default function RotawisePage() {
         </Suspense>
       ) : (
         <>
-      <div className={`app-shell ${isMetadataMode ? 'metadata-mode' : ''}`}>
-        {/* Sidebar — hidden in metadata mode */}
-        {!isMetadataMode && (
+      <div className="app-shell">
         <aside className="app-sidebar">
           {/* Logo */}
           <div className="sidebar-logo flex items-center gap-2 px-3 py-4 border-b border-white/10">
@@ -1509,62 +1289,24 @@ export default function RotawisePage() {
             </div>
           </div>
         </aside>
-        )}
 
         {/* Main body */}
         <div className="app-body">
           {/* Command bar */}
           <header className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border bg-card shrink-0 shadow-sm">
             {/* File info */}
-            <div className="flex items-center gap-2 min-w-0" data-tour="metadata-header">
+            <div className="flex items-center gap-2 min-w-0">
               <File className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="text-sm font-medium text-foreground truncate">
                 {fileName ?? t('file.noFileOpen')}
               </span>
-              {fileName && !fileName.endsWith('.rw') && !fileName.endsWith('.xlsx') && (
+              {fileName && !fileName.endsWith('.rw') && (
                 <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded font-medium shrink-0">
                   .json
                 </span>
               )}
-              {/* Autosave status indicator — only visible in metadata mode */}
-              {isMetadataMode && autosaveStatus !== 'idle' && (
-                <span
-                  className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 inline-flex items-center gap-1 ${
-                    autosaveStatus === 'saving'
-                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                      : autosaveStatus === 'saved'
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
-                        : 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200'
-                  }`}
-                >
-                  {autosaveStatus === 'saving' && (
-                    <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
-                  )}
-                  {t(`page.${autosaveStatus}`)}
-                </span>
-              )}
             </div>
 
-            {/* Guided tour launcher — only visible in metadata mode */}
-            {isMetadataMode && (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    void startMetadataModeTour();
-                  }}
-                  title={t('page.metadataTour.tooltip')}
-                >
-                  <HelpCircle className="h-3.5 w-3.5 mr-1.5" />
-                  <span className="hidden md:inline">{t('page.metadataTour.button')}</span>
-                </Button>
-              </div>
-            )}
-
-            {/* Action buttons — desktop/tablet. Hidden in metadata mode
-                (the autosave handles persistence; no generate / save / etc.). */}
-            {!isMetadataMode && (
             <div className="hidden sm:flex items-center gap-1.5 shrink-0">
               {/* Generate schedule */}
               <Button
@@ -1598,7 +1340,7 @@ export default function RotawisePage() {
                 <span className="hidden sm:inline">{t('nav.undo')}</span>
               </Button>
 
-              {/* Export (Word / Excel) */}
+              {/* Export */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1607,7 +1349,7 @@ export default function RotawisePage() {
                     disabled={!schedule || isBusy}
                     title={t('page.export')}
                   >
-                    {isExportingWord || isExportingExcel ? (
+                    {isExportingWord ? (
                       <span className="h-3.5 w-3.5 mr-1.5 animate-spin rounded-full border-t-2 border-b-2 border-primary" />
                     ) : (
                       <Download className="h-3.5 w-3.5 mr-1.5" />
@@ -1623,15 +1365,6 @@ export default function RotawisePage() {
                     <FileText className="h-4 w-4 mr-2" />
                     {t('page.exportWord')}
                   </DropdownMenuItem>
-                  {ENABLE_EXCEL && (
-                  <DropdownMenuItem
-                    onClick={handleExportExcel}
-                    disabled={isBusy || isExportingExcel}
-                  >
-                    <Sheet className="h-4 w-4 mr-2" />
-                    {t('page.exportExcel')}
-                  </DropdownMenuItem>
-                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -1663,7 +1396,6 @@ export default function RotawisePage() {
                 <UserX className="h-3.5 w-3.5" />
               </Button>
             </div>
-          )}
 
             {/* Action buttons — mobile */}
             <div className="flex sm:hidden items-center gap-2 shrink-0">
@@ -1704,12 +1436,6 @@ export default function RotawisePage() {
                     <FileText className="h-4 w-4 mr-2" />
                     {t('page.exportWord')}
                   </DropdownMenuItem>
-                  {ENABLE_EXCEL && (
-                  <DropdownMenuItem onClick={handleExportExcel} disabled={!schedule || isBusy}>
-                    <Sheet className="h-4 w-4 mr-2" />
-                    {t('page.exportExcel')}
-                  </DropdownMenuItem>
-                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => setShowClearScheduleDialog(true)}
@@ -1736,11 +1462,7 @@ export default function RotawisePage() {
             </div>
           </header>
 
-          {/* Schedule warnings banner — hidden in metadata mode
-              (warnings are still computed internally for coverage, but
-              showing them in metadata mode would be confusing: the user
-              cannot regenerate the schedule to fix them). */}
-          {scheduleWarnings.length > 0 && activeTab !== 'config' && !isMetadataMode && (
+          {scheduleWarnings.length > 0 && activeTab !== 'config' && (
             <div className="flex items-start gap-2 mx-4 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <div className="flex-1">
@@ -1777,14 +1499,22 @@ export default function RotawisePage() {
                 "Generate schedule" header button work on every tab, not only
                 on the config tab. Visibility is toggled via the `hidden` attr. */}
             <div className={cn('p-4 md:p-6 w-full max-w-5xl mx-auto', activeTab !== 'config' && 'hidden')}>
-              <DataInputForm
-                key={dataInputFormKey}
-                ref={formRef}
-                onSubmit={handleSubmitForm}
-                isLoading={isLoading}
-                initialValues={loadedFormValues || stableDefaultFormValues}
-                onValuesChange={handleLiveFormValuesChange}
-              />
+              <Suspense
+                fallback={
+                  <div className="flex justify-center py-16">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
+                  </div>
+                }
+              >
+                <DataInputForm
+                  key={dataInputFormKey}
+                  ref={formRef}
+                  onSubmit={handleSubmitForm}
+                  isLoading={isLoading}
+                  initialValues={loadedFormValues || stableDefaultFormValues}
+                  onValuesChange={handleLiveFormValuesChange}
+                />
+              </Suspense>
             </div>
 
             {activeTab === 'calendar' && schedule && (
@@ -1807,7 +1537,6 @@ export default function RotawisePage() {
                     onToggleFreeDay={handleToggleFreeDay}
                     activeFilters={calendarFilters}
                     onFiltersChange={setCalendarFilters}
-                    isMetadataMode={isMetadataMode}
                   />
                 </Suspense>
               </div>

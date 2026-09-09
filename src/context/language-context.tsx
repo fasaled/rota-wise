@@ -42,7 +42,7 @@ const getNestedValue = (obj: any, path: string): string | undefined => {
   let current: any = obj;
   for (let i = 0; i < keys.length; i++) {
     const keyPart = keys[i];
-    if (current === null || typeof current !== 'object' || !current.hasOwnProperty(keyPart)) {
+    if (current === null || typeof current !== 'object' || !Object.prototype.hasOwnProperty.call(current, keyPart)) {
       break; // Path doesn't exist, try strategy 2
     }
     current = current[keyPart];
@@ -61,12 +61,12 @@ const getNestedValue = (obj: any, path: string): string | undefined => {
     const flatKey = keys.slice(0, splitPoint).join('.');
     const remainingPath = keys.slice(splitPoint);
     
-    if (obj.hasOwnProperty(flatKey)) {
+    if (Object.prototype.hasOwnProperty.call(obj, flatKey)) {
       let current = obj[flatKey];
       // Traverse the remaining path
       for (let i = 0; i < remainingPath.length; i++) {
         const keyPart = remainingPath[i];
-        if (current === null || typeof current !== 'object' || !current.hasOwnProperty(keyPart)) {
+        if (current === null || typeof current !== 'object' || !Object.prototype.hasOwnProperty.call(current, keyPart)) {
           current = undefined;
           break;
         }
@@ -145,7 +145,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
     }
     return translation;
-  }, [loadedTranslations, language]);
+  }, [loadedTranslations]);
 
   const currentDateFnsLocale = useMemo(() => dateFnsLocaleMap[language], [language]);
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { generateSchedule, type ScheduleWarning } from '@/lib/schedule-generator';
+import type { ScheduleWarning } from '@/lib/schedule-generator';
 import type { ScheduleFormValues, ScheduleEntry, Schedule } from '@/lib/types';
 
 export type GenerateResult = {
@@ -7,6 +7,24 @@ export type GenerateResult = {
   error?: string;
   warnings?: ScheduleWarning[];
 };
+
+function waitForWorker(ref: { current: Worker | null }, timeoutMs = 8000): Promise<Worker> {
+  return new Promise((resolve, reject) => {
+    const started = performance.now();
+    const tick = () => {
+      if (ref.current) {
+        resolve(ref.current);
+        return;
+      }
+      if (performance.now() - started > timeoutMs) {
+        reject(new Error('Schedule worker failed to start'));
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
+}
 
 export function useScheduleWorker() {
   const workerRef = useRef<Worker | null>(null);
@@ -23,11 +41,8 @@ export function useScheduleWorker() {
   }, []);
 
   const generate = useCallback(
-    (formValues: ScheduleFormValues, existingFixedEntries: ScheduleEntry[]): Promise<GenerateResult> => {
-      const worker = workerRef.current;
-      if (!worker) {
-        return Promise.resolve(generateSchedule(formValues, existingFixedEntries));
-      }
+    async (formValues: ScheduleFormValues, existingFixedEntries: ScheduleEntry[]): Promise<GenerateResult> => {
+      const worker = await waitForWorker(workerRef);
       return new Promise((resolve, reject) => {
         worker.onmessage = (e: MessageEvent<GenerateResult>) => resolve(e.data);
         worker.onerror = reject;

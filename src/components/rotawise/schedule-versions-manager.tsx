@@ -9,42 +9,27 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/context/language-context';
 import type { InfoBarMessage } from '@/hooks/use-info-bar';
 import {
-  Trash2,
-  Edit3,
   Save,
-  Clock,
   Calendar,
   Users,
   Download,
-  Upload,
-  CopyCheck,
   AlertTriangle,
   X,
 } from 'lucide-react';
-import type { ScheduleVersion, ScheduleFormValues, Schedule, SerializedScheduleFormValues, SerializedSchedule } from '@/lib/types';
+import type { ScheduleVersion, ScheduleFormValues, Schedule } from '@/lib/types';
 import {
   loadScheduleVersions,
   saveScheduleVersion,
   updateScheduleVersion,
-  deleteScheduleVersion,
   getScheduleVersion,
   deserializeScheduleFormValues,
   deserializeSchedule,
@@ -159,12 +144,8 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
   const [editedName, setEditedName] = useState('');
   const [editedDescription, setEditedDescription] = useState('');
-  const [showConfirmDeleteDialog, setShowConfirmDeleteDialog] = useState(false);
   const [showConfirmOverwriteDialog, setShowConfirmOverwriteDialog] = useState(false);
-  const [versionToDelete, setVersionToDelete] = useState<ScheduleVersion | null>(null);
   const [versionToOverwrite, setVersionToOverwrite] = useState<ScheduleVersion | null>(null);
-  const [newVersionName, setNewVersionName] = useState('');
-  const [newVersionDescription, setNewVersionDescription] = useState('');
   
   const { t, currentDateFnsLocale } = useLanguage();
 
@@ -186,7 +167,7 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
     
     setIsSaving(true);
     try {
-      const id = saveScheduleVersion(
+      saveScheduleVersion(
         name,
         description,
         currentParameters,
@@ -198,7 +179,7 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
       setShowSaveDialog(false);
 
       onNotify?.({ severity: 'success', title: t('versions.toast.saved.title'), description: t('versions.toast.saved.description', { name }), autoDismissMs: 3000 });
-    } catch (error) {
+    } catch {
       onNotify?.({ severity: 'error', title: t('versions.toast.saveError.title'), description: t('versions.toast.saveError.description'), autoDismissMs: 5000 });
     } finally {
       setIsSaving(false);
@@ -219,26 +200,9 @@ const ScheduleVersionsManager: React.FC<ScheduleVersionsManagerProps> = ({
       onClose();
 
       onNotify?.({ severity: 'success', title: t('versions.toast.loaded.title'), description: t('versions.toast.loaded.description', { name: version.name }), autoDismissMs: 3000 });
-    } catch (error) {
+    } catch {
       onNotify?.({ severity: 'error', title: t('versions.toast.loadError.title'), description: t('versions.toast.loadError.description'), autoDismissMs: 5000 });
     }
-  };
-
-  const handleDeleteVersion = (id: string, name: string) => {
-    if (deleteScheduleVersion(id)) {
-      setVersions(loadScheduleVersions());
-      if (selectedVersionId === id) {
-        setSelectedVersionId('');
-      }
-
-      onNotify?.({ severity: 'success', title: t('versions.toast.deleted.title'), description: t('versions.toast.deleted.description', { name }), autoDismissMs: 3000 });
-    }
-  };
-
-  const handleEditVersion = (version: ScheduleVersion) => {
-    setEditingVersionId(version.id);
-    setEditedName(version.name);
-    setEditedDescription(version.description || '');
   };
 
   const handleSaveEdit = (id: string) => {
