@@ -51,23 +51,25 @@ bun run dev        # http://localhost:5173
 ```
 src/
 ├── main.tsx                    # React entry point (providers + root render)
-├── app/
-│   ├── page.tsx                # Root page component (app shell, tabs)
-│   └── globals.css             # Global styles + Tailwind + CSS variables
+├── rotawise-page.tsx           # Root orchestrator (app shell, tabs)
+├── styles/globals.css          # Global styles + Tailwind + CSS variables
 ├── components/
 │   ├── rotawise/               # Schedule-specific components
 │   └── ui/                     # shadcn/ui primitives (Radix UI + Tailwind)
-├── context/                    # React contexts (language, file system, theme)
+├── context/                    # React contexts (language, file system)
 ├── hooks/                      # Custom hooks (debounce, history, info-bar, schedule worker)
 ├── lib/
 │   ├── schedule-generator.ts   # Core scheduling algorithm
+│   ├── schedule-coverage.ts    # Unit coverage helpers (used by calendar + generator)
+│   ├── schedule-analyze.ts     # Post-generation constraint analysis
+│   ├── schedule-storage.ts     # .rw serialize/deserialize
 │   ├── export-word.ts          # Word export (docx)
 │   ├── types.ts                # TypeScript types
 │   └── utils.ts                # Utilities
-├── locales/                    # i18n translations (en.ts, es.ts)
+├── locales/                    # i18n translations (en.json, es.json)
 ├── workers/
 │   └── schedule.worker.ts      # Web Worker — runs generateSchedule off the main thread
-└── __tests__/                  # Test suites (bun test, 36 tests)
+└── __tests__/                  # bun test (algorithm, storage, warnings, hooks)
 ```
 
 ## Architecture
@@ -77,7 +79,7 @@ The app is a single-page React client. Key design decisions:
 - **Scheduling runs in a Web Worker** (`src/workers/schedule.worker.ts` via `useScheduleWorker` hook) to keep the UI responsive during generation.
 - **Heavy components are lazy-loaded** (`React.lazy` + `Suspense`) — calendar, summary tables, and startup screen load on demand.
 - **Export libraries are lazy-imported** — docx is fetched from SW cache only when the user clicks export, reducing initial bundle size.
-- **All state is client-side** — localStorage for auto-save, File System Access API for `.rw` files, no backend.
+- **All state is client-side** — File System Access API for `.rw` files (auto-save), no backend.
 
 ## Algorithm
 
@@ -95,7 +97,7 @@ Full specification: [`docs/algorithm.md`](docs/algorithm.md)
 
 ## Testing
 
-36 tests across 2 files covering the scheduling algorithm (`src/__tests__/`). Tests run with `bun test` — no configuration needed, TypeScript handled natively.
+Unit tests in `src/__tests__/` cover the scheduling algorithm, file serialization, warnings, and hooks. Playwright journeys live in `e2e/`. Tests run with `bun test`.
 
 ```bash
 bun test                                           # all tests

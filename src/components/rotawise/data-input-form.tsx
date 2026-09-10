@@ -293,10 +293,10 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                      excludedDates: doc.excludedDates || [],
                      isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
                      unitId: (doc as { unitId?: string }).unitId || '',
-                     coverAssignments: (doc as { coverAssignments?: UnitCoverAssignment[] }).coverAssignments ?? [],
+                     coverAssignments: doc.coverAssignments ?? [],
                    }))
                  : [],
-      units: ((initialValues as { units?: Unit[] } | undefined)?.units ?? []).map((u) => ({
+      units: (initialValues?.units ?? []).map((u) => ({
         id: u.id,
         name: u.name,
         minPostCallCoverage: u.minPostCallCoverage,
@@ -327,7 +327,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
     // (which is derived from the form) and the coverage memo are populated
     // immediately, without waiting for the user to interact with the form.
     React.useEffect(() => {
-      const incoming = (initialValues as { units?: Unit[] } | undefined)?.units ?? [];
+      const incoming = initialValues?.units ?? [];
       const current = (form.getValues('units') as Unit[] | undefined) ?? [];
       const sameLength = incoming.length === current.length;
       const sameIds = sameLength && incoming.every((u, i) => u.id === current[i]?.id);
@@ -356,8 +356,8 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
           preAssignedWorkDates: doc.preAssignedWorkDates || [],
           excludedDates: doc.excludedDates || [],
           isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
-          unitId: (doc as { unitId?: string }).unitId || '',
-          coverAssignments: (doc as { coverAssignments?: UnitCoverAssignment[] }).coverAssignments ?? [],
+          unitId: doc.unitId || '',
+          coverAssignments: doc.coverAssignments ?? [],
         })));
       }
     }, [initialValues, form, replace]);
@@ -375,7 +375,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
     const watchedUnitsRaw = useWatch({
       control: form.control,
       name: 'units',
-      defaultValue: ((initialValues as { units?: Unit[] } | undefined)?.units ?? []).map((u) => ({
+      defaultValue: (initialValues?.units ?? []).map((u) => ({
         id: u.id,
         name: u.name,
         minPostCallCoverage: u.minPostCallCoverage,
@@ -387,7 +387,7 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
     // initialValues.units. The last fallback ensures the Select has the
     // correct options on the very first render after a remount, even if
     // the form state hasn't fully propagated yet.
-    const initialUnitsFallback = (initialValues as { units?: Unit[] } | undefined)?.units ?? [];
+    const initialUnitsFallback = initialValues?.units ?? [];
     const unitsForSelect =
       watchedUnits.length > 0
         ? watchedUnits

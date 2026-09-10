@@ -1,140 +1,66 @@
+import { CURRENT_FILE_VERSION } from './types';
 import type {
-  ScheduleVersion,
   ScheduleFormValues,
   Schedule,
   SerializedScheduleFormValues,
   SerializedSchedule,
+  AppFileData,
+  DoctorProfile,
+  DoctorFormFieldInput,
+  SerializedDoctorFormFieldInput,
+  Unit,
+  UnitCoverAssignment,
+  SerializedUnitCoverAssignment,
 } from './types';
-import type { Unit, UnitCoverAssignment, SerializedUnitCoverAssignment } from './types';
+import { generateId } from './utils';
 
-const VERSIONS_STORAGE_KEY = 'rotawiseVersions';
+// Parse a date string that may be date-only ("2024-01-15") or an ISO 8601
+// datetime. Date-only strings must be treated as local midnight so they
+// match calendar dates. ISO strings (which contain 'T') are handled by
+// `new Date`.
+export const toLocalDate = (s: string): Date =>
+  s.includes('T') ? new Date(s) : new Date(s + 'T00:00:00');
 
-// ---------------------------------------------------------------------------
-// localStorage-backed CRUD (used while no file is open)
-// ---------------------------------------------------------------------------
-
-export function loadScheduleVersions(): ScheduleVersion[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(VERSIONS_STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as ScheduleVersion[];
-  } catch {
-    return [];
-  }
+export function serializeCoverAssignments(
+  raw: UnitCoverAssignment[] | undefined,
+): SerializedUnitCoverAssignment[] {
+  return (raw ?? []).map((a) => ({
+    id: a.id,
+    targetUnitId: a.targetUnitId,
+    startDate: a.startDate instanceof Date ? a.startDate.toISOString() : (a.startDate as unknown as string),
+    endDate: a.endDate instanceof Date ? a.endDate.toISOString() : (a.endDate as unknown as string),
+  }));
 }
 
-function persistVersions(versions: ScheduleVersion[]): void {
-  localStorage.setItem(VERSIONS_STORAGE_KEY, JSON.stringify(versions));
+export function deserializeCoverAssignments(
+  raw: SerializedUnitCoverAssignment[] | undefined,
+): UnitCoverAssignment[] {
+  return (raw ?? []).map((a) => ({
+    id: a.id,
+    targetUnitId: a.targetUnitId,
+    startDate: toLocalDate(a.startDate),
+    endDate: toLocalDate(a.endDate),
+  }));
 }
 
-export function saveScheduleVersion(
-  name: string,
-  description: string,
-  parameters: ScheduleFormValues,
-  schedule?: Schedule,
-  warnings?: string[],
-): string {
-  const versions = loadScheduleVersions();
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const version: ScheduleVersion = {
-    id,
-    name,
-    description,
-    createdAt: now,
-    lastModified: now,
-    parameters: serializeScheduleFormValues(parameters),
-    generatedSchedule: schedule ? serializeSchedule(schedule) : undefined,
-    warnings,
+export function normalizeUnit(u: {
+  id: string;
+  name: string;
+  minPostCallCoverage: number;
+  alliedUnitIds?: string[];
+}): Unit {
+  return {
+    id: u.id,
+    name: u.name,
+    minPostCallCoverage: u.minPostCallCoverage,
+    alliedUnitIds: u.alliedUnitIds ?? [],
   };
-  versions.unshift(version);
-  persistVersions(versions);
-  return id;
 }
-
-export function updateScheduleVersion(
-  id: string,
-  updates: Partial<Omit<ScheduleVersion, 'id' | 'createdAt'>>,
-): boolean {
-  const versions = loadScheduleVersions();
-  const idx = versions.findIndex((v) => v.id === id);
-  if (idx === -1) return false;
-  versions[idx] = {
-    ...versions[idx],
-    ...updates,
-    lastModified: new Date().toISOString(),
-  };
-  persistVersions(versions);
-  return true;
-}
-
-export function deleteScheduleVersion(id: string): boolean {
-  const versions = loadScheduleVersions();
-  const next = versions.filter((v) => v.id !== id);
-  if (next.length === versions.length) return false;
-  persistVersions(next);
-  return true;
-}
-
-export function getScheduleVersion(id: string): ScheduleVersion | undefined {
-  return loadScheduleVersions().find((v) => v.id === id);
-}
-
-// ---------------------------------------------------------------------------
-// Pure array helpers (used by file-backed operations in page.tsx)
-// ---------------------------------------------------------------------------
-
-export function createVersionInArray(
-  versions: ScheduleVersion[],
-  name: string,
-  description: string,
-  parameters: ScheduleFormValues,
-  schedule?: Schedule,
-  warnings?: string[],
-): { versions: ScheduleVersion[]; id: string } {
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const version: ScheduleVersion = {
-    id,
-    name,
-    description,
-    createdAt: now,
-    lastModified: now,
-    parameters: serializeScheduleFormValues(parameters),
-    generatedSchedule: schedule ? serializeSchedule(schedule) : undefined,
-    warnings,
-  };
-  return { versions: [version, ...versions], id };
-}
-
-export function updateVersionInArray(
-  versions: ScheduleVersion[],
-  id: string,
-  updates: Partial<Omit<ScheduleVersion, 'id' | 'createdAt'>>,
-): ScheduleVersion[] {
-  return versions.map((v) =>
-    v.id === id
-      ? { ...v, ...updates, lastModified: new Date().toISOString() }
-      : v,
-  );
-}
-
-export function deleteVersionFromArray(
-  versions: ScheduleVersion[],
-  id: string,
-): ScheduleVersion[] {
-  return versions.filter((v) => v.id !== id);
-}
-
-// ---------------------------------------------------------------------------
-// Serialization helpers
-// ---------------------------------------------------------------------------
 
 export function serializeScheduleFormValues(
   values: ScheduleFormValues,
 ): SerializedScheduleFormValues {
-  const holidays = ((values as { holidays?: Date[] }).holidays ?? []).map(
+  const holidays = (values.holidays ?? []).map(
     (d) => (d instanceof Date ? d.toISOString() : (d as string)),
   );
   return {
@@ -148,12 +74,7 @@ export function serializeScheduleFormValues(
         ? values.endDate.toISOString()
         : (values.endDate as string),
     holidays,
-    units: ((values as { units?: Unit[] }).units ?? []).map((u) => ({
-      id: u.id,
-      name: u.name,
-      minPostCallCoverage: u.minPostCallCoverage,
-      alliedUnitIds: u.alliedUnitIds ?? [],
-    })),
+    units: (values.units ?? []).map(normalizeUnit),
     doctors: values.doctors.map((d) => ({
       ...d,
       freeDates: d.freeDates.map((date) =>
@@ -170,47 +91,19 @@ export function serializeScheduleFormValues(
   } as SerializedScheduleFormValues;
 }
 
-function serializeCoverAssignments(
-  raw: UnitCoverAssignment[] | undefined,
-): SerializedUnitCoverAssignment[] {
-  return (raw ?? []).map((a) => ({
-    id: a.id,
-    targetUnitId: a.targetUnitId,
-    startDate: a.startDate instanceof Date ? a.startDate.toISOString() : (a.startDate as unknown as string),
-    endDate: a.endDate instanceof Date ? a.endDate.toISOString() : (a.endDate as unknown as string),
-  }));
-}
-
-function deserializeCoverAssignments(
-  raw: SerializedUnitCoverAssignment[] | undefined,
-): UnitCoverAssignment[] {
-  return (raw ?? []).map((a) => ({
-    id: a.id,
-    targetUnitId: a.targetUnitId,
-    startDate: new Date(a.startDate),
-    endDate: new Date(a.endDate),
-  }));
-}
-
 export function deserializeScheduleFormValues(
   values: SerializedScheduleFormValues,
 ): ScheduleFormValues {
   return {
     ...values,
-    startDate: new Date(values.startDate),
-    endDate: new Date(values.endDate),
-    units: ((values as { units?: Unit[] }).units ?? []).map((u) => ({
-      id: u.id,
-      name: u.name,
-      minPostCallCoverage: u.minPostCallCoverage,
-      alliedUnitIds: u.alliedUnitIds ?? [],
-    })),
+    startDate: toLocalDate(values.startDate),
+    endDate: toLocalDate(values.endDate),
+    units: (values.units ?? []).map(normalizeUnit),
     // fileVersion 1 files do not have holidays; default to [] for backward compat.
-    holidays: ((values as { holidays?: string[] }).holidays ?? []).map(
-      (s) => new Date(s),
-    ),
+    holidays: (values.holidays ?? []).map((s) => toLocalDate(s)),
     doctors: values.doctors.map((d) => {
-      const freeDatesRaw: string[] = (d as unknown as Record<string, unknown>).freeDates as string[] ??
+      const freeDatesRaw: string[] =
+        ((d as unknown as Record<string, unknown>).freeDates as string[]) ??
         ((d as unknown as Record<string, unknown>).vacationDates as string[]) ??
         [];
       return {
@@ -218,9 +111,9 @@ export function deserializeScheduleFormValues(
         // fileVersion 1 files do not have unitId; default to '' for backward compat.
         unitId: d.unitId ?? '',
         coverAssignments: deserializeCoverAssignments(d.coverAssignments),
-        freeDates: freeDatesRaw.map((s: string) => new Date(s)),
-        preAssignedWorkDates: d.preAssignedWorkDates.map((s: string) => new Date(s)),
-        excludedDates: d.excludedDates.map((s: string) => new Date(s)),
+        freeDates: freeDatesRaw.map((s: string) => toLocalDate(s)),
+        preAssignedWorkDates: d.preAssignedWorkDates.map((s: string) => toLocalDate(s)),
+        excludedDates: d.excludedDates.map((s: string) => toLocalDate(s)),
       };
     }),
   } as ScheduleFormValues;
@@ -241,10 +134,10 @@ export function serializeSchedule(schedule: Schedule): SerializedSchedule {
 export function deserializeSchedule(schedule: SerializedSchedule): Schedule {
   return {
     ...schedule,
-    startDate: new Date(schedule.startDate),
-    endDate: new Date(schedule.endDate),
+    startDate: toLocalDate(schedule.startDate),
+    endDate: toLocalDate(schedule.endDate),
     entries: schedule.entries.map((e) => {
-      const date = new Date(e.date);
+      const date = toLocalDate(e.date);
       return {
         ...e,
         date,
@@ -253,5 +146,148 @@ export function deserializeSchedule(schedule: SerializedSchedule): Schedule {
         assignment: (e.assignment as string) === 'Vacation' ? 'Free' : e.assignment,
       };
     }),
+  };
+}
+
+export function deserializeAppFileData(data: AppFileData): {
+  schedule: Schedule | null;
+  doctorsProfiles: DoctorProfile[];
+  formValues: Partial<ScheduleFormValues> | null;
+  scheduleWarnings: string[];
+  currentMinInterval: number;
+} {
+  let schedule: Schedule | null = null;
+  let doctorsProfiles: DoctorProfile[] = [];
+  let formValues: Partial<ScheduleFormValues> | null = null;
+  const scheduleWarnings: string[] = data.scheduleWarnings || [];
+  const currentMinInterval = data.currentMinInterval || 1;
+
+  const hasScheduleData = data.schedule?.startDate && (data.schedule?.entries?.length ?? 0) > 0;
+  const hasDoctorData = (data.doctorsProfiles?.length ?? 0) > 0 || (data.formValues?.doctors?.length ?? 0) > 0;
+
+  if (hasScheduleData || hasDoctorData) {
+    const entries = (data.schedule?.entries || []).map((e) => {
+      const date = toLocalDate(e.date);
+      return {
+        ...e,
+        date,
+        dayOfWeek: e.dayOfWeek || date.toLocaleDateString('en-US', { weekday: 'long' }),
+      };
+    });
+
+    if (data.schedule?.startDate && (data.schedule?.entries?.length ?? 0) > 0) {
+      schedule = {
+        ...data.schedule,
+        startDate: toLocalDate(data.schedule.startDate),
+        endDate: toLocalDate(data.schedule.endDate),
+        minIntervalBetweenWorkDays: data.schedule.minIntervalBetweenWorkDays || 1,
+        globalMonthlyShiftLimit: data.schedule.globalMonthlyShiftLimit,
+        entries,
+      };
+    }
+
+    if (data.doctorsProfiles) {
+      doctorsProfiles = data.doctorsProfiles.map((p) => ({
+        ...p,
+        freeDates: (p.freeDates || []).map((d: string) => toLocalDate(d)),
+        preAssignedWorkDates: (p.preAssignedWorkDates || []).map((d: string) => toLocalDate(d)),
+        excludedDates: (p.excludedDates || []).map((d: string) => toLocalDate(d)),
+        isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
+        coverAssignments: deserializeCoverAssignments(p.coverAssignments),
+      }));
+    }
+
+    if (data.formValues) {
+      const formDoctors = (data.formValues.doctors || []).map((doc: SerializedDoctorFormFieldInput) => ({
+        id: doc.id,
+        name: doc.name,
+        freeDates: (doc.freeDates || []).map((d: string) => toLocalDate(d)),
+        preAssignedWorkDates: (doc.preAssignedWorkDates || []).map((d: string) => toLocalDate(d)),
+        excludedDates: (doc.excludedDates || []).map((d: string) => toLocalDate(d)),
+        isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+        unitId: doc.unitId || '',
+        coverAssignments: deserializeCoverAssignments(doc.coverAssignments),
+      }));
+
+      formValues = {
+        numberOfDoctors: data.formValues.numberOfDoctors,
+        startDate: data.formValues.startDate ? toLocalDate(data.formValues.startDate) : new Date(),
+        endDate: data.formValues.endDate ? toLocalDate(data.formValues.endDate) : new Date(),
+        minIntervalBetweenWorkDays: data.formValues.minIntervalBetweenWorkDays || 1,
+        globalMonthlyShiftLimit: data.formValues.globalMonthlyShiftLimit,
+        doctors: formDoctors,
+        units: (data.formValues.units || []).map(normalizeUnit),
+        holidays: (data.formValues.holidays || []).map((d: string) => toLocalDate(d)),
+      };
+    }
+  }
+
+  return { schedule, doctorsProfiles, formValues, scheduleWarnings, currentMinInterval };
+}
+
+export function buildAppFileData(
+  schedule: Schedule | null,
+  doctorsProfiles: DoctorProfile[],
+  formValues: Partial<ScheduleFormValues> | null,
+  scheduleWarnings: string[],
+  currentMinInterval: number,
+  versions: AppFileData['versions'],
+): AppFileData {
+  const hasDoctors = (doctorsProfiles?.length ?? 0) > 0 || (formValues?.doctors?.length ?? 0) > 0;
+
+  const serializedSchedule: AppFileData['schedule'] = hasDoctors && schedule
+    ? {
+        ...schedule,
+        startDate: schedule.startDate.toISOString(),
+        endDate: schedule.endDate.toISOString(),
+        entries: schedule.entries.map((e) => ({ ...e, date: e.date.toISOString() })),
+      }
+    : {
+        entries: [],
+        startDate: new Date().toISOString(),
+        endDate: new Date().toISOString(),
+      };
+
+  const serializedDoctors: AppFileData['doctorsProfiles'] = (doctorsProfiles?.length ?? 0) > 0
+    ? doctorsProfiles.map((p) => ({
+        ...p,
+        freeDates: p.freeDates.map((d) => d.toISOString()),
+        preAssignedWorkDates: p.preAssignedWorkDates.map((d) => d.toISOString()),
+        excludedDates: (p.excludedDates || []).map((d) => d.toISOString()),
+        isExcludedFromAutomaticAssignment: p.isExcludedFromAutomaticAssignment || false,
+        coverAssignments: serializeCoverAssignments(p.coverAssignments),
+      }))
+    : [];
+
+  const serializedFormValues: AppFileData['formValues'] = {
+    numberOfDoctors: formValues?.numberOfDoctors || 0,
+    startDate: formValues?.startDate ? formValues.startDate.toISOString() : new Date().toISOString(),
+    endDate: formValues?.endDate ? formValues.endDate.toISOString() : new Date().toISOString(),
+    minIntervalBetweenWorkDays: formValues?.minIntervalBetweenWorkDays || 1,
+    globalMonthlyShiftLimit: formValues?.globalMonthlyShiftLimit,
+    doctors: (formValues?.doctors || []).map((doc: DoctorFormFieldInput) => ({
+      ...doc,
+      id: doc.id || generateId(),
+      freeDates: (doc.freeDates || []).map((d) => d.toISOString()),
+      preAssignedWorkDates: (doc.preAssignedWorkDates || []).map((d) => d.toISOString()),
+      excludedDates: (doc.excludedDates || []).map((d) => d.toISOString()),
+      isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+      unitId: doc.unitId || undefined,
+      coverAssignments: serializeCoverAssignments(doc.coverAssignments),
+    })),
+    units: (formValues?.units ?? []).map(normalizeUnit),
+    holidays: (formValues?.holidays ?? []).map(
+      (d) => (d instanceof Date ? d.toISOString() : (d as string)),
+    ),
+  } as unknown as AppFileData['formValues'];
+
+  return {
+    fileVersion: CURRENT_FILE_VERSION,
+    versions,
+    schedule: serializedSchedule,
+    doctorsProfiles: serializedDoctors,
+    formValues: serializedFormValues,
+    scheduleWarnings,
+    currentMinInterval,
   };
 }

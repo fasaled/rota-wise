@@ -25,7 +25,7 @@ export default defineConfig([
         'warn',
         {
           allowConstantExport: true,
-          allowExportNames: ['useFileSystem', 'useLanguage'],
+          allowExportNames: ['useFileSystem', 'useLanguage', 'useTheme'],
         },
       ],
       '@typescript-eslint/no-explicit-any': 'off',

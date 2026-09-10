@@ -164,6 +164,44 @@ test.describe('Command bar', () => {
   });
 });
 
+test.describe('Theme', () => {
+  test('dark mode persists across reload and system follows the OS', async ({ page }) => {
+    await mockFileSystemAccess(page, JSON.parse(twoDoctorJanuaryFile()));
+    await openAppOnRoster(page);
+
+    const htmlHasDark = () =>
+      page.locator('html').evaluate((el) => el.classList.contains('dark'));
+
+    const toggle = page.getByRole('button', { name: 'Toggle theme' });
+    await expect(toggle).toBeVisible();
+
+    await toggle.click();
+    await page.getByRole('menuitem', { name: 'Dark' }).click();
+    await expect.poll(htmlHasDark).toBe(true);
+    await expect
+      .poll(async () => page.evaluate(() => localStorage.getItem('rotawise-theme')))
+      .toBe('dark');
+
+    await page.reload();
+    await expect.poll(htmlHasDark).toBe(true);
+
+    await page.getByRole('button', { name: /open file/i }).click();
+    await page.locator('aside.app-sidebar').waitFor({ state: 'visible', timeout: 15_000 });
+
+    await page.getByRole('button', { name: 'Toggle theme' }).click();
+    await page.getByRole('menuitem', { name: 'Light' }).click();
+    await expect.poll(htmlHasDark).toBe(false);
+
+    await page.getByRole('button', { name: 'Toggle theme' }).click();
+    await page.getByRole('menuitem', { name: 'System' }).click();
+
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect.poll(htmlHasDark).toBe(true);
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect.poll(htmlHasDark).toBe(false);
+  });
+});
+
 test.describe('Language', () => {
   test('switching to Spanish updates navigation labels', async ({ page }) => {
     await mockFileSystemAccess(page, JSON.parse(twoDoctorJanuaryFile()));

@@ -11,7 +11,7 @@ export interface Unit {
   // Other units that jointly cover post-call absences with this one.
   // The alliance is an undirected connected component: A↔B and B↔C means
   // A, B and C share a pool. Each unit still keeps its own minimum.
-  alliedUnitIds: string[];
+  alliedUnitIds?: string[];
 }
 
 /**
@@ -54,9 +54,7 @@ export interface DoctorFormFieldInput {
 }
 
 // Full form input schema type
-export type ScheduleFormValues = z.infer<typeof scheduleFormSchema> & {
-  minIntervalBetweenWorkDays?: number;
-};
+export type ScheduleFormValues = z.infer<typeof scheduleFormSchema>;
 
 export interface ScheduleEntry {
   date: Date;

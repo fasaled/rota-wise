@@ -7,7 +7,7 @@
 | Dev server | `bun run dev` (http://localhost:5173) |
 | Build | `bun run build` → `dist/` |
 | Lint | `bun run lint` |
-| Typecheck | `bun run typecheck` (tsc --noEmit, excludes `__tests__/`) |
+| Typecheck | `bun run typecheck` (app + node + tests) |
 | Test | `bun test` |
 | Test (watch) | `bun test --watch` |
 | Test (single file) | `bun test src/__tests__/schedule-generator.test.ts` |
@@ -23,17 +23,17 @@ Run `lint → typecheck → test` in that order to verify.
 ## Architecture
 
 - Vite 6 + React 19 SPA. **No SSR, no API routes, no backend.** Fully client-side.
-- Entry: `src/main.tsx` → `src/app/page.tsx`.
+- Entry: `src/main.tsx` → `src/rotawise-page.tsx`.
 - Path alias: `@/*` → `src/*`.
 - **Scheduling runs in a Web Worker** (`src/workers/schedule.worker.ts`) via `useScheduleWorker` hook. Never call `generateSchedule` from the main thread.
-- Heavy components (calendar, summaries) and export libs (jspdf, docx) are **lazy-loaded**. Wrap new heavy imports in `React.lazy` + `Suspense`.
+- Heavy components (calendar, summaries) and export (`docx`) are **lazy-loaded**. Wrap new heavy imports in `React.lazy` + `Suspense`.
 
 ## Conventions
 
 - **`src/components/ui/`** — shadcn/ui primitives. Do not edit directly; regenerate via shadcn CLI.
-- **i18n**: EN/ES via context (`src/context/language-context.tsx`). Every new user-facing string must be added to both `src/locales/en.ts` and `src/locales/es.ts`.
-- **Tests cover the scheduling algorithm only** (`src/__tests__/`). UI components are not tested.
-- All state is client-side: `.rw` file persistence via File System Access API (falls back to download on Firefox).
+- **i18n**: EN/ES via context (`src/context/language-context.tsx`). Every new user-facing string must be added to both `src/locales/en.json` and `src/locales/es.json`.
+- **Tests** live in `src/__tests__/` (algorithm, storage, warnings, hooks, language). UI components are not unit-tested; Playwright covers journeys in `e2e/`.
+- All state is client-side: `.rw` file persistence via File System Access API. Browsers without that API see `BrowserNotSupported` (no download fallback).
 
 ## PWA
 

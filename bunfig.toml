@@ -1,10 +1,6 @@
 [install]
 # bun handles peer deps permissively by default; no legacy-peer-deps flag needed
 
-[install.trustedDependencies]
-# Allow postinstall scripts for known-safe packages
-"core-js" = true
-
 [test]
 # bun test picks up tsconfig.json paths automatically (@/* → src/*)
 # No transform needed — bun handles TypeScript natively.

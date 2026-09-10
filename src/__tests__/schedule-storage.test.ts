@@ -2,26 +2,19 @@ import {
   describe,
   it,
   expect,
-  beforeEach,
 } from 'bun:test';
 import {
   serializeScheduleFormValues,
   deserializeScheduleFormValues,
   serializeSchedule,
   deserializeSchedule,
-  createVersionInArray,
-  updateVersionInArray,
-  deleteVersionFromArray,
-  loadScheduleVersions,
-  saveScheduleVersion,
-  updateScheduleVersion,
-  deleteScheduleVersion,
-  getScheduleVersion,
+  buildAppFileData,
+  deserializeAppFileData,
+  toLocalDate,
 } from '../lib/schedule-storage';
 import type {
   ScheduleFormValues,
   Schedule,
-  ScheduleVersion,
   Unit,
 } from '../lib/types';
 
@@ -67,16 +60,6 @@ const makeSchedule = (): Schedule => ({
   ],
   minIntervalBetweenWorkDays: 1,
   globalMonthlyShiftLimit: 10,
-});
-
-const makeVersion = (id: string, overrides: Partial<ScheduleVersion> = {}): ScheduleVersion => ({
-  id,
-  name: `Version ${id}`,
-  description: 'Test version',
-  createdAt: '2024-01-01T00:00:00.000Z',
-  lastModified: '2024-01-01T00:00:00.000Z',
-  parameters: serializeScheduleFormValues(makeFormValues()),
-  ...overrides,
 });
 
 // ---------------------------------------------------------------------------
@@ -273,262 +256,6 @@ describe('deserializeSchedule', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Pure array helpers
-// ---------------------------------------------------------------------------
-
-describe('createVersionInArray', () => {
-  it('prepends the new version to the array', () => {
-    const existing = [makeVersion('old')];
-    const { versions } = createVersionInArray(existing, 'New', 'desc', makeFormValues());
-    expect(versions).toHaveLength(2);
-    expect(versions[0].name).toBe('New');
-    expect(versions[1].id).toBe('old');
-  });
-
-  it('returns the new version id', () => {
-    const { id } = createVersionInArray([], 'Name', 'desc', makeFormValues());
-    expect(typeof id).toBe('string');
-    expect(id.length).toBeGreaterThan(0);
-  });
-
-  it('works on an empty array', () => {
-    const { versions } = createVersionInArray([], 'First', '', makeFormValues());
-    expect(versions).toHaveLength(1);
-  });
-
-  it('serializes the parameters (startDate becomes string)', () => {
-    const { versions } = createVersionInArray([], 'v1', '', makeFormValues());
-    expect(typeof versions[0].parameters.startDate).toBe('string');
-  });
-
-  it('includes schedule when provided', () => {
-    const { versions } = createVersionInArray([], 'v1', '', makeFormValues(), makeSchedule());
-    expect(versions[0].generatedSchedule).toBeDefined();
-    expect(typeof versions[0].generatedSchedule!.startDate).toBe('string');
-  });
-
-  it('omits generatedSchedule when not provided', () => {
-    const { versions } = createVersionInArray([], 'v1', '', makeFormValues());
-    expect(versions[0].generatedSchedule).toBeUndefined();
-  });
-
-  it('stores warnings when provided', () => {
-    const { versions } = createVersionInArray([], 'v1', '', makeFormValues(), undefined, ['warn1']);
-    expect(versions[0].warnings).toEqual(['warn1']);
-  });
-
-  it('does not mutate the original array', () => {
-    const original = [makeVersion('x')];
-    const copy = [...original];
-    createVersionInArray(original, 'New', '', makeFormValues());
-    expect(original).toHaveLength(copy.length);
-  });
-});
-
-describe('updateVersionInArray', () => {
-  it('updates name of matching version', () => {
-    const versions = [makeVersion('a'), makeVersion('b')];
-    const updated = updateVersionInArray(versions, 'a', { name: 'Updated A' });
-    expect(updated[0].name).toBe('Updated A');
-  });
-
-  it('does not modify non-matching versions', () => {
-    const versions = [makeVersion('a'), makeVersion('b')];
-    const updated = updateVersionInArray(versions, 'a', { name: 'Changed' });
-    expect(updated[1].name).toBe('Version b');
-  });
-
-  it('updates lastModified to a recent timestamp', () => {
-    const before = new Date();
-    const versions = [makeVersion('a')];
-    const updated = updateVersionInArray(versions, 'a', { name: 'X' });
-    const after = new Date();
-    const modifiedAt = new Date(updated[0].lastModified);
-    expect(modifiedAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
-    expect(modifiedAt.getTime()).toBeLessThanOrEqual(after.getTime());
-  });
-
-  it('returns same length array', () => {
-    const versions = [makeVersion('a'), makeVersion('b')];
-    const updated = updateVersionInArray(versions, 'a', { name: 'X' });
-    expect(updated).toHaveLength(2);
-  });
-
-  it('returns unchanged array when id not found', () => {
-    const versions = [makeVersion('a')];
-    const updated = updateVersionInArray(versions, 'nonexistent', { name: 'X' });
-    expect(updated[0].name).toBe('Version a');
-  });
-
-  it('does not mutate the original array', () => {
-    const versions = [makeVersion('a')];
-    const original_name = versions[0].name;
-    updateVersionInArray(versions, 'a', { name: 'Changed' });
-    expect(versions[0].name).toBe(original_name);
-  });
-});
-
-describe('deleteVersionFromArray', () => {
-  it('removes the matching version', () => {
-    const versions = [makeVersion('a'), makeVersion('b')];
-    const result = deleteVersionFromArray(versions, 'a');
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe('b');
-  });
-
-  it('returns same array when id not found', () => {
-    const versions = [makeVersion('a')];
-    const result = deleteVersionFromArray(versions, 'nonexistent');
-    expect(result).toHaveLength(1);
-  });
-
-  it('returns empty array when last item is deleted', () => {
-    const versions = [makeVersion('a')];
-    const result = deleteVersionFromArray(versions, 'a');
-    expect(result).toHaveLength(0);
-  });
-
-  it('does not mutate the original array', () => {
-    const versions = [makeVersion('a'), makeVersion('b')];
-    deleteVersionFromArray(versions, 'a');
-    expect(versions).toHaveLength(2);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// localStorage-backed CRUD functions
-// ---------------------------------------------------------------------------
-
-describe('localStorage-backed schedule versions', () => {
-  beforeEach(() => {
-    localStorage.clear();
-  });
-
-  describe('loadScheduleVersions', () => {
-    it('returns empty array when no data in localStorage', () => {
-      expect(loadScheduleVersions()).toEqual([]);
-    });
-
-    it('returns stored versions', () => {
-      const id = saveScheduleVersion('Test', 'desc', makeFormValues());
-      const versions = loadScheduleVersions();
-      expect(versions).toHaveLength(1);
-      expect(versions[0].id).toBe(id);
-      expect(versions[0].name).toBe('Test');
-    });
-  });
-
-  describe('saveScheduleVersion', () => {
-    it('returns a string id', () => {
-      const id = saveScheduleVersion('v1', 'desc', makeFormValues());
-      expect(typeof id).toBe('string');
-      expect(id.length).toBeGreaterThan(0);
-    });
-
-    it('prepends new versions (newest first)', () => {
-      saveScheduleVersion('first', '', makeFormValues());
-      saveScheduleVersion('second', '', makeFormValues());
-      const versions = loadScheduleVersions();
-      expect(versions[0].name).toBe('second');
-      expect(versions[1].name).toBe('first');
-    });
-
-    it('stores the description', () => {
-      saveScheduleVersion('v1', 'my description', makeFormValues());
-      expect(loadScheduleVersions()[0].description).toBe('my description');
-    });
-
-    it('stores serialized parameters', () => {
-      saveScheduleVersion('v1', '', makeFormValues());
-      const stored = loadScheduleVersions()[0];
-      expect(typeof stored.parameters.startDate).toBe('string');
-    });
-
-    it('stores schedule when provided', () => {
-      saveScheduleVersion('v1', '', makeFormValues(), makeSchedule());
-      const stored = loadScheduleVersions()[0];
-      expect(stored.generatedSchedule).toBeDefined();
-    });
-
-    it('stores warnings when provided', () => {
-      saveScheduleVersion('v1', '', makeFormValues(), undefined, ['w1', 'w2']);
-      const stored = loadScheduleVersions()[0];
-      expect(stored.warnings).toEqual(['w1', 'w2']);
-    });
-  });
-
-  describe('updateScheduleVersion', () => {
-    it('returns true when version found and updated', () => {
-      const id = saveScheduleVersion('Original', '', makeFormValues());
-      const result = updateScheduleVersion(id, { name: 'Updated' });
-      expect(result).toBe(true);
-    });
-
-    it('returns false when version not found', () => {
-      const result = updateScheduleVersion('nonexistent', { name: 'X' });
-      expect(result).toBe(false);
-    });
-
-    it('persists the name update', () => {
-      const id = saveScheduleVersion('Original', '', makeFormValues());
-      updateScheduleVersion(id, { name: 'New Name' });
-      const stored = loadScheduleVersions().find((v) => v.id === id);
-      expect(stored?.name).toBe('New Name');
-    });
-
-    it('updates lastModified timestamp', () => {
-      const before = new Date();
-      const id = saveScheduleVersion('v1', '', makeFormValues());
-      updateScheduleVersion(id, { name: 'X' });
-      const after = new Date();
-      const stored = loadScheduleVersions().find((v) => v.id === id)!;
-      const modified = new Date(stored.lastModified);
-      expect(modified.getTime()).toBeGreaterThanOrEqual(before.getTime());
-      expect(modified.getTime()).toBeLessThanOrEqual(after.getTime());
-    });
-  });
-
-  describe('deleteScheduleVersion', () => {
-    it('returns true when version deleted', () => {
-      const id = saveScheduleVersion('v1', '', makeFormValues());
-      expect(deleteScheduleVersion(id)).toBe(true);
-    });
-
-    it('returns false when version not found', () => {
-      expect(deleteScheduleVersion('nonexistent')).toBe(false);
-    });
-
-    it('removes the version from storage', () => {
-      const id = saveScheduleVersion('v1', '', makeFormValues());
-      deleteScheduleVersion(id);
-      expect(loadScheduleVersions().find((v) => v.id === id)).toBeUndefined();
-    });
-
-    it('only removes the specified version', () => {
-      saveScheduleVersion('keep', '', makeFormValues());
-      const id = saveScheduleVersion('delete-me', '', makeFormValues());
-      deleteScheduleVersion(id);
-      const remaining = loadScheduleVersions();
-      expect(remaining).toHaveLength(1);
-      expect(remaining[0].name).toBe('keep');
-    });
-  });
-
-  describe('getScheduleVersion', () => {
-    it('returns the version by id', () => {
-      const id = saveScheduleVersion('Find Me', '', makeFormValues());
-      const found = getScheduleVersion(id);
-      expect(found).toBeDefined();
-      expect(found!.id).toBe(id);
-      expect(found!.name).toBe('Find Me');
-    });
-
-  it('returns undefined when id not found', () => {
-    expect(getScheduleVersion('nonexistent')).toBeUndefined();
-  });
-});
-
-// ---------------------------------------------------------------------------
 // Units and fileVersion 2 migration
 // ---------------------------------------------------------------------------
 
@@ -654,4 +381,53 @@ describe('deserializeScheduleFormValues with units', () => {
     expect(deserialized.doctors[0].unitId).toBe('');
   });
 });
+
+describe('toLocalDate', () => {
+  it('parses date-only strings as local midnight', () => {
+    const d = toLocalDate('2024-01-15');
+    expect(d.getFullYear()).toBe(2024);
+    expect(d.getMonth()).toBe(0);
+    expect(d.getDate()).toBe(15);
+    expect(d.getHours()).toBe(0);
+  });
+
+  it('parses ISO datetimes via Date', () => {
+    const d = toLocalDate('2024-01-15T00:00:00.000Z');
+    expect(d.toISOString()).toBe('2024-01-15T00:00:00.000Z');
+  });
+});
+
+describe('buildAppFileData / deserializeAppFileData', () => {
+  it('round-trips a schedule with doctors and form values', () => {
+    const schedule = makeSchedule();
+    const formValues = makeFormValues();
+    const profiles = [
+      {
+        id: 'doc1',
+        name: 'Dr. Smith',
+        freeDates: [new Date('2024-01-15T00:00:00.000Z')],
+        preAssignedWorkDates: [new Date('2024-01-10T00:00:00.000Z')],
+        excludedDates: [],
+        isExcludedFromAutomaticAssignment: false,
+      },
+    ];
+    const built = buildAppFileData(schedule, profiles, formValues, ['warn'], 2, []);
+    expect(built.fileVersion).toBe(3);
+    expect(built.currentMinInterval).toBe(2);
+    expect(built.scheduleWarnings).toEqual(['warn']);
+    expect(typeof built.schedule.startDate).toBe('string');
+
+    const restored = deserializeAppFileData(built);
+    expect(restored.schedule?.entries).toHaveLength(2);
+    expect(restored.schedule?.entries[0].date).toBeInstanceOf(Date);
+    expect(restored.doctorsProfiles).toHaveLength(1);
+    expect(restored.formValues?.doctors?.[0].name).toBe('Dr. Smith');
+    expect(restored.currentMinInterval).toBe(2);
+    expect(restored.scheduleWarnings).toEqual(['warn']);
+  });
+
+  it('clears schedule serialization when there are no doctors', () => {
+    const built = buildAppFileData(makeSchedule(), [], { numberOfDoctors: 0, doctors: [] } as Partial<ScheduleFormValues>, [], 1, []);
+    expect(built.schedule.entries).toEqual([]);
+  });
 });

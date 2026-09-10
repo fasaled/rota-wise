@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, CalendarDays as CalendarIconLucide, Lock, Unlock, X, Check, Briefcase, Star } from 'lucide-react';
 import { CalendarFilterBar, type ActiveFilter } from './calendar-filter-bar';
 import type { Schedule, DoctorProfile, DayDetails, ScheduleEntry, Unit, UnitCoverage } from '@/lib/types';
-import { computeUnitCoverageForDate } from '@/lib/schedule-generator';
+import { computeUnitCoverageForDate } from '@/lib/schedule-coverage';
 import { cn } from '@/lib/utils';
 import { FreeDayIcon, PreAssignedIcon, WorkIcon, ExcludedIcon } from '@/components/icons';
 import { useLanguage } from '@/context/language-context';

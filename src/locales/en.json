@@ -226,6 +226,10 @@
   "language.selector.label": "Language",
   "language.en": "English",
   "language.es": "Español",
+  "theme.toggle": "Toggle theme",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+  "theme.system": "System",
 
   "warnings.multiplePreAssignedInput": "Multiple doctors ({doctors}) are pre-assigned to the same calendar date: {date}. Please review.",
   "warnings.uncoveredDay": "No doctor could be assigned to {date} due to scheduling constraints (e.g., minimum interval, weekend limits, etc.). The day has been marked as 'Off'.",

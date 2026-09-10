@@ -1,5 +1,6 @@
+import { describe, it, expect } from 'bun:test';
 import { generateSchedule, computeUnitCoverageForDate } from '../lib/schedule-generator';
-import type { ScheduleFormValues, ScheduleEntry, DoctorFormFieldInput, Unit } from '../lib/types';
+import type { ScheduleFormValues, ScheduleEntry, DoctorFormFieldInput } from '../lib/types';
 import { differenceInCalendarDays, isSameDay, format, addDays } from 'date-fns';
 
 describe('Schedule Validation Tests', () => {
@@ -28,7 +29,7 @@ describe('Schedule Validation Tests', () => {
         },
       ],
       ...overrides,
-    };
+    } as ScheduleFormValues;
   };
 
   /**
@@ -638,7 +639,7 @@ describe('Schedule Validation Tests', () => {
       const result = generateSchedule(data);
       expect(result.schedule).toBeDefined();
 
-      const units = ((data as { units?: Unit[] }).units ?? []);
+      const units = data.units ?? [];
       const doctors: DoctorFormFieldInput[] = data.doctors;
       const entries = result.schedule!.entries;
 

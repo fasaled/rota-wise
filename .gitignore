@@ -10,7 +10,6 @@
 
 # build output
 /dist/
-/.next/
 
 # misc
 .DS_Store

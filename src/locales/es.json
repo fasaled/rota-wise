@@ -223,6 +223,10 @@
   "language.selector.label": "Idioma",
   "language.en": "English",
   "language.es": "Español",
+  "theme.toggle": "Cambiar tema",
+  "theme.light": "Claro",
+  "theme.dark": "Oscuro",
+  "theme.system": "Sistema",
 
   "warnings.multiplePreAssignedInput": "Múltiples doctores ({doctors}) están preasignados a la misma fecha del calendario: {date}. Por favor revise.",
   "warnings.uncoveredDay": "No se pudo asignar ningún médico al {date} debido a restricciones de programación (p. ej., intervalo mínimo, límites de fin de semana, etc.). el día se ha marcado como 'libre'.",

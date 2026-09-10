@@ -1,19 +1,6 @@
 /// <reference lib="webworker" />
 import { generateSchedule } from '@/lib/schedule-generator';
-import type { ScheduleFormValues, ScheduleEntry } from '@/lib/types';
-import type { ScheduleWarning } from '@/lib/schedule-generator';
-import type { Schedule } from '@/lib/types';
-
-export interface WorkerRequest {
-  formValues: ScheduleFormValues;
-  existingFixedEntries: ScheduleEntry[];
-}
-
-export interface WorkerResponse {
-  schedule?: Schedule;
-  error?: string;
-  warnings?: ScheduleWarning[];
-}
+import type { WorkerRequest, WorkerResponse } from './schedule-worker-types';
 
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const { formValues, existingFixedEntries } = event.data;

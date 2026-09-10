@@ -5,7 +5,7 @@ const unitSchema = z.object({
   id: z.string().default(() => generateId()),
   name: z.string().min(1, { message: "Unit name is required." }),
   minPostCallCoverage: z.coerce.number().int().min(0, "Minimum coverage cannot be negative.").max(20, "Minimum coverage cannot exceed 20.").default(0),
-  alliedUnitIds: z.array(z.string()).default([]),
+  alliedUnitIds: z.array(z.string()).optional(),
 });
 
 const coverAssignmentSchema = z.object({
@@ -22,8 +22,8 @@ const doctorSchema = z.object({
   preAssignedWorkDates: z.array(z.date()).default([]),
   excludedDates: z.array(z.date()).default([]),
   isExcludedFromAutomaticAssignment: z.boolean().optional().default(false),
-  unitId: z.string().optional().default(''),
-  coverAssignments: z.array(coverAssignmentSchema).default([]),
+  unitId: z.string().optional(),
+  coverAssignments: z.array(coverAssignmentSchema).optional(),
 });
 
 export const scheduleFormSchema = z.object({
