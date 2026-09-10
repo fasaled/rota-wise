@@ -33,7 +33,7 @@ Run `lint → typecheck → test` in that order to verify.
 - **`src/components/ui/`** — shadcn/ui primitives. Do not edit directly; regenerate via shadcn CLI.
 - **i18n**: EN/ES via context (`src/context/language-context.tsx`). Every new user-facing string must be added to both `src/locales/en.json` and `src/locales/es.json`.
 - **Tests** live in `src/__tests__/` (algorithm, storage, warnings, hooks, language). UI components are not unit-tested; Playwright covers journeys in `e2e/`.
-- All state is client-side: `.rw` file persistence via File System Access API. Browsers without that API see `BrowserNotSupported` (no download fallback).
+- All state is client-side: IndexedDB working copy by default; optional `.rw` file via File System Access API (auto-save). Browsers without that API still work (open via `<input type="file">`, save as download).
 
 ## PWA
 

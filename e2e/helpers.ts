@@ -144,26 +144,25 @@ export function createTestFileJson(opts: CreateTestFileOptions): string {
  * installed via `addInitScript` so it runs before the app's own JS, which
  * is exactly the timing the production code assumes.
  */
-export async function mockFileSystemAccess(page: Page, fileData: AppFileData) {
-  const serialized = JSON.stringify(fileData);
+export async function mockFileSystemAccess(page: Page, fileData: AppFileData | AppFileData[]) {
+  const payloads = (Array.isArray(fileData) ? fileData : [fileData]).map((d) => JSON.stringify(d));
 
-  await page.addInitScript((payload) => {
+  await page.addInitScript((payloadList: string[]) => {
     localStorage.setItem('rotawise-language', 'en');
-    const blob = new Blob([payload], { type: 'application/json' });
-
-    // Expose the data for tests to inspect.
-    (window as unknown as { __testFileData: string }).__testFileData = payload;
     (window as unknown as { __lastSavedData: string | null }).__lastSavedData = null;
+    (window as unknown as { __testFileData: string }).__testFileData = payloadList[0];
 
-    const fileHandle = {
-      name: 'test.rw',
-      kind: 'file' as const,
-      getFile: async () =>
-        new File([blob], 'test.rw', { type: 'application/json' }),
-      queryPermission: async () => 'granted' as const,
-      requestPermission: async () => 'granted' as const,
-      createWritable: async () => {
-        const writable = {
+    let openCount = 0;
+
+    const handleFor = (payload: string, name: string) => {
+      const blob = new Blob([payload], { type: 'application/json' });
+      return {
+        name,
+        kind: 'file' as const,
+        getFile: async () => new File([blob], name, { type: 'application/json' }),
+        queryPermission: async () => 'granted' as const,
+        requestPermission: async () => 'granted' as const,
+        createWritable: async () => ({
           write: async (data: string | Blob | ArrayBuffer) => {
             const text =
               typeof data === 'string'
@@ -175,16 +174,20 @@ export async function mockFileSystemAccess(page: Page, fileData: AppFileData) {
           },
           close: async () => {},
           abort: async () => {},
-        };
-        return writable;
-      },
+        }),
+      };
     };
 
-    (window as unknown as { showOpenFilePicker: () => Promise<typeof fileHandle[]> }).showOpenFilePicker =
-      async () => [fileHandle];
-    (window as unknown as { showSaveFilePicker: () => Promise<typeof fileHandle> }).showSaveFilePicker =
-      async () => fileHandle;
-  }, serialized);
+    (window as unknown as { showOpenFilePicker: () => Promise<ReturnType<typeof handleFor>[]> }).showOpenFilePicker =
+      async () => {
+        const payload = payloadList[Math.min(openCount, payloadList.length - 1)];
+        const name = payloadList.length > 1 && openCount > 0 ? 'other.rw' : 'test.rw';
+        openCount += 1;
+        return [handleFor(payload, name)];
+      };
+    (window as unknown as { showSaveFilePicker: () => Promise<ReturnType<typeof handleFor>> }).showSaveFilePicker =
+      async () => handleFor(payloadList[0], 'test.rw');
+  }, payloads);
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +202,15 @@ export async function mockFileSystemAccess(page: Page, fileData: AppFileData) {
  * to wait for the Web Worker to generate the schedule, which is flaky in
  * the headless Chromium test environment.
  */
+export function fileMenuButton(page: Page) {
+  return page.getByRole('button', { name: 'File', exact: true });
+}
+
+export async function openFileFromMenu(page: Page) {
+  await fileMenuButton(page).click();
+  await page.getByRole('menuitem', { name: 'Open…' }).click();
+}
+
 export async function openAppAndLoadFile(page: Page) {
   // Capture browser console + page errors for easier debugging.
   const messages: string[] = [];
@@ -207,7 +219,8 @@ export async function openAppAndLoadFile(page: Page) {
   (page as unknown as { __e2eMessages: string[] }).__e2eMessages = messages;
 
   await page.goto('/');
-  await page.getByRole('button', { name: /open file/i }).click();
+  await page.locator('aside.app-sidebar').waitFor({ state: 'visible', timeout: 15_000 });
+  await openFileFromMenu(page);
 
   // The nav items are <button> elements with a translated `title`
   // attribute ("Calendar" in en, "Calendario" in es).
@@ -223,8 +236,7 @@ export async function openAppAndLoadFile(page: Page) {
     { timeout: 5_000 },
   );
   await calendarNav.click();
-  // Give the calendar a moment to render its first batch of days.
-  await page.waitForTimeout(500);
+  await page.locator('.grid-cols-7').last().waitFor({ state: 'visible', timeout: 10_000 });
 }
 
 /** Open the mocked file and wait until the app shell (sidebar) is visible. */
@@ -240,8 +252,8 @@ export async function openAppOnRoster(page: Page) {
   (page as unknown as { __e2eMessages: string[] }).__e2eMessages = [];
 
   await page.goto('/');
-  await page.getByRole('button', { name: /open file/i }).click();
   await page.locator('aside.app-sidebar').waitFor({ state: 'visible', timeout: 15_000 });
+  await openFileFromMenu(page);
   await navButton(page, 'Roster').click();
   await page.getByText('Schedule parameters').waitFor({ state: 'visible', timeout: 15_000 });
 }
@@ -285,17 +297,11 @@ export interface CoverageCounts {
  * counts to the calendar grid via a stable ancestor.
  */
 export async function readCoverageState(page: Page): Promise<CoverageCounts> {
-  // Give the calendar a moment to render after navigation / data changes.
-  await page.waitForTimeout(150);
-
-  // The warnings banner starts collapsed — expand it so the <li> items
-  // are in the DOM and getByText can match them.
   const bannerToggle = page.getByRole('button', { name: /important schedule warnings/i });
   if (await bannerToggle.isVisible().catch(() => false)) {
     const expanded = await bannerToggle.getAttribute('aria-expanded').catch(() => null);
     if (expanded !== 'true') {
       await bannerToggle.click();
-      await page.waitForTimeout(100);
     }
   }
 
@@ -304,7 +310,7 @@ export async function readCoverageState(page: Page): Promise<CoverageCounts> {
   // row "Sun / Mon / ..."). This excludes the legend (which uses the
   // same bg-* classes) and any other incidental uses.
   const grid = page.locator('.grid-cols-7').last();
-  await grid.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
+  await grid.waitFor({ state: 'visible', timeout: 10_000 });
 
   const [red, green, grey, warnings] = await Promise.all([
     grid.locator('.bg-rose-500').count(),
@@ -341,4 +347,29 @@ export async function waitForSavedFileMatching(
     await page.waitForTimeout(100);
   }
   throw new Error(`Saved file did not match predicate within ${timeoutMs}ms`);
+}
+
+/** Read the IndexedDB working copy written by the app. */
+export async function readWorkingCopy(page: Page): Promise<AppFileData | null> {
+  return page.evaluate(
+    () =>
+      new Promise<AppFileData | null>((resolve) => {
+        const req = indexedDB.open('rotawise');
+        req.onerror = () => resolve(null);
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('kv')) {
+            resolve(null);
+            return;
+          }
+          const tx = db.transaction('kv', 'readonly');
+          const get = tx.objectStore('kv').get('workingCopy');
+          get.onerror = () => resolve(null);
+          get.onsuccess = () => {
+            const copy = get.result as { data?: AppFileData } | undefined;
+            resolve(copy?.data ?? null);
+          };
+        };
+      }),
+  );
 }

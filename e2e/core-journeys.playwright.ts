@@ -4,8 +4,12 @@ import {
   mockFileSystemAccess,
   openAppAndLoadFile,
   openAppOnRoster,
+  openFileFromMenu,
+  fileMenuButton,
   goToTab,
   navButton,
+  waitForSavedFileMatching,
+  readWorkingCopy,
 } from './helpers';
 
 function twoDoctorJanuaryFile(opts?: { withPreAssigned?: boolean; end?: string }) {
@@ -23,42 +27,66 @@ function twoDoctorJanuaryFile(opts?: { withPreAssigned?: boolean; end?: string }
 }
 
 test.describe('Startup', () => {
-  test('shows open and create actions', async ({ page }) => {
-    await mockFileSystemAccess(page, JSON.parse(twoDoctorJanuaryFile()));
+  test('opens the app on an empty roster', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('rotawise-language', 'en');
+    });
     await page.goto('/');
-    await expect(page.getByRole('button', { name: /open file/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /create new file/i })).toBeVisible();
-    await expect(page.getByText(/open a schedule file to get started/i)).toBeVisible();
-  });
-
-  test('opening a file shows the roster and file name', async ({ page }) => {
-    await mockFileSystemAccess(page, JSON.parse(twoDoctorJanuaryFile()));
-    await openAppOnRoster(page);
-
-    await expect(page.getByText('test.rw')).toBeVisible();
-    await expect(navButton(page, 'Roster')).toBeVisible();
-    await expect(page.getByLabel('Name').first()).toHaveValue('Dr. Ada');
-    await expect(page.getByLabel('Name').nth(1)).toHaveValue('Dr. Bob');
-  });
-
-  test('creating a new file lands on an empty roster', async ({ page }) => {
-    await mockFileSystemAccess(
-      page,
-      JSON.parse(
-        createTestFileJson({
-          units: [],
-          doctors: [],
-          scheduleRange: { start: '2024-01-01', end: '2024-01-31' },
-        }),
-      ),
-    );
-    await page.goto('/');
-    await page.getByRole('button', { name: /create new file/i }).click();
     await page.locator('aside.app-sidebar').waitFor({ state: 'visible', timeout: 15_000 });
     await expect(page.getByText('No doctors on the roster yet')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/open a schedule file to get started/i)).toHaveCount(0);
+    await expect(fileMenuButton(page)).toBeVisible();
+    await expect(page.getByText('No file open')).toBeVisible();
+    await expect(page.getByText('Browser only')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add doctor' })).toBeVisible();
+    await expect(navButton(page, 'Calendar')).toBeDisabled();
     await expect(navButton(page, 'Weekly Summary')).toBeDisabled();
     await expect(navButton(page, 'Monthly Summary')).toBeDisabled();
+  });
+
+  test('opening a file from empty roster does not ask to replace', async ({ page }) => {
+    await mockFileSystemAccess(page, JSON.parse(twoDoctorJanuaryFile()));
+    await page.goto('/');
+    await page.locator('aside.app-sidebar').waitFor({ state: 'visible', timeout: 15_000 });
+    await expect(page.getByText('No doctors on the roster yet')).toBeVisible();
+
+    await openFileFromMenu(page);
+
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await expect(page.getByLabel('Name').first()).toHaveValue('Dr. Ada');
+    await expect(page.getByLabel('Name').nth(1)).toHaveValue('Dr. Bob');
+    await expect(page.getByText('test.rw')).toBeVisible();
+    await expect(page.getByText('Browser only')).toHaveCount(0);
+  });
+
+  test('new schedule clears the roster after confirmation and stays empty on reload', async ({ page }) => {
+    await mockFileSystemAccess(page, JSON.parse(twoDoctorJanuaryFile()));
+    await openAppOnRoster(page);
+    await expect(page.getByLabel('Name').first()).toHaveValue('Dr. Ada');
+
+    await fileMenuButton(page).click();
+    await page.getByRole('menuitem', { name: 'New schedule' }).click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'New schedule' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'New schedule' }).click();
+
+    await expect(page.getByText('No doctors on the roster yet')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('No file open')).toBeVisible();
+    await expect(page.getByText('Browser only')).toBeVisible();
+    await expect(navButton(page, 'Calendar')).toBeDisabled();
+
+    await expect
+      .poll(async () => {
+        const copy = await readWorkingCopy(page);
+        return copy?.formValues?.doctors?.length ?? 0;
+      })
+      .toBe(0);
+
+    await page.reload();
+    await page.locator('aside.app-sidebar').waitFor({ state: 'visible', timeout: 15_000 });
+    await expect(page.getByText('No doctors on the roster yet')).toBeVisible();
+    await expect(page.getByText('Dr. Ada')).toHaveCount(0);
   });
 });
 
@@ -139,18 +167,119 @@ test.describe('Summaries', () => {
   });
 });
 
-test.describe('Command bar', () => {
-  test('clear schedule asks for confirmation and disables calendar', async ({ page }) => {
-    await mockFileSystemAccess(page, JSON.parse(twoDoctorJanuaryFile()));
-    await openAppAndLoadFile(page);
+test.describe('Persistence', () => {
+  test('edits persist in the browser without a file', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('rotawise-language', 'en');
+    });
+    await page.goto('/');
+    await expect(page.getByText('No doctors on the roster yet')).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole('button', { name: 'Clear schedule' }).click();
-    await expect(page.getByRole('alertdialog')).toBeVisible();
-    await page.getByRole('button', { name: 'Clear Schedule' }).click();
+    await page.getByRole('button', { name: 'Add doctor' }).click();
+    await page.getByLabel('Name').fill('Dr. Ada');
 
-    await expect(page.getByText('Schedule cleared')).toBeVisible();
-    await expect(navButton(page, 'Calendar')).toBeDisabled();
+    await expect
+      .poll(async () => {
+        const copy = await readWorkingCopy(page);
+        return copy?.formValues?.doctors?.some((d) => d.name === 'Dr. Ada') ?? false;
+      })
+      .toBe(true);
+
+    await page.reload();
+    await page.locator('aside.app-sidebar').waitFor({ state: 'visible', timeout: 15_000 });
+    await expect(page.getByLabel('Name')).toHaveValue('Dr. Ada');
+    await expect(page.getByText('Browser only')).toBeVisible();
+    await expect(page.getByText('No file open')).toBeVisible();
   });
+
+  test('reloading restores a roster loaded from a file without opening it again', async ({ page }) => {
+    await mockFileSystemAccess(page, JSON.parse(twoDoctorJanuaryFile()));
+    await openAppOnRoster(page);
+    await expect(page.getByLabel('Name').first()).toHaveValue('Dr. Ada');
+
+    await waitForSavedFileMatching(
+      page,
+      (parsed) => parsed.formValues?.doctors?.some((d) => d.name === 'Dr. Ada') ?? false,
+    );
+
+    await page.reload();
+    await page.locator('aside.app-sidebar').waitFor({ state: 'visible', timeout: 15_000 });
+    await expect(page.getByLabel('Name').first()).toHaveValue('Dr. Ada');
+    await expect(page.getByLabel('Name').nth(1)).toHaveValue('Dr. Bob');
+  });
+
+  test('opening another file asks to replace and then loads the new roster', async ({ page }) => {
+    const first = JSON.parse(twoDoctorJanuaryFile());
+    const second = JSON.parse(
+      createTestFileJson({
+        units: [],
+        doctors: [
+          { id: 'c1', name: 'Dr. Carol' },
+          { id: 'c2', name: 'Dr. Dan' },
+        ],
+        scheduleRange: { start: '2026-10-01', end: '2026-10-14' },
+        preAssignedWork: [{ doctorId: 'c1', date: '2026-10-01' }],
+      }),
+    );
+    await mockFileSystemAccess(page, [first, second]);
+    await openAppOnRoster(page);
+    await expect(page.getByLabel('Name').first()).toHaveValue('Dr. Ada');
+
+    await openFileFromMenu(page);
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Replace current schedule?' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Open file' }).click();
+
+    await expect(page.getByLabel('Name').first()).toHaveValue('Dr. Carol');
+    await expect(page.getByLabel('Name').nth(1)).toHaveValue('Dr. Dan');
+    await expect(page.getByText('Dr. Ada')).toHaveCount(0);
+    await expect(page.getByText('other.rw')).toBeVisible();
+  });
+
+  test('cancelling replace keeps the current roster', async ({ page }) => {
+    const first = JSON.parse(twoDoctorJanuaryFile());
+    const second = JSON.parse(
+      createTestFileJson({
+        units: [],
+        doctors: [{ id: 'c1', name: 'Dr. Carol' }],
+        scheduleRange: { start: '2026-10-01', end: '2026-10-14' },
+      }),
+    );
+    await mockFileSystemAccess(page, [first, second]);
+    await openAppOnRoster(page);
+
+    await openFileFromMenu(page);
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog.getByRole('heading', { name: 'Replace current schedule?' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+
+    await expect(page.getByLabel('Name').first()).toHaveValue('Dr. Ada');
+    await expect(page.getByText('test.rw')).toBeVisible();
+  });
+
+  test('save to file binds the handle and drops the browser-only badge', async ({ page }) => {
+    await mockFileSystemAccess(page, JSON.parse(twoDoctorJanuaryFile()));
+    await page.addInitScript(() => {
+      localStorage.setItem('rotawise-language', 'en');
+    });
+    await page.goto('/');
+    await expect(page.getByText('No doctors on the roster yet')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Browser only')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Add doctor' }).click();
+    await page.getByLabel('Name').fill('Dr. Ada');
+
+    await fileMenuButton(page).click();
+    await page.getByRole('menuitem', { name: 'Save to file…' }).click();
+
+    await expect(page.getByText('test.rw')).toBeVisible();
+    await expect(page.getByText('Browser only')).toHaveCount(0);
+    await expect(page.getByText('File saved')).toBeVisible();
+  });
+});
+
+test.describe('Command bar', () => {
 
   test('export Word downloads a .docx file', async ({ page }) => {
     await mockFileSystemAccess(page, JSON.parse(twoDoctorJanuaryFile()));
@@ -185,7 +314,6 @@ test.describe('Theme', () => {
     await page.reload();
     await expect.poll(htmlHasDark).toBe(true);
 
-    await page.getByRole('button', { name: /open file/i }).click();
     await page.locator('aside.app-sidebar').waitFor({ state: 'visible', timeout: 15_000 });
 
     await page.getByRole('button', { name: 'Toggle theme' }).click();
@@ -217,15 +345,21 @@ test.describe('Language', () => {
 });
 
 test.describe('Unsupported browser', () => {
-  test('blocks the app when the File System Access API is missing', async ({ page }) => {
+  test('still opens the app when the File System Access API is missing', async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('rotawise-language', 'en');
       delete (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker;
       delete (window as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker;
     });
     await page.goto('/');
-    await expect(page.getByText('Browser not supported')).toBeVisible();
-    await expect(page.getByText('Google Chrome (version 86 or later)')).toBeVisible();
-    await expect(page.getByRole('button', { name: /open file/i })).toHaveCount(0);
+    await page.locator('aside.app-sidebar').waitFor({ state: 'visible', timeout: 15_000 });
+    await expect(page.getByText('No disk auto-save in this browser')).toBeVisible();
+    await expect(page.getByText('No doctors on the roster yet')).toBeVisible();
+    await expect(fileMenuButton(page)).toBeVisible();
+    await expect(page.getByText('Browser only')).toBeVisible();
+
+    await fileMenuButton(page).click();
+    await expect(page.getByRole('menuitem', { name: 'Open…' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Save to file…' })).toBeVisible();
   });
 });

@@ -207,4 +207,19 @@ describe('useHistory', () => {
       expect(undone!).toBeNull();
     });
   });
+
+  describe('clear', () => {
+    it('empties the stack and disables undo', () => {
+      const { result } = renderHook(() => useHistory());
+
+      act(() => {
+        result.current.push(makeState());
+        result.current.push(makeState());
+        result.current.clear();
+      });
+
+      expect(result.current.stack).toHaveLength(0);
+      expect(result.current.canUndo).toBe(false);
+    });
+  });
 });

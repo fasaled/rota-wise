@@ -36,7 +36,12 @@ export function useHistory() {
     return restored;
   }, []);
 
+  const clear = useCallback(() => {
+    stackRef.current = [];
+    setStack([]);
+  }, []);
+
   const canUndo = stack.length > 0;
 
-  return { push, undo, canUndo, stack };
+  return { push, undo, clear, canUndo, stack };
 }

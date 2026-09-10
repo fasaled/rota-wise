@@ -8,7 +8,7 @@ This document describes the current web UI as implemented, without interpretatio
 
 The app uses a two-column shell layout (`app-shell` CSS class): a narrow left sidebar and a scrollable main body. There is no page footer.
 
-The shell is hidden until a file session is active; before that, only the `StartupScreen` is visible.
+The shell is visible immediately on load. An empty roster is shown unless a previous IndexedDB working copy (or a PWA `launchQueue` file) is restored.
 
 ### 1.1 Sidebar (`<aside class="app-sidebar">`)
 
@@ -39,23 +39,27 @@ Fills the remaining width. Three vertical zones:
 
 ---
 
-## 2. Startup screen
+## 2. Session start
 
-Component: `StartupScreen`. Shown fullscreen (`fixed inset-0 z-50`) when no file session is active, i.e., before the user picks or creates a file. The main app shell is hidden (`display: none`) during this phase.
+There is no splash screen. After a short hydration spinner the app shell is shown.
 
-The startup screen shows three action cards:
+1. If the PWA `launchQueue` provides a `.rw` file, that file is loaded.
+2. Else if IndexedDB has a working copy, it is restored (toast “Welcome Back” when non-empty).
+3. Else the roster is empty (Config tab).
 
-| Action | Icon | Description |
-|---|---|---|
-| Open existing file | FolderOpen | Opens `.rw` or `.json` via File System Access API (or `<input type="file">` fallback) |
-| Create new file | FilePlus2 | Opens the system save picker, creates an empty `.rw` file |
-| Import as pre-assigned | Layers | Picks any `.rw`/`.json` and converts all `Work` entries to `Pre-assigned` |
+**File menu** (command bar, left): New schedule, Open, Save to file / Save as.
 
-**Browser compatibility warning**: if `window.showOpenFilePicker` is not available (e.g. Firefox), an amber banner is shown and file operations fall back to `<input type="file">` / browser download. A badge is also shown in the command bar for the duration of the session.
+- **New schedule** — confirmation, then clears roster, calendar, undo history, IndexedDB copy, and unlinks any file handle (disk file is not deleted).
+- **Open** — File System Access picker when available, otherwise `<input type="file">`. Replaces in-memory state (confirmation if the current copy is not empty).
+- **Save to file** — Chromium: save picker, binds the handle, subsequent edits auto-save to disk. Other browsers: downloads a `.rw` copy and stay in “browser only” mode.
 
-**PWA launchQueue**: if the app is installed and the user opens a `.rw` file from the OS, the file is read via `launchQueue.setConsumer` and the startup screen is bypassed automatically.
+**Browser-only badge**: shown when no file handle is bound.
 
-**Legacy `.json` migration**: opening a `.json` file via the supported picker triggers a second "Save As" dialog to save a `.rw` copy. If the user cancels, the original `.json` handle is used.
+**No disk auto-save banner**: shown (session-dismissible) when `showOpenFilePicker` is missing.
+
+**PWA launchQueue**: opening a `.rw` from the OS hydrates that file.
+
+**Legacy `.json` migration**: opening a `.json` file via the supported picker triggers a second “Save As” dialog to save a `.rw` copy. If the user cancels, the original `.json` handle is used.
 
 ---
 
@@ -65,9 +69,9 @@ The startup screen shows three action cards:
 
 ### 3.1 File info (left)
 
-- File icon + file name (or "No file open" if none).
+- File menu button: icon + file name (or "No file open") + chevron. Accessible name: "File" / "Archivo".
+- Blue badge "Browser only" when no file handle is bound.
 - If the open file ends in `.json` (not `.rw`): amber badge `.json`.
-- If File System Access API is not supported: blue badge "unsupported browser".
 
 ### 3.2 Action buttons (right)
 
@@ -75,10 +79,9 @@ All buttons are `size="sm"`. Busy state (`isBusy`) = generating OR exporting —
 
 | Button | Icon | Variant | Condition to enable | Action |
 |---|---|---|---|---|
-| Save (Firefox only) | Download | outline | API not supported | Downloads file via browser |
+| Generate | — | default | Doctors with names exist | Generates (if pinned entries exist, asks whether to keep them) |
 | Undo | History | outline | `canUndo && !isBusy` | Reverts to previous schedule snapshot |
 | Export | FileText | outline | Schedule exists | Lazy-imports `export-word.ts`, generates .docx named after the open `.rw` file |
-| Clear schedule | Trash2 | destructive | Schedule exists | Opens confirmation dialog |
 | Clear doctors | UserX | outline | Doctors with names exist | Opens confirmation dialog |
 
 Export buttons show a spinner (animated `border-t-2 border-b-2 border-primary` circle) in place of the icon while processing. Labels are hidden on small screens (`hidden md:inline`).

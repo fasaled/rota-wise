@@ -10,7 +10,7 @@ A PWA for fair and balanced doctor shift scheduling. Generates equitable schedul
 - **Global monthly shift limit** — configurable cap on shifts per doctor per month
 - **Summary tables** — workdays by day-of-week and by month for each doctor
 - **Export** — Word (.docx) report, generated on demand
-- **Save/load** — persist full schedules as `.rw` files (JSON); reload as-is or import as pre-assigned
+- **Save/load** — work without a file (auto-save in the browser); optionally bind a `.rw` file for disk auto-save
 - **Offline-ready** — Workbox PWA with full precaching; all assets available without network
 - **Internationalization** — English and Spanish
 - **Dark/light theme**
@@ -77,9 +77,9 @@ src/
 The app is a single-page React client. Key design decisions:
 
 - **Scheduling runs in a Web Worker** (`src/workers/schedule.worker.ts` via `useScheduleWorker` hook) to keep the UI responsive during generation.
-- **Heavy components are lazy-loaded** (`React.lazy` + `Suspense`) — calendar, summary tables, and startup screen load on demand.
+- **Heavy components are lazy-loaded** (`React.lazy` + `Suspense`) — calendar, summary tables, and Word export load on demand.
 - **Export libraries are lazy-imported** — docx is fetched from SW cache only when the user clicks export, reducing initial bundle size.
-- **All state is client-side** — File System Access API for `.rw` files (auto-save), no backend.
+- **All state is client-side** — IndexedDB working copy, optional File System Access API for `.rw` auto-save, no backend.
 
 ## Algorithm
 

@@ -11,11 +11,15 @@ import {
   buildAppFileData,
   deserializeAppFileData,
   toLocalDate,
+  parseAppFileJson,
+  isEmptyAppFileData,
+  makeEmptyAppFileData,
 } from '../lib/schedule-storage';
 import type {
   ScheduleFormValues,
   Schedule,
   Unit,
+  AppFileData,
 } from '../lib/types';
 
 // ---------------------------------------------------------------------------
@@ -429,5 +433,33 @@ describe('buildAppFileData / deserializeAppFileData', () => {
   it('clears schedule serialization when there are no doctors', () => {
     const built = buildAppFileData(makeSchedule(), [], { numberOfDoctors: 0, doctors: [] } as Partial<ScheduleFormValues>, [], 1, []);
     expect(built.schedule.entries).toEqual([]);
+  });
+});
+
+describe('parseAppFileJson', () => {
+  it('migrates vacationDates and Vacation assignment', () => {
+    const raw = JSON.stringify({
+      fileVersion: 1,
+      doctorsProfiles: [{ id: 'd1', name: 'Ada', vacationDates: ['2024-01-02'] }],
+      formValues: { doctors: [{ id: 'd1', name: 'Ada', vacationDates: ['2024-01-02'] }] },
+      schedule: { entries: [{ date: '2024-01-02', doctorId: 'd1', assignment: 'Vacation' }] },
+    });
+    const parsed = parseAppFileJson(raw);
+    expect((parsed.doctorsProfiles[0] as { freeDates: string[] }).freeDates).toEqual(['2024-01-02']);
+    expect((parsed.formValues.doctors[0] as { freeDates: string[] }).freeDates).toEqual(['2024-01-02']);
+    expect(parsed.schedule.entries[0].assignment).toBe('Free');
+  });
+});
+
+describe('isEmptyAppFileData', () => {
+  it('treats makeEmptyAppFileData as empty', () => {
+    expect(isEmptyAppFileData(makeEmptyAppFileData())).toBe(true);
+  });
+
+  it('is not empty when a named doctor exists', () => {
+    const data = makeEmptyAppFileData();
+    data.formValues.doctors = [{ id: 'd1', name: 'Ada' } as AppFileData['formValues']['doctors'][number]];
+    data.formValues.numberOfDoctors = 1;
+    expect(isEmptyAppFileData(data)).toBe(false);
   });
 });

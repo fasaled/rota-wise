@@ -149,6 +149,80 @@ export function deserializeSchedule(schedule: SerializedSchedule): Schedule {
   };
 }
 
+/** Parse a .rw / .json payload, including legacy vacation → free-day migration. */
+export function parseAppFileJson(text: string): AppFileData {
+  const parsed: Record<string, unknown> = JSON.parse(text);
+
+  if (Array.isArray(parsed.doctorsProfiles)) {
+    parsed.doctorsProfiles = (parsed.doctorsProfiles as Record<string, unknown>[]).map((d) => {
+      if ('vacationDates' in d && !('freeDates' in d)) {
+        d.freeDates = d.vacationDates;
+        delete d.vacationDates;
+      }
+      return d;
+    });
+  }
+  if (
+    parsed.formValues &&
+    typeof parsed.formValues === 'object' &&
+    Array.isArray((parsed.formValues as Record<string, unknown>).doctors)
+  ) {
+    (parsed.formValues as Record<string, unknown>).doctors = (
+      (parsed.formValues as Record<string, unknown>).doctors as Record<string, unknown>[]
+    ).map((d) => {
+      if ('vacationDates' in d && !('freeDates' in d)) {
+        d.freeDates = d.vacationDates;
+        delete d.vacationDates;
+      }
+      return d;
+    });
+  }
+  if (
+    parsed.schedule &&
+    typeof parsed.schedule === 'object' &&
+    Array.isArray((parsed.schedule as Record<string, unknown>).entries)
+  ) {
+    (parsed.schedule as Record<string, unknown>).entries = (
+      (parsed.schedule as Record<string, unknown>).entries as Record<string, unknown>[]
+    ).map((e) => {
+      if (e.assignment === 'Vacation') e.assignment = 'Free';
+      return e;
+    });
+  }
+
+  return {
+    fileVersion: (parsed.fileVersion as number) ?? CURRENT_FILE_VERSION,
+    versions: [],
+    ...parsed,
+  } as unknown as AppFileData;
+}
+
+export function emptyFormValues(): Partial<ScheduleFormValues> {
+  return {
+    numberOfDoctors: 0,
+    startDate: undefined,
+    endDate: undefined,
+    minIntervalBetweenWorkDays: 1,
+    doctors: [],
+  };
+}
+
+export function makeEmptyAppFileData(): AppFileData {
+  return buildAppFileData(null, [], emptyFormValues(), [], 1, []);
+}
+
+/** True when the payload has no user-entered roster, units, or generated entries. */
+export function isEmptyAppFileData(data: AppFileData | null | undefined): boolean {
+  if (!data) return true;
+  const doctors = data.formValues?.doctors ?? [];
+  const hasNamedDoctor = doctors.some((d) => Boolean(d.name?.trim()));
+  const hasDoctorSlots = doctors.length > 0 || (data.formValues?.numberOfDoctors ?? 0) > 0;
+  const hasEntries = (data.schedule?.entries?.length ?? 0) > 0;
+  const hasUnits = (data.formValues?.units?.length ?? 0) > 0;
+  const hasProfiles = (data.doctorsProfiles?.length ?? 0) > 0;
+  return !hasNamedDoctor && !hasDoctorSlots && !hasEntries && !hasUnits && !hasProfiles;
+}
+
 export function deserializeAppFileData(data: AppFileData): {
   schedule: Schedule | null;
   doctorsProfiles: DoctorProfile[];

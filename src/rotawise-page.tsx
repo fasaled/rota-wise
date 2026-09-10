@@ -15,8 +15,6 @@ const ScheduleSummaryTable = lazy(() => import('@/components/rotawise/schedule-s
 const MonthlyWorkloadSummaryTable = lazy(
   () => import('@/components/rotawise/monthly-workload-summary-table'),
 );
-const StartupScreen = lazy(() => import('@/components/rotawise/startup-screen'));
-const BrowserNotSupported = lazy(() => import('@/components/rotawise/browser-not-supported'));
 import { InfoBarList } from '@/components/rotawise/info-bar';
 import { Button } from '@/components/ui/button';
 import { cn, deduplicateEntries } from '@/lib/utils';
@@ -32,9 +30,14 @@ import { type ActiveFilter } from '@/components/rotawise/calendar-filter-bar';
 import {
   buildAppFileData,
   deserializeAppFileData,
+  emptyFormValues,
+  isEmptyAppFileData,
+  makeEmptyAppFileData,
   normalizeUnit,
+  parseAppFileJson,
   toLocalDate,
 } from '@/lib/schedule-storage';
+import { loadWorkingCopy, saveWorkingCopy } from '@/lib/browser-storage';
 import { computeScheduleWarnings } from '@/lib/schedule-warnings';
 import { findNearestWorkNeighbors, violatesMinInterval } from '@/lib/schedule-interval';
 import {
@@ -51,6 +54,7 @@ import { AppSidebar, type AppTab } from '@/components/rotawise/app-sidebar';
 import { CommandBar } from '@/components/rotawise/command-bar';
 import { ScheduleWarningsBanner } from '@/components/rotawise/schedule-warnings-banner';
 import { ConfirmDialogs } from '@/components/rotawise/confirm-dialogs';
+import { FileSystemBanner } from '@/components/rotawise/file-system-banner';
 
 function minIntervalMessages(
   entries: ScheduleEntry[],
@@ -85,14 +89,17 @@ export default function RotawisePage() {
   const {
     fileHandle,
     fileName,
-    isSupported,
+    persistenceMode,
+    isFileSystemAccessSupported,
     launchQueueData,
     clearLaunchQueueData,
     openFile,
+    saveAsFile,
     saveToFile,
+    clearBinding,
   } = useFileSystem();
   const { messages, addMessage, dismissMessage } = useInfoBar();
-  const { push: historyPush, undo: historyUndo, canUndo } = useHistory();
+  const { push: historyPush, undo: historyUndo, clear: historyClear, canUndo } = useHistory();
   const { generate } = useScheduleWorker();
 
   const [schedule, setSchedule] = useState<Schedule | null>(null);
@@ -106,36 +113,24 @@ export default function RotawisePage() {
   const [loadedFormValues, setLoadedFormValues] = useState<Partial<ScheduleFormValues> | null>(null);
 
   const [isMounted, setIsMounted] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
   const [dataInputFormKey, setDataInputFormKey] = useState(0);
   const [activeTab, setActiveTab] = useState<AppTab>('config');
-  const [isFileSessionActive, setIsFileSessionActive] = useState(false);
-  const [showClearScheduleDialog, setShowClearScheduleDialog] = useState(false);
+  const [showNewScheduleDialog, setShowNewScheduleDialog] = useState(false);
+  const [showOpenReplaceDialog, setShowOpenReplaceDialog] = useState(false);
   const [showClearDoctorDetailsDialog, setShowClearDoctorDetailsDialog] = useState(false);
+  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
 
   const formRef = useRef<UseFormReturn<ScheduleFormValues> | null>(null);
   const [fileVersions] = useState<AppFileData['versions']>([]);
 
-  const [stableDefaultFormValues] = useState<Partial<ScheduleFormValues>>(() => ({
-    numberOfDoctors: 0,
-    startDate: undefined,
-    endDate: undefined,
-    minIntervalBetweenWorkDays: 1,
-    doctors: [],
-  }));
+  const [stableDefaultFormValues] = useState<Partial<ScheduleFormValues>>(() => emptyFormValues());
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (!launchQueueData) return;
-    hydrateFromFileData(launchQueueData);
-    setIsFileSessionActive(true);
-    clearLaunchQueueData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [launchQueueData]);
 
   useEffect(() => {
     setScheduleWarnings(
@@ -152,8 +147,17 @@ export default function RotawisePage() {
     );
   }, [schedule, doctorsProfiles, units, currentMinInterval, language, currentDateFnsLocale, t, holidays]);
 
-  const debouncedSaveToFile = useDebouncedCallback(async (data: AppFileData) => {
-    if (!fileHandle) return;
+  const debouncedPersist = useDebouncedCallback(async (data: AppFileData, bound: boolean) => {
+    try {
+      await saveWorkingCopy(data, {
+        mode: bound ? 'file' : 'browser',
+        fileName: fileName,
+      });
+    } catch (err) {
+      console.error('[Page] Browser persist failed:', err);
+      addMessage({ severity: 'error', title: t('page.toast.errorPersistingState.title'), autoDismissMs: 5000 });
+    }
+    if (!bound) return;
     try {
       await saveToFile(data);
     } catch (err) {
@@ -163,7 +167,7 @@ export default function RotawisePage() {
   }, 500);
 
   useEffect(() => {
-    if (!isMounted || !fileHandle) return;
+    if (!isMounted || !isHydrated) return;
 
     const formDoctorIds = new Set((loadedFormValues?.doctors || []).map((d) => d.id).filter(Boolean));
     const syncedProfiles =
@@ -177,9 +181,9 @@ export default function RotawisePage() {
       currentMinInterval,
       fileVersions,
     );
-    debouncedSaveToFile(data);
+    debouncedPersist(data, Boolean(fileHandle));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule, doctorsProfiles, scheduleWarnings, currentMinInterval, loadedFormValues, fileHandle, isMounted]);
+  }, [schedule, doctorsProfiles, scheduleWarnings, currentMinInterval, loadedFormValues, fileHandle, isMounted, isHydrated]);
 
   const hydrateFromFileData = useCallback((data: AppFileData) => {
     const { schedule: s, doctorsProfiles: dp, formValues: fv, scheduleWarnings: sw, currentMinInterval: cmi } =
@@ -199,14 +203,123 @@ export default function RotawisePage() {
     else setActiveTab('config');
   }, []);
 
-  const handleFileReady = useCallback(
-    (data: AppFileData, _convertedFromJson?: boolean) => {
-      hydrateFromFileData(data);
-      setIsFileSessionActive(true);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const copy = await loadWorkingCopy();
+        if (cancelled) return;
+        if (copy?.data) {
+          hydrateFromFileData(copy.data);
+          if (!isEmptyAppFileData(copy.data)) {
+            addMessage({
+              severity: 'success',
+              title: t('page.toast.stateRestored.title'),
+              description: t('page.toast.stateRestored.description'),
+              autoDismissMs: 3000,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('[Page] Restore failed:', err);
+        addMessage({
+          severity: 'error',
+          title: t('page.toast.errorRestoringState.title'),
+          description: t('page.toast.errorRestoringState.description'),
+          autoDismissMs: 5000,
+        });
+      } finally {
+        if (!cancelled) setIsHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!launchQueueData || !isHydrated) return;
+    historyClear();
+    hydrateFromFileData(launchQueueData);
+    clearLaunchQueueData();
+    addMessage({ severity: 'success', title: t('file.opened'), autoDismissMs: 3000 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [launchQueueData, isHydrated]);
+
+  const hasUserWork = useCallback(() => {
+    const doctors = loadedFormValues?.doctors ?? [];
+    const named = doctors.some((d) => Boolean(d.name?.trim()));
+    const slots = doctors.length > 0 || (loadedFormValues?.numberOfDoctors ?? 0) > 0;
+    const entries = (schedule?.entries.length ?? 0) > 0;
+    return named || slots || entries || units.length > 0;
+  }, [loadedFormValues, schedule, units]);
+
+  const currentFileData = useCallback((): AppFileData => {
+    const formDoctorIds = new Set((loadedFormValues?.doctors || []).map((d) => d.id).filter(Boolean));
+    const syncedProfiles =
+      formDoctorIds.size === 0 ? [] : doctorsProfiles.filter((p) => formDoctorIds.has(p.id));
+    return buildAppFileData(
+      schedule,
+      syncedProfiles,
+      loadedFormValues,
+      scheduleWarnings,
+      currentMinInterval,
+      fileVersions,
+    );
+  }, [loadedFormValues, doctorsProfiles, schedule, scheduleWarnings, currentMinInterval, fileVersions]);
+
+  const performOpenFile = useCallback(async () => {
+    try {
+      const result = await openFile();
+      if (!result) return;
+      historyClear();
+      hydrateFromFileData(result.data);
       addMessage({ severity: 'success', title: t('file.opened'), autoDismissMs: 3000 });
-    },
-    [hydrateFromFileData, addMessage, t],
-  );
+    } catch {
+      addMessage({ severity: 'error', title: t('file.openError'), autoDismissMs: 5000 });
+    }
+  }, [openFile, historyClear, hydrateFromFileData, addMessage, t]);
+
+  const handleOpenFileRequest = useCallback(() => {
+    if (hasUserWork()) setShowOpenReplaceDialog(true);
+    else void performOpenFile();
+  }, [hasUserWork, performOpenFile]);
+
+  const resetToEmpty = useCallback(async () => {
+    historyClear();
+    setSchedule(null);
+    setDoctorsProfiles([]);
+    setUnits([]);
+    setHolidays([]);
+    setScheduleWarnings([]);
+    setCurrentMinInterval(1);
+    setLoadedFormValues(emptyFormValues());
+    setDataInputFormKey((k) => k + 1);
+    setActiveTab('config');
+    setCalendarFilters([]);
+    await clearBinding();
+    await saveWorkingCopy(makeEmptyAppFileData(), { mode: 'browser', fileName: null });
+  }, [historyClear, clearBinding]);
+
+  const handleNewScheduleRequest = useCallback(() => {
+    if (hasUserWork() || fileHandle) setShowNewScheduleDialog(true);
+    else void resetToEmpty();
+  }, [hasUserWork, fileHandle, resetToEmpty]);
+
+  const handleSaveToFile = useCallback(async () => {
+    try {
+      const result = await saveAsFile(currentFileData());
+      if (!result) return;
+      addMessage({
+        severity: 'success',
+        title: result.downloaded ? t('file.downloaded') : t('file.savedSuccessfully'),
+        autoDismissMs: 3000,
+      });
+    } catch {
+      addMessage({ severity: 'error', title: t('file.saveError'), autoDismissMs: 5000 });
+    }
+  }, [saveAsFile, currentFileData, addMessage, t]);
 
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {
@@ -216,10 +329,17 @@ export default function RotawisePage() {
       e.preventDefault();
       const file = e.dataTransfer?.files?.[0];
       if (!file) return;
-
-      if (file.name.toLowerCase().endsWith('.rw') || file.name.toLowerCase().endsWith('.json')) {
-        void openFile();
-      }
+      if (!file.name.toLowerCase().endsWith('.rw') && !file.name.toLowerCase().endsWith('.json')) return;
+      void (async () => {
+        try {
+          const data = parseAppFileJson(await file.text());
+          historyClear();
+          hydrateFromFileData(data);
+          addMessage({ severity: 'success', title: t('file.opened'), autoDismissMs: 3000 });
+        } catch {
+          addMessage({ severity: 'error', title: t('file.openError'), autoDismissMs: 5000 });
+        }
+      })();
     };
     window.addEventListener('dragover', handleDragOver);
     window.addEventListener('drop', handleDrop);
@@ -227,16 +347,9 @@ export default function RotawisePage() {
       window.removeEventListener('dragover', handleDragOver);
       window.removeEventListener('drop', handleDrop);
     };
-  }, [openFile]);
+  }, [historyClear, hydrateFromFileData, addMessage, t]);
 
-  const handleFileError = useCallback(
-    (msg: string) => {
-      addMessage({ severity: 'error', title: msg, autoDismissMs: 5000 });
-    },
-    [addMessage],
-  );
-
-  const handleSubmitForm = async (data: ScheduleFormValues) => {
+  const handleSubmitForm = async (data: ScheduleFormValues, keepFixed = true) => {
     historyPush({ schedule, doctorsProfiles, scheduleWarnings, currentMinInterval });
     setIsLoading(true);
     setScheduleWarnings([]);
@@ -246,7 +359,7 @@ export default function RotawisePage() {
     setDoctorsProfiles(profiles);
     setUnits((data.units ?? []).map(normalizeUnit));
 
-    const existingFixedEntries = schedule?.entries.filter((e) => e.isFixed) || [];
+    const existingFixedEntries = keepFixed ? schedule?.entries.filter((e) => e.isFixed) || [] : [];
     const result = await generate(data, existingFixedEntries);
     setIsLoading(false);
 
@@ -276,9 +389,19 @@ export default function RotawisePage() {
     }
   };
 
+  const runGenerate = (keepFixed: boolean) => {
+    if (!formRef.current) return;
+    void formRef.current.handleSubmit((data) => handleSubmitForm(data, keepFixed))();
+  };
+
   const handleGenerateClick = () => {
     if (!formRef.current) return;
-    void formRef.current.handleSubmit(handleSubmitForm)();
+    const hasFixed = !!schedule?.entries.some((e) => e.isFixed);
+    if (hasFixed) {
+      setShowRegenerateDialog(true);
+      return;
+    }
+    runGenerate(true);
   };
 
   const handleArbitraryScheduleEntry = useCallback(
@@ -451,24 +574,6 @@ export default function RotawisePage() {
     [schedule, doctorsProfiles, scheduleWarnings, currentMinInterval, historyPush],
   );
 
-  const handleClearSchedule = () => {
-    setSchedule(null);
-    setScheduleWarnings([]);
-    setActiveTab('config');
-    if (fileHandle) {
-      saveToFile(buildAppFileData(null, doctorsProfiles, loadedFormValues, [], currentMinInterval, fileVersions)).catch(
-        console.error,
-      );
-    }
-    addMessage({
-      severity: 'success',
-      title: t('page.toast.scheduleCleared.title'),
-      description: t('page.toast.scheduleCleared.description'),
-      autoDismissMs: 3000,
-    });
-    setShowClearScheduleDialog(false);
-  };
-
   const handleClearDoctorDetails = () => {
     if (formRef.current) {
       const current = formRef.current.getValues();
@@ -568,19 +673,11 @@ export default function RotawisePage() {
     addMessage({ severity: 'info', title: t('page.toast.undone'), autoDismissMs: 2000 });
   };
 
-  if (!isMounted) {
+  if (!isMounted || !isHydrated) {
     return (
       <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
         <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500" />
       </div>
-    );
-  }
-
-  if (!isSupported) {
-    return (
-      <Suspense fallback={null}>
-        <BrowserNotSupported />
-      </Suspense>
     );
   }
 
@@ -598,18 +695,13 @@ export default function RotawisePage() {
 
   return (
     <>
-      {!isFileSessionActive ? (
-        <Suspense fallback={<div className="fixed inset-0 z-50 bg-[#0f172a]" />}>
-          <StartupScreen onFileReady={handleFileReady} onError={handleFileError} />
-        </Suspense>
-      ) : (
-        <>
           <div className="app-shell">
             <AppSidebar navItems={navItems} activeTab={activeTab} onTabChange={setActiveTab} />
 
             <div className="app-body">
               <CommandBar
                 fileName={fileName}
+                persistenceMode={persistenceMode}
                 canGenerate={hasDoctors}
                 canUndo={canUndo}
                 hasSchedule={!!schedule}
@@ -620,9 +712,13 @@ export default function RotawisePage() {
                 onGenerate={handleGenerateClick}
                 onUndo={handleUndoHistory}
                 onExportWord={handleExportWord}
-                onClearSchedule={() => setShowClearScheduleDialog(true)}
                 onClearDoctors={() => setShowClearDoctorDetailsDialog(true)}
+                onNewSchedule={handleNewScheduleRequest}
+                onOpenFile={handleOpenFileRequest}
+                onSaveToFile={() => void handleSaveToFile()}
               />
+
+              {!isFileSystemAccessSupported && <FileSystemBanner />}
 
               {scheduleWarnings.length > 0 && activeTab !== 'config' && (
                 <ScheduleWarningsBanner
@@ -711,15 +807,32 @@ export default function RotawisePage() {
           </div>
 
           <ConfirmDialogs
-            showClearSchedule={showClearScheduleDialog}
+            showNewSchedule={showNewScheduleDialog}
+            showOpenReplace={showOpenReplaceDialog}
             showClearDoctors={showClearDoctorDetailsDialog}
-            onShowClearScheduleChange={setShowClearScheduleDialog}
+            showRegenerate={showRegenerateDialog}
+            onShowNewScheduleChange={setShowNewScheduleDialog}
+            onShowOpenReplaceChange={setShowOpenReplaceDialog}
             onShowClearDoctorsChange={setShowClearDoctorDetailsDialog}
-            onConfirmClearSchedule={handleClearSchedule}
+            onShowRegenerateChange={setShowRegenerateDialog}
+            onConfirmNewSchedule={() => {
+              setShowNewScheduleDialog(false);
+              void resetToEmpty();
+            }}
+            onConfirmOpenReplace={() => {
+              setShowOpenReplaceDialog(false);
+              void performOpenFile();
+            }}
             onConfirmClearDoctors={handleClearDoctorDetails}
+            onConfirmRegenerateKeepFixed={() => {
+              setShowRegenerateDialog(false);
+              runGenerate(true);
+            }}
+            onConfirmRegenerateFromScratch={() => {
+              setShowRegenerateDialog(false);
+              runGenerate(false);
+            }}
           />
-        </>
-      )}
 
       <InfoBarList messages={messages} onDismiss={dismissMessage} />
     </>

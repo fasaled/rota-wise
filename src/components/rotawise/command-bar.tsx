@@ -7,11 +7,23 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { File, History, Download, FileText, Trash2, UserX, MoreHorizontal } from 'lucide-react';
+import {
+  File,
+  History,
+  Download,
+  FileText,
+  UserX,
+  MoreHorizontal,
+  ChevronDown,
+  FolderOpen,
+  Save,
+  FilePlus2,
+} from 'lucide-react';
 import { useLanguage } from '@/context/language-context';
 
 interface CommandBarProps {
   fileName: string | null;
+  persistenceMode: 'browser' | 'file';
   canGenerate: boolean;
   canUndo: boolean;
   hasSchedule: boolean;
@@ -22,12 +34,15 @@ interface CommandBarProps {
   onGenerate: () => void;
   onUndo: () => void;
   onExportWord: () => void;
-  onClearSchedule: () => void;
   onClearDoctors: () => void;
+  onNewSchedule: () => void;
+  onOpenFile: () => void;
+  onSaveToFile: () => void;
 }
 
 export function CommandBar({
   fileName,
+  persistenceMode,
   canGenerate,
   canUndo,
   hasSchedule,
@@ -38,19 +53,59 @@ export function CommandBar({
   onGenerate,
   onUndo,
   onExportWord,
-  onClearSchedule,
   onClearDoctors,
+  onNewSchedule,
+  onOpenFile,
+  onSaveToFile,
 }: CommandBarProps) {
   const { t } = useLanguage();
   const generateDisabled = !canGenerate || isBusy;
+  const displayName = fileName ?? t('file.noFileOpen');
+
+  const fileMenuItems = (
+    <>
+      <DropdownMenuItem onClick={onNewSchedule} disabled={isBusy}>
+        <FilePlus2 className="h-4 w-4 mr-2" />
+        {t('file.newSchedule')}
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={onOpenFile} disabled={isBusy}>
+        <FolderOpen className="h-4 w-4 mr-2" />
+        {t('file.open')}
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={onSaveToFile} disabled={isBusy}>
+        <Save className="h-4 w-4 mr-2" />
+        {persistenceMode === 'file' ? t('file.saveAs') : t('file.saveToFile')}
+      </DropdownMenuItem>
+    </>
+  );
 
   return (
     <header className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border bg-card shrink-0 shadow-sm">
       <div className="flex items-center gap-2 min-w-0">
-        <File className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="text-sm font-medium text-foreground truncate">
-          {fileName ?? t('file.noFileOpen')}
-        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="min-w-0 max-w-[14rem] px-2"
+              aria-label={t('file.menu')}
+              title={t('file.menu')}
+              disabled={isBusy}
+            >
+              <File className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground truncate">{displayName}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-52">
+            {fileMenuItems}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {persistenceMode === 'browser' && (
+          <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 px-1.5 py-0.5 rounded font-medium shrink-0">
+            {t('file.browserOnly')}
+          </span>
+        )}
         {fileName && !fileName.endsWith('.rw') && (
           <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded font-medium shrink-0">
             .json
@@ -109,16 +164,6 @@ export function CommandBar({
 
         <Button
           size="sm"
-          variant="destructive"
-          onClick={onClearSchedule}
-          disabled={!hasSchedule || isBusy}
-          title={t('page.clearSchedule')}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-
-        <Button
-          size="sm"
           variant="outline"
           onClick={onClearDoctors}
           disabled={!hasDoctors || isBusy}
@@ -157,14 +202,6 @@ export function CommandBar({
               {t('page.exportWord')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={onClearSchedule}
-              disabled={!hasSchedule || isBusy}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              {t('page.clearSchedule')}
-            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={onClearDoctors}
               disabled={!hasDoctors || isBusy}

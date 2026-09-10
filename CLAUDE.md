@@ -40,7 +40,7 @@ Types are in `src/lib/types.ts`: `DoctorProfile`, `ScheduleEntry`, `Schedule`, `
 Orchestrator component. Manages:
 - Form state (via react-hook-form + Zod)
 - Generated schedule state
-- File persistence via File System Access API (`.rw` files, auto-save on change)
+- File persistence: IndexedDB working copy always; optional `.rw` via File System Access API (auto-save on change)
 - Undo history (`useHistory` hook)
 - Coordination between all child components
 
@@ -65,7 +65,7 @@ English/Spanish support via a React context. Translation files in `src/locales/`
 
 ### Data Persistence
 
-All persistence is client-side via the File System Access API (`.rw` files). Browsers without that API see a blocking unsupported-browser screen. No backend/database. Word export uses `docx` (lazy-imported on demand).
+All persistence is client-side. A working copy is always stored in IndexedDB. When a `.rw` file is bound (Chromium File System Access API), changes also auto-save to disk. Other browsers can open files and download a `.rw` copy. No backend/database. Word export uses `docx` (lazy-imported on demand).
 
 ## Key Constraints
 

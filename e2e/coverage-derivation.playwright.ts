@@ -113,7 +113,7 @@ test.describe('Coverage is correctly derived from current state', () => {
     // On Mon Jan 1: d1 is on call (pre-assigned), d2 is on vacation.
     // The unit has only d1 available, so available=1, min=2 → partial.
     const grid = page.locator('.grid-cols-7').last();
-    await grid.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
+    await grid.waitFor({ state: 'visible', timeout: 10_000 });
     const amberCount = await grid.locator('.bg-amber-500').count();
     const redCount = await grid.locator('.bg-rose-500').count();
     expect(amberCount, 'partial coverage should produce amber dots').toBeGreaterThan(0);
@@ -168,6 +168,9 @@ test.describe('Coverage is correctly derived from current state', () => {
 
     await mockFileSystemAccess(page, JSON.parse(file));
     await openAppAndLoadFile(page);
+
+    const grid = page.locator('.grid-cols-7').last();
+    await expect(grid.getByText('Dr. A').first()).toBeVisible();
 
     const coverage = await readCoverageState(page);
     expect(coverage.red).toBe(0);

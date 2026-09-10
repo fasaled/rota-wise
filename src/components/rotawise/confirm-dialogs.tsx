@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,39 +12,68 @@ import {
 import { useLanguage } from '@/context/language-context';
 
 interface ConfirmDialogsProps {
-  showClearSchedule: boolean;
+  showNewSchedule: boolean;
+  showOpenReplace: boolean;
   showClearDoctors: boolean;
-  onShowClearScheduleChange: (open: boolean) => void;
+  showRegenerate: boolean;
+  onShowNewScheduleChange: (open: boolean) => void;
+  onShowOpenReplaceChange: (open: boolean) => void;
   onShowClearDoctorsChange: (open: boolean) => void;
-  onConfirmClearSchedule: () => void;
+  onShowRegenerateChange: (open: boolean) => void;
+  onConfirmNewSchedule: () => void;
+  onConfirmOpenReplace: () => void;
   onConfirmClearDoctors: () => void;
+  onConfirmRegenerateKeepFixed: () => void;
+  onConfirmRegenerateFromScratch: () => void;
 }
 
 export function ConfirmDialogs({
-  showClearSchedule,
+  showNewSchedule,
+  showOpenReplace,
   showClearDoctors,
-  onShowClearScheduleChange,
+  showRegenerate,
+  onShowNewScheduleChange,
+  onShowOpenReplaceChange,
   onShowClearDoctorsChange,
-  onConfirmClearSchedule,
+  onShowRegenerateChange,
+  onConfirmNewSchedule,
+  onConfirmOpenReplace,
   onConfirmClearDoctors,
+  onConfirmRegenerateKeepFixed,
+  onConfirmRegenerateFromScratch,
 }: ConfirmDialogsProps) {
   const { t } = useLanguage();
 
   return (
     <>
-      <AlertDialog open={showClearSchedule} onOpenChange={onShowClearScheduleChange}>
+      <AlertDialog open={showNewSchedule} onOpenChange={onShowNewScheduleChange}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('page.confirmClearSchedule.title')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('page.confirmClearSchedule.description')}</AlertDialogDescription>
+            <AlertDialogTitle>{t('page.confirmNewSchedule.title')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('page.confirmNewSchedule.description')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('page.confirmClearSchedule.cancel')}</AlertDialogCancel>
+            <AlertDialogCancel>{t('page.confirmNewSchedule.cancel')}</AlertDialogCancel>
             <AlertDialogAction
-              onClick={onConfirmClearSchedule}
+              onClick={onConfirmNewSchedule}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {t('page.confirmClearSchedule.confirm')}
+              {t('page.confirmNewSchedule.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showOpenReplace} onOpenChange={onShowOpenReplaceChange}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('file.replaceTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('file.replaceDescription')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('file.replaceCancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmOpenReplace}>
+              {t('file.replaceConfirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -62,6 +92,24 @@ export function ConfirmDialogs({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {t('page.confirmClearDoctorDetails.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showRegenerate} onOpenChange={onShowRegenerateChange}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('page.confirmRegenerate.title')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('page.confirmRegenerate.description')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-end gap-2">
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <Button type="button" variant="outline" onClick={onConfirmRegenerateFromScratch}>
+              {t('page.confirmRegenerate.fromScratch')}
+            </Button>
+            <AlertDialogAction onClick={onConfirmRegenerateKeepFixed}>
+              {t('page.confirmRegenerate.keepFixed')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

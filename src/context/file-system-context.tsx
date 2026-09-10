@@ -1,5 +1,4 @@
 
-
 import React, {
   createContext,
   useContext,
@@ -8,34 +7,44 @@ import React, {
   useEffect,
   type ReactNode,
 } from 'react';
+import { type AppFileData } from '@/lib/types';
+import { parseAppFileJson } from '@/lib/schedule-storage';
 import {
-  CURRENT_FILE_VERSION,
-  type AppFileData,
-} from '@/lib/types';
+  clearPersistedFileHandle,
+  loadPersistedFileHandle,
+  savePersistedFileHandle,
+  type PersistenceMode,
+} from '@/lib/browser-storage';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
+export interface OpenFileResult {
+  handle: FileSystemFileHandle | null;
+  data: AppFileData;
+  fileName: string;
+  convertedFromJson?: boolean;
+}
+
+export interface SaveFileResult {
+  handle: FileSystemFileHandle | null;
+  fileName: string;
+  downloaded: boolean;
+}
+
 interface FileSystemContextValue {
-  /** Currently held file handle for auto-save */
   fileHandle: FileSystemFileHandle | null;
-  /** Display name of the current file */
   fileName: string | null;
-  /** True if the File System Access API is available in this browser. Rotawise does
-   *  not function on browsers where this is false — the page renders a blocking
-   *  message instead of the app shell. */
-  isSupported: boolean;
-  /** File data received via PWA launchQueue file association */
+  persistenceMode: PersistenceMode;
+  /** True if showOpenFilePicker / showSaveFilePicker exist (Chromium). */
+  isFileSystemAccessSupported: boolean;
   launchQueueData: AppFileData | null;
   clearLaunchQueueData: () => void;
-  /** Open an existing .rw or .json file via the system file picker.
-   *  If the opened file is .json, the user is prompted to save a copy as .rw. */
-  openFile: () => Promise<{ handle: FileSystemFileHandle; data: AppFileData; convertedFromJson?: boolean } | null>;
-  /** Create a new .rw file via the system save picker */
-  createNewFile: () => Promise<{ handle: FileSystemFileHandle; data: AppFileData } | null>;
-  /** Write data to the current file handle */
+  openFile: () => Promise<OpenFileResult | null>;
+  saveAsFile: (data: AppFileData) => Promise<SaveFileResult | null>;
   saveToFile: (data: AppFileData) => Promise<void>;
+  clearBinding: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -43,88 +52,30 @@ interface FileSystemContextValue {
 // ---------------------------------------------------------------------------
 
 function detectFileSystemSupport(): boolean {
-  return 'showOpenFilePicker' in window;
+  return 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
 }
 
-function makeEmptyFileData(): AppFileData {
-  return {
-    fileVersion: CURRENT_FILE_VERSION,
-    versions: [],
-    schedule: {
-      entries: [],
-      startDate: new Date().toISOString(),
-      endDate: new Date().toISOString(),
+const RW_OPEN_TYPES = [
+  {
+    description: 'Rotawise files',
+    accept: {
+      'application/x-rotawise': ['.rw'],
+      'application/json': ['.json'],
     },
-    doctorsProfiles: [],
-    formValues: {
-      numberOfDoctors: 2,
-      startDate: new Date().toISOString(),
-      endDate: new Date().toISOString(),
-      doctors: [],
-      units: [],
-    } as unknown as AppFileData['formValues'],
-    scheduleWarnings: [],
-  };
-}
+  },
+];
 
-async function readFileData(file: File): Promise<AppFileData> {
-  const text = await file.text();
-  const parsed: Record<string, unknown> = JSON.parse(text);
+const RW_SAVE_TYPES = [
+  {
+    description: 'Rotawise file',
+    accept: { 'application/x-rotawise': ['.rw'] },
+  },
+];
 
-  // Migrate old .rw files where the concept was "vacation" (now "free day").
-  // - vacationDates → freeDates in doctorsProfiles and formValues.doctors
-  // - assignment: 'Vacation' → assignment: 'Free' in schedule.entries
-  if (Array.isArray(parsed.doctorsProfiles)) {
-    parsed.doctorsProfiles = (parsed.doctorsProfiles as Record<string, unknown>[]).map((d) => {
-      if ('vacationDates' in d && !('freeDates' in d)) {
-        d.freeDates = d.vacationDates;
-        delete d.vacationDates;
-      }
-      return d;
-    });
-  }
-  if (
-    parsed.formValues &&
-    typeof parsed.formValues === 'object' &&
-    Array.isArray((parsed.formValues as Record<string, unknown>).doctors)
-  ) {
-    (parsed.formValues as Record<string, unknown>).doctors = (
-      (parsed.formValues as Record<string, unknown>).doctors as Record<string, unknown>[]
-    ).map((d) => {
-      if ('vacationDates' in d && !('freeDates' in d)) {
-        d.freeDates = d.vacationDates;
-        delete d.vacationDates;
-      }
-      return d;
-    });
-  }
-  if (
-    parsed.schedule &&
-    typeof parsed.schedule === 'object' &&
-    Array.isArray((parsed.schedule as Record<string, unknown>).entries)
-  ) {
-    (parsed.schedule as Record<string, unknown>).entries = (
-      (parsed.schedule as Record<string, unknown>).entries as Record<string, unknown>[]
-    ).map((e) => {
-      if (e.assignment === 'Vacation') e.assignment = 'Free';
-      return e;
-    });
-  }
-
-  return {
-    fileVersion: (parsed.fileVersion as number) ?? CURRENT_FILE_VERSION,
-    versions: [],
-    ...parsed,
-  } as unknown as AppFileData;
-}
-
-async function writeFileData(
-  handle: FileSystemFileHandle,
-  data: AppFileData,
-): Promise<void> {
-  // Check permission before writing; skip silently if not yet granted (user will be prompted on next save)
-  const perm = await (handle as FileSystemFileHandle & { queryPermission: (d: { mode: string }) => Promise<string> })
-    .queryPermission({ mode: 'readwrite' });
+async function writeFileData(handle: FileSystemFileHandle, data: AppFileData): Promise<void> {
+  const perm = await (
+    handle as FileSystemFileHandle & { queryPermission: (d: { mode: string }) => Promise<string> }
+  ).queryPermission({ mode: 'readwrite' });
   if (perm !== 'granted') {
     console.warn('[FileSystem] Skipping write — readwrite permission not granted.');
     return;
@@ -132,6 +83,40 @@ async function writeFileData(
   const writable = await handle.createWritable();
   await writable.write(JSON.stringify(data, null, 2));
   await writable.close();
+}
+
+function pickFileViaInput(): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.rw,.json,application/json,application/x-rotawise';
+    input.addEventListener('change', () => resolve(input.files?.[0] ?? null), { once: true });
+    input.addEventListener('cancel', () => resolve(null), { once: true });
+    input.click();
+  });
+}
+
+function downloadRwFile(data: AppFileData, suggestedName: string): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = suggestedName.endsWith('.rw') ? suggestedName : `${suggestedName}.rw`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function permissionGranted(handle: FileSystemFileHandle, request: boolean): Promise<boolean> {
+  const withPerm = handle as FileSystemFileHandle & {
+    queryPermission: (d: { mode: string }) => Promise<string>;
+    requestPermission: (d: { mode: string }) => Promise<string>;
+  };
+  const current = await withPerm.queryPermission({ mode: 'readwrite' });
+  if (current === 'granted') return true;
+  if (!request) return false;
+  return (await withPerm.requestPermission({ mode: 'readwrite' })) === 'granted';
 }
 
 // ---------------------------------------------------------------------------
@@ -153,118 +138,144 @@ export function useFileSystem(): FileSystemContextValue {
 export function FileSystemProvider({ children }: { children: ReactNode }) {
   const [fileHandle, setFileHandleState] = useState<FileSystemFileHandle | null>(null);
   const [launchQueueData, setLaunchQueueData] = useState<AppFileData | null>(null);
-  const [isSupported, setIsSupported] = useState(false);
+  const [isFileSystemAccessSupported, setIsFileSystemAccessSupported] = useState(false);
 
   useEffect(() => {
-    setIsSupported(detectFileSystemSupport());
+    setIsFileSystemAccessSupported(detectFileSystemSupport());
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const handle = await loadPersistedFileHandle();
+        if (!handle || cancelled) return;
+        if (await permissionGranted(handle, false)) {
+          setFileHandleState(handle);
+        } else {
+          await clearPersistedFileHandle();
+        }
+      } catch (err) {
+        console.warn('[FileSystem] Could not restore persisted file handle', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const bindHandle = useCallback(async (handle: FileSystemFileHandle | null) => {
+    setFileHandleState(handle);
+    try {
+      if (handle) await savePersistedFileHandle(handle);
+      else await clearPersistedFileHandle();
+    } catch (err) {
+      console.warn('[FileSystem] Could not persist file handle', err);
+    }
   }, []);
 
   const clearLaunchQueueData = useCallback(() => {
     setLaunchQueueData(null);
   }, []);
 
-  // Register PWA file handler via launchQueue
   useEffect(() => {
     if (!('launchQueue' in window)) return;
 
-    (window as typeof window & { launchQueue: { setConsumer: (cb: (params: { files: FileSystemFileHandle[] }) => void) => void } })
-      .launchQueue.setConsumer(async (launchParams) => {
-        if (!launchParams.files || launchParams.files.length === 0) return;
-        try {
-          const handle = launchParams.files[0];
-          const file = await handle.getFile();
-          const data = await readFileData(file);
-          setFileHandleState(handle);
-          setLaunchQueueData(data);
-        } catch (err) {
-          console.error('[FileSystem] Error reading file from launchQueue', err);
-        }
-      });
-  }, []);
+    (
+      window as typeof window & {
+        launchQueue: { setConsumer: (cb: (params: { files: FileSystemFileHandle[] }) => void) => void };
+      }
+    ).launchQueue.setConsumer(async (launchParams) => {
+      if (!launchParams.files || launchParams.files.length === 0) return;
+      try {
+        const handle = launchParams.files[0];
+        const file = await handle.getFile();
+        const data = parseAppFileJson(await file.text());
+        await bindHandle(handle);
+        setLaunchQueueData(data);
+      } catch (err) {
+        console.error('[FileSystem] Error reading file from launchQueue', err);
+      }
+    });
+  }, [bindHandle]);
 
-  const openFile = useCallback(async () => {
-    if (!isSupported) return null;
+  const openFile = useCallback(async (): Promise<OpenFileResult | null> => {
     const win = window as typeof window & {
       showOpenFilePicker: (opts?: object) => Promise<FileSystemFileHandle[]>;
       showSaveFilePicker: (opts?: object) => Promise<FileSystemFileHandle>;
     };
-    try {
-      const [handle] = await win.showOpenFilePicker({
-        types: [
-          {
-            description: 'Rotawise files',
-            accept: {
-              'application/x-rotawise': ['.rw'],
-              'application/json': ['.json'],
-            },
-          },
-        ],
-        multiple: false,
-      });
-      // Request write permission immediately while still inside the user gesture
-      const perm = await (handle as FileSystemFileHandle & { requestPermission: (d: { mode: string }) => Promise<string> })
-        .requestPermission({ mode: 'readwrite' });
-      if (perm !== 'granted') {
-        console.warn('[FileSystem] Write permission not granted; auto-save will be unavailable.');
+
+    if (isFileSystemAccessSupported) {
+      try {
+        const [handle] = await win.showOpenFilePicker({
+          types: RW_OPEN_TYPES,
+          multiple: false,
+        });
+        const granted = await permissionGranted(handle, true);
+        if (!granted) {
+          console.warn('[FileSystem] Write permission not granted; auto-save will be unavailable.');
+        }
+
+        const file = await handle.getFile();
+        const data = parseAppFileJson(await file.text());
+
+        if (handle.name.endsWith('.json')) {
+          const suggestedName = handle.name.replace(/\.json$/, '.rw');
+          try {
+            const rwHandle = await win.showSaveFilePicker({
+              suggestedName,
+              types: RW_SAVE_TYPES,
+            });
+            await writeFileData(rwHandle, data);
+            await bindHandle(rwHandle);
+            return { handle: rwHandle, data, fileName: rwHandle.name, convertedFromJson: true };
+          } catch (saveErr: unknown) {
+            if ((saveErr as { name?: string }).name !== 'AbortError') throw saveErr;
+            await bindHandle(handle);
+            return { handle, data, fileName: handle.name, convertedFromJson: false };
+          }
+        }
+
+        await bindHandle(handle);
+        return { handle, data, fileName: handle.name };
+      } catch (err: unknown) {
+        if ((err as { name?: string }).name === 'AbortError') return null;
+        throw err;
       }
+    }
 
-      const file = await handle.getFile();
-      const data = await readFileData(file);
+    const file = await pickFileViaInput();
+    if (!file) return null;
+    const data = parseAppFileJson(await file.text());
+    await bindHandle(null);
+    return { handle: null, data, fileName: file.name };
+  }, [isFileSystemAccessSupported, bindHandle]);
 
-      // If a legacy .json file was opened, save a copy as .rw and use that handle
-      if (handle.name.endsWith('.json')) {
-        const suggestedName = handle.name.replace(/\.json$/, '.rw');
+  const saveAsFile = useCallback(
+    async (data: AppFileData): Promise<SaveFileResult | null> => {
+      if (isFileSystemAccessSupported) {
         try {
-          const rwHandle = await win.showSaveFilePicker({
-            suggestedName,
-            types: [
-              {
-                description: 'Rotawise file',
-                accept: { 'application/x-rotawise': ['.rw'] },
-              },
-            ],
+          const handle = await (
+            window as typeof window & { showSaveFilePicker: (opts?: object) => Promise<FileSystemFileHandle> }
+          ).showSaveFilePicker({
+            suggestedName: fileHandle?.name ?? 'schedule.rw',
+            types: RW_SAVE_TYPES,
           });
-          await writeFileData(rwHandle, data);
-          setFileHandleState(rwHandle);
-          return { handle: rwHandle, data, convertedFromJson: true };
-        } catch (saveErr: unknown) {
-          // User cancelled the save-as dialog — continue with the original .json handle
-          if ((saveErr as { name?: string }).name !== 'AbortError') throw saveErr;
-          setFileHandleState(handle);
-          return { handle, data, convertedFromJson: false };
+          await writeFileData(handle, data);
+          await bindHandle(handle);
+          return { handle, fileName: handle.name, downloaded: false };
+        } catch (err: unknown) {
+          if ((err as { name?: string }).name === 'AbortError') return null;
+          throw err;
         }
       }
 
-      setFileHandleState(handle);
-      return { handle, data };
-    } catch (err: unknown) {
-      if ((err as { name?: string }).name === 'AbortError') return null; // user cancelled open picker
-      throw err;
-    }
-  }, [isSupported]);
-
-  const createNewFile = useCallback(async () => {
-    if (!isSupported) return null;
-    try {
-      const handle = await (window as typeof window & { showSaveFilePicker: (opts?: object) => Promise<FileSystemFileHandle> })
-        .showSaveFilePicker({
-          suggestedName: 'schedule.rw',
-          types: [
-            {
-              description: 'Rotawise file',
-              accept: { 'application/x-rotawise': ['.rw'] },
-            },
-          ],
-        });
-      const data = makeEmptyFileData();
-      await writeFileData(handle, data);
-      setFileHandleState(handle);
-      return { handle, data };
-    } catch (err: unknown) {
-      if ((err as { name?: string }).name === 'AbortError') return null;
-      throw err;
-    }
-  }, [isSupported]);
+      const name = fileHandle?.name ?? 'schedule.rw';
+      downloadRwFile(data, name);
+      return { handle: null, fileName: name, downloaded: true };
+    },
+    [isFileSystemAccessSupported, fileHandle, bindHandle],
+  );
 
   const saveToFile = useCallback(
     async (data: AppFileData) => {
@@ -274,21 +285,28 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     [fileHandle],
   );
 
+  const clearBinding = useCallback(async () => {
+    await bindHandle(null);
+  }, [bindHandle]);
+
   const fileName = fileHandle?.name ?? null;
+  const persistenceMode: PersistenceMode = fileHandle ? 'file' : 'browser';
 
   return (
-      <FileSystemContext.Provider
-        value={{
-          fileHandle,
-          fileName,
-          isSupported,
-          launchQueueData,
-          clearLaunchQueueData,
-          openFile,
-          createNewFile,
-          saveToFile,
-        }}
-      >
+    <FileSystemContext.Provider
+      value={{
+        fileHandle,
+        fileName,
+        persistenceMode,
+        isFileSystemAccessSupported,
+        launchQueueData,
+        clearLaunchQueueData,
+        openFile,
+        saveAsFile,
+        saveToFile,
+        clearBinding,
+      }}
+    >
       {children}
     </FileSystemContext.Provider>
   );
