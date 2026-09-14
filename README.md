@@ -1,121 +1,123 @@
 # Rota-Wise
 
-A PWA for fair and balanced doctor shift scheduling. Generates equitable schedules while respecting vacations, rest intervals, pre-assignments, and workload distribution across days and months. Fully client-side — no backend required.
+A client-side PWA for **fair doctor on-call scheduling**. It builds a rota over
+a date range while respecting rest intervals, free days, pre-assignments, and
+optional post-call coverage per medical unit.
+
+There is **no backend**. Rosters live in the browser (IndexedDB) and, if you
+choose, in a `.rw` file on disk.
+
+**Live app:** [rotawise.fasl.dev](https://rotawise.fasl.dev)
+
+![Calendar view](public/screenshots/desktop.png)
+
+<p align="center">
+  <img src="public/screenshots/mobile.png" alt="Rota-Wise on a narrow viewport" width="280" />
+</p>
+
+> **Not a medical device.** Generated schedules are a planning aid. Always
+> review warnings, uncovered days, and departmental rules before publishing a
+> rota. Do not commit real staff rosters to git.
 
 ## Features
 
-- **Smart scheduling algorithm** — generates optimal schedules with configurable hard and soft constraints
-- **Interactive calendar** — color-coded monthly view with drag-and-drop, click-to-edit, and entry locking
-- **Fairness guarantees** — balanced distribution by weekday, month, and weekend shifts
-- **Global monthly shift limit** — configurable cap on shifts per doctor per month
-- **Summary tables** — workdays by day-of-week and by month for each doctor
-- **Export** — Word (.docx) report, generated on demand
-- **Save/load** — work without a file (auto-save in the browser); optionally bind a `.rw` file for disk auto-save
-- **Offline-ready** — Workbox PWA with full precaching; all assets available without network
-- **Internationalization** — English and Spanish
-- **Dark/light theme**
+- **Constraint-aware generator** — hard rest / post-call / coverage rules, soft fairness scoring, weighted sampling so consecutive runs can differ
+- **Medical units** — weekday post-call headcount, allied units that share a pool, temporary cover assignments
+- **Interactive calendar** — colour-coded chips, drag-and-drop, pinning, coverage dots
+- **Summaries** — workdays by weekday and by month, with an optional date filter
+- **Export** — Word (`.docx`) calendar, generated in the browser
+- **Save / load** — working copy in the browser; optional `.rw` auto-save via the File System Access API
+- **Offline PWA** — Workbox precache; full app after the first visit
+- **English and Spanish**, light / dark / system theme
 
-## Tech Stack
+## Tech stack
 
-- **Vite 6** / **React 19** / **TypeScript**
-- **Tailwind CSS** + **Radix UI** (shadcn/ui)
-- **date-fns**, **react-hook-form** + **Zod**
-- **docx** — Word export (lazy-loaded)
-- **vite-plugin-pwa** + **Workbox** — PWA/offline
-- **Bun** — package manager, runtime, test runner
+Vite 6 · React 19 · TypeScript · Tailwind CSS + Radix (shadcn/ui) · date-fns ·
+react-hook-form + Zod · `docx` · vite-plugin-pwa / Workbox · **Bun** (install,
+dev, test)
 
-## Getting Started
+Geist Sans and Geist Mono are bundled under the SIL Open Font License 1.1
+([`src/assets/fonts/OFL.txt`](src/assets/fonts/OFL.txt)).
 
-**Prerequisites:** [Bun](https://bun.sh) v1.0+
+## Quick start
+
+**Prerequisite:** [Bun](https://bun.sh) ≥ 1.1
 
 ```bash
 bun install
 bun run dev        # http://localhost:5173
 ```
 
-## Commands
-
 | Command | Description |
 |---|---|
-| `bun run dev` | Development server (Vite HMR) |
-| `bun run build` | Production build (Rollup + Workbox) |
-| `bun run preview` | Serve production build locally |
+| `bun run dev` | Vite dev server |
+| `bun run build` | Production build → `dist/` |
+| `bun run preview` | Serve the production build |
 | `bun run lint` | ESLint |
-| `bun run typecheck` | TypeScript check |
-| `bun test` | Run tests |
-| `bun test --watch` | Tests in watch mode |
-| `bun test --coverage` | Tests with coverage report |
+| `bun run typecheck` | TypeScript (app + node + tests) |
+| `bun test` | Unit tests (bun test + happy-dom) |
+| `bun run e2e` | Playwright journeys (Chromium) |
 
-## Project Structure
+Verify a change with `lint` → `typecheck` → `test`.
 
-```
-src/
-├── main.tsx                    # React entry point (providers + root render)
-├── rotawise-page.tsx           # Root orchestrator (app shell, tabs)
-├── styles/globals.css          # Global styles + Tailwind + CSS variables
-├── components/
-│   ├── rotawise/               # Schedule-specific components
-│   └── ui/                     # shadcn/ui primitives (Radix UI + Tailwind)
-├── context/                    # React contexts (language, file system)
-├── hooks/                      # Custom hooks (debounce, history, info-bar, schedule worker)
-├── lib/
-│   ├── schedule-generator.ts   # Core scheduling algorithm
-│   ├── schedule-coverage.ts    # Unit coverage helpers (used by calendar + generator)
-│   ├── schedule-analyze.ts     # Post-generation constraint analysis
-│   ├── schedule-storage.ts     # .rw serialize/deserialize
-│   ├── export-word.ts          # Word export (docx)
-│   ├── types.ts                # TypeScript types
-│   └── utils.ts                # Utilities
-├── locales/                    # i18n translations (en.json, es.json)
-├── workers/
-│   └── schedule.worker.ts      # Web Worker — runs generateSchedule off the main thread
-└── __tests__/                  # bun test (algorithm, storage, warnings, hooks)
-```
+## How scheduling works
 
-## Architecture
+Each unassigned day, eligible doctors are filtered with **hard** rules (free
+days, excluded dates, minimum interval, post-call, unit coverage look-ahead).
+Survivors receive a **fairness score** (weekday balance, preferred days,
+weekends, monthly load, idle time). The chosen doctor is drawn with
+**weighted random sampling** so higher scores are favoured but not exclusive.
 
-The app is a single-page React client. Key design decisions:
+Full specification: [`docs/algorithm.md`](docs/algorithm.md).
 
-- **Scheduling runs in a Web Worker** (`src/workers/schedule.worker.ts` via `useScheduleWorker` hook) to keep the UI responsive during generation.
-- **Heavy components are lazy-loaded** (`React.lazy` + `Suspense`) — calendar, summary tables, and Word export load on demand.
-- **Export libraries are lazy-imported** — docx is fetched from SW cache only when the user clicks export, reducing initial bundle size.
-- **All state is client-side** — IndexedDB working copy, optional File System Access API for `.rw` auto-save, no backend.
+## Architecture in brief
 
-## Algorithm
+- SPA only: `src/main.tsx` → `src/rotawise-page.tsx`
+- `generateSchedule` runs in a **Web Worker** (`src/workers/schedule.worker.ts`)
+- Calendar, summaries, and Word export are **lazy-loaded** (Roster tab is the form)
+- Persistence: IndexedDB always; optional bound `.rw` file on Chromium
 
-Selection criteria (in priority order) for each unassigned day:
-
-1. Fewest total shifts globally
-2. Most underrepresented for that day-of-week
-3. Fewest weekend shifts this month (weekends only)
-4. Fewest shifts on this specific weekday
-5. Lowest monthly workload ratio (shifts / available days)
-6. Longest idle time since last shift
-7. Random tiebreaker
-
-Full specification: [`docs/algorithm.md`](docs/algorithm.md)
-
-## Testing
-
-Unit tests in `src/__tests__/` cover the scheduling algorithm, file serialization, warnings, and hooks. Playwright journeys live in `e2e/`. Tests run with `bun test`.
-
-```bash
-bun test                                           # all tests
-bun test src/__tests__/schedule-generator.test.ts  # single file
-```
-
-## Deployment
-
-Static export deployable to any CDN or Node.js host:
-
-- **Vercel** — recommended (`bun run build` → deploy `dist/`)
-- **Netlify**, **Cloudflare Pages**, **GitHub Pages**
-- **App stores** — PWA packaged via [PWABuilder](https://www.pwabuilder.com/) for Microsoft Store / Google Play
-
-All JS chunks are precached by the service worker at install time — the app works fully offline after the first load.
+Details: [`docs/architecture.md`](docs/architecture.md) ·
+[`docs/file-format.md`](docs/file-format.md) ·
+[`docs/privacy.md`](docs/privacy.md)
 
 ## Documentation
 
-- [`docs/algorithm.md`](docs/algorithm.md) — Complete scheduling algorithm specification
-- [`docs/ui-reference.md`](docs/ui-reference.md) — UI component and interaction reference
-- [`CLAUDE.md`](CLAUDE.md) — Development guidance for Claude Code
+| Doc | Topic |
+|---|---|
+| [docs/README.md](docs/README.md) | Index |
+| [docs/algorithm.md](docs/algorithm.md) | Scheduler specification |
+| [docs/architecture.md](docs/architecture.md) | Modules and ADRs |
+| [docs/usability.md](docs/usability.md) | UX decisions |
+| [docs/ui-reference.md](docs/ui-reference.md) | Screens and controls |
+| [docs/file-format.md](docs/file-format.md) | `.rw` JSON |
+| [docs/privacy.md](docs/privacy.md) | Local data handling |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+
+## Deploy
+
+Static hosting of `dist/` after `bun run build`:
+
+- **Vercel** (this repo includes `vercel.json` with service-worker cache headers)
+- Netlify, Cloudflare Pages, GitHub Pages
+- Store packaging via [PWABuilder](https://www.pwabuilder.com/) if needed
+
+The service worker precaches JS/CSS/HTML/fonts/icons. After the first load the
+app runs offline; roster data is already local.
+
+## License
+
+[GNU Affero General Public License v3.0 or later](LICENSE) © Francisco Sánchez
+
+That is a **strong copyleft** license:
+
+- You may use, study, modify, and share the program.
+- If you distribute it, or a work based on it (including using all or part of
+  this code inside another product), the **complete corresponding source** of
+  that combined work must be offered under the AGPL.
+- If you host a modified version so people use it over the network (a website
+  or PWA), you must offer those users the source of the version they interact
+  with (AGPL section 13).
+
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Security reports:
+[SECURITY.md](SECURITY.md).

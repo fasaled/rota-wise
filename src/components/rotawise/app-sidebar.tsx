@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils';
 import LanguageSelector from '@/components/rotawise/language-selector';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useLanguage } from '@/context/language-context';
+import { SOURCE_CODE_URL } from '@/lib/source';
 
 export type AppTab = 'config' | 'calendar' | 'weekly' | 'monthly';
 
@@ -61,6 +62,15 @@ export function AppSidebar({ navItems, activeTab, onTabChange }: AppSidebarProps
           <LanguageSelector />
           <ThemeToggle />
         </div>
+        <a
+          href={SOURCE_CODE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={t('license.sourceTitle')}
+          className="px-3 py-1.5 text-[11px] text-slate-500 hover:text-slate-200 truncate"
+        >
+          {t('license.source')}
+        </a>
       </div>
     </aside>
   );

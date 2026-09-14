@@ -1,0 +1,51 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Do **not** attach real staff rosters — use synthetic names.
+        Security issues: [private advisory](https://github.com/fasaled/rota-wise/security/advisories/new).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what did you see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Scheduler / constraints
+        - Calendar / editing
+        - Units / coverage
+        - Save / load / PWA
+        - Export (Word)
+        - i18n / theme
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and OS
+      placeholder: e.g. Firefox 131 on macOS 15
+  - type: textarea
+    id: extra
+    attributes:
+      label: Extra context
+      description: Console errors, screenshots (no real names), or a minimal synthetic `.rw` description.

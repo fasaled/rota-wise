@@ -13,7 +13,12 @@
 
 # misc
 .DS_Store
+.modified
 *.pem
+
+# editor / agent local config (do not publish)
+.claude/
+.vscode/
 
 # debug
 bun-debug.log*

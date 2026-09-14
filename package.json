@@ -2,6 +2,24 @@
   "name": "rota-wise",
   "version": "0.1.0",
   "private": true,
+  "description": "Client-side PWA for fair doctor on-call scheduling",
+  "license": "AGPL-3.0-or-later",
+  "author": "Francisco Sánchez",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fasaled/rota-wise.git"
+  },
+  "homepage": "https://rotawise.fasl.dev",
+  "bugs": {
+    "url": "https://github.com/fasaled/rota-wise/issues"
+  },
+  "keywords": [
+    "scheduling",
+    "rota",
+    "doctors",
+    "pwa",
+    "healthcare"
+  ],
   "type": "module",
   "packageManager": "bun@1.3.14",
   "engines": {

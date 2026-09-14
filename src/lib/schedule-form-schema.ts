@@ -34,10 +34,7 @@ export const scheduleFormSchema = z.object({
     message: "Number of doctors must be between 0 and 20, or empty (treated as 0)."
   }),
   startDate: z.date({ required_error: "Start date is required." }),
-  endDate: z.date({ required_error: "End date is required." })
-    .refine((data) => data >= new Date(new Date().setHours(0,0,0,0)), {
-      message: "End date must be today or a future date.",
-    }),
+  endDate: z.date({ required_error: "End date is required." }),
   minIntervalBetweenWorkDays: z.coerce.number().int().min(0, "Minimum interval cannot be negative.").max(30, "Interval cannot exceed 30 days.").optional().default(1),
   globalMonthlyShiftLimit: z.coerce.number().int().min(0, "Monthly shift limit cannot be negative.").max(31, "Limit cannot exceed 31 days.").optional(),
   doctors: z.array(doctorSchema).min(0, "Doctor details array cannot be negative."),

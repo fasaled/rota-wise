@@ -38,3 +38,13 @@ Run `lint → typecheck → test` in that order to verify.
 ## PWA
 
 - `vite-plugin-pwa` generates `public/sw.js` and `public/workbox-*.js` at build time. These are gitignored — do not commit or edit them.
+
+## Documentation
+
+All docs are English. If behaviour changes, update the matching file in `docs/`:
+
+- `docs/algorithm.md` — scheduler
+- `docs/architecture.md` — ADRs / module map
+- `docs/usability.md` / `docs/ui-reference.md` — UX
+- `docs/file-format.md` — `.rw` shape (`CURRENT_FILE_VERSION`)
+- `docs/privacy.md` — local data handling

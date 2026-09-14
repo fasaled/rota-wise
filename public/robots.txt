@@ -1,21 +1,3 @@
-# robots.txt for RotaWise Application
-
-# Allow all friendly crawlers full access
 User-agent: *
 Allow: /
 
-# Specific instructions for Googlebot
-User-agent: Googlebot
-Allow: /
-
-# Specific instructions for GPTBot (OpenAI's web crawler)
-User-agent: GPTBot
-Allow: / # Or Disallow: / if you prefer to block it
-
-# Specific instructions for Google-Extended (used for Vertex AI, Bard, etc.)
-User-agent: Google-Extended
-Allow: / # Or Disallow: / if you prefer to block it
-
-
-# Sitemap location
-Sitemap: https://fasl.dev/sitemap.xml

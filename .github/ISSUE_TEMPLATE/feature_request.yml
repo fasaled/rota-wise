@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an enhancement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is hard or missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should change? Link to docs/algorithm.md or docs/usability.md if relevant.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Scheduler / constraints
+        - Calendar / editing
+        - Units / coverage
+        - Save / load / PWA
+        - Export
+        - i18n
+        - Docs / DX
+        - Other
+    validations:
+      required: true

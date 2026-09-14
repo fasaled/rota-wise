@@ -174,7 +174,7 @@ export function analyzeBrokenConstraints(
   });
 
   allWorkEntries.forEach((entry) => {
-    const dayKey = format(entry.date, 'EEEE', { locale: enUS });
+    const dayKey = format(entry.date, 'EEE', { locale: enUS });
     doctorDayOfWeekTotals[entry.doctorId][dayKey] = (doctorDayOfWeekTotals[entry.doctorId][dayKey] || 0) + 1;
   });
 

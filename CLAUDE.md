@@ -26,14 +26,15 @@ Rota-Wise is a Vite + React SPA for scheduling medical doctors fairly across a t
 
 ### Core Algorithm (`src/lib/schedule-generator.ts`)
 
-The heart of the application. Given a list of doctors with their constraints and a date range, it produces a schedule. Key concepts:
+The heart of the application. Given a list of doctors with their constraints and a date range, it produces a schedule. Full spec: `docs/algorithm.md`.
 
-- **Hard constraints**: vacations, minimum rest intervals between shifts, excluded dates, pre-assigned dates, fixed entries
-- **Soft constraints**: total workdays target, day-of-week distribution fairness, monthly workload balance, weekend shift fairness
-- **Selection**: Each day, eligible doctors are scored; the lowest-scoring eligible doctor is selected
-- **Warnings**: Generated for conflicts (unavailable on assigned date, uncovered days, etc.)
+- **Hard constraints (eligibility)**: free days, excluded dates, exclusion from auto-assignment, minimum rest interval, post-call (next calendar day; Saturday → Monday), unit coverage look-ahead
+- **Soft constraints (score only)**: day-of-week balance, preferred days (Thu–Sun), weekend fairness, monthly load, idle time
+- **Selection**: eligible doctors are scored; the winner is drawn with weighted random sampling (higher score = higher weight)
+- **Units** (optional): `minPostCallCoverage` on weekdays, allied unit pools, temporary cover assignments
+- **Warnings**: uncovered days, interval breaks, balance, post-call undercoverage, etc.
 
-Types are in `src/lib/types.ts`: `DoctorProfile`, `ScheduleEntry`, `Schedule`, `ScheduleFormValues`.
+Types are in `src/lib/types.ts`: `DoctorProfile`, `ScheduleEntry`, `Schedule`, `ScheduleFormValues`, `Unit`.
 
 ### Application Layer (`src/rotawise-page.tsx`)
 
@@ -73,3 +74,4 @@ All persistence is client-side. A working copy is always stored in IndexedDB. Wh
 - The scheduling algorithm runs in a Web Worker (`src/workers/schedule.worker.ts`) via `useScheduleWorker` hook — do not call `generateSchedule` directly from the main thread.
 - Tests live in `src/__tests__/` (algorithm, storage, warnings, hooks, language). UI components are not unit-tested.
 - The app supports two languages (EN/ES); when adding user-facing strings, add translations to both locale files.
+- Behaviour changes should update `docs/` (English only). See `docs/README.md`.

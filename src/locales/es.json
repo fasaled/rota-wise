@@ -222,7 +222,7 @@
   "monthlySummaryTable.doctorHeader": "Médico",
   "monthlySummaryTable.totalHeader": "Total",
 
-  "footer.copyright": "© {year} Rotawise. todos los derechos reservados.",
+  "footer.copyright": "© {year} Rotawise",
   "language.selector.label": "Idioma",
   "language.en": "English",
   "language.es": "Español",
@@ -268,6 +268,8 @@
   "nav.calendar": "Calendario",
   "nav.weeklySummary": "Resumen semanal",
   "nav.monthlySummary": "Resumen mensual",
+  "license.source": "Código fuente",
+  "license.sourceTitle": "Código correspondiente (GNU AGPL v3)",
 
   "file.menu": "Archivo",
   "file.newSchedule": "Nuevo horario",
