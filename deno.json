@@ -1,0 +1,28 @@
+{
+  "name": "rota-wise",
+  "version": "0.1.0",
+  "exports": "./desktop/main.ts",
+  "compilerOptions": {
+    "lib": ["deno.window"]
+  },
+  "exclude": ["src", "e2e", "dist", "node_modules", "release"],
+  "desktop": {
+    "app": {
+      "name": "Rotawise",
+      "identifier": "dev.fasl.rotawise",
+      "icons": {
+        "macos": [
+          { "path": "./public/icons/icon-512x512.png", "size": 512 }
+        ],
+        "windows": "./public/icons/icon-512x512.png",
+        "linux": "./public/icons/icon-512x512.png"
+      }
+    },
+    "backend": "webview",
+    "output": {
+      "macos": "./release/Rotawise",
+      "windows": "./release/Rotawise",
+      "linux": "./release/rotawise"
+    }
+  }
+}

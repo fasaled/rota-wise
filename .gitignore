@@ -10,6 +10,11 @@
 
 # build output
 /dist/
+/release/
+/desktop.app
+/desktop.dylib
+.deno_desktop_entry*
+deno.lock
 
 # misc
 .DS_Store

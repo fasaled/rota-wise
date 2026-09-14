@@ -6,10 +6,13 @@ import { fileURLToPath } from 'node:url';
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url));
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     VitePWA({
+      // Desktop packages the SPA inside a local webview; a service worker there
+      // would cache loopback assets and fight the bundled files.
+      disable: mode === 'desktop',
       registerType: 'autoUpdate',
       manifest: false,
       injectRegister: 'auto',
@@ -40,4 +43,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

@@ -11,6 +11,9 @@ All project documentation is in English.
 | [file-format.md](file-format.md) | `.rw` JSON shape, migrations, IndexedDB |
 | [privacy.md](privacy.md) | What the app stores and what it does not send |
 
+Desktop packaging (`deno desktop`) is covered in [architecture.md](architecture.md)
+(ADR 14) and the README “Desktop app” section.
+
 Contributor-facing files at the repository root:
 
 - [README.md](../README.md) — product overview and setup

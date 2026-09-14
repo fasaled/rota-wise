@@ -8,7 +8,7 @@ Contributions are licensed under the [GNU AGPL v3 or later](LICENSE).
 
 ## Development setup
 
-**Prerequisite:** [Bun](https://bun.sh) 1.1 or later.
+**Prerequisite:** [Bun](https://bun.sh) 1.1 or later. Optional: [Deno](https://docs.deno.com) 2.9 or later if you are working on the desktop target.
 
 ```bash
 git clone https://github.com/fasaled/rota-wise.git
@@ -37,10 +37,17 @@ bun run e2e:install
 bun run e2e
 ```
 
+Desktop webview (Deno ≥ 2.9, CEF + CDP; Playwright must run under Node):
+
+```bash
+bun run e2e:desktop
+```
+
 ## Project conventions
 
-- **Client-only.** No API routes, no server actions, no backend. All scheduling
-  and persistence run in the browser.
+- **Client-only.** No API routes, no server actions, no application backend.
+  All scheduling and persistence run in the browser / desktop webview. The
+  Deno Desktop process must not call `generateSchedule`.
 - **Never call `generateSchedule` on the main thread.** Use
   `useScheduleWorker` / `src/workers/schedule.worker.ts`.
 - **i18n.** Every new user-facing string goes in both `src/locales/en.json` and
@@ -52,7 +59,7 @@ bun run e2e
 - **Tests.** Algorithm, storage, warnings, and hooks live in `src/__tests__/`.
   UI components are not unit-tested; journeys belong in `e2e/`.
 - **Do not commit** generated PWA files (`public/sw.js`, `public/workbox-*.js`),
-  `dist/`, or `.env*` files.
+  `dist/`, `release/`, `deno.lock`, or `.env*` files.
 
 ## Documentation
 

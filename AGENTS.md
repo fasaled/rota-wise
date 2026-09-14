@@ -13,6 +13,10 @@
 | Test (watch) | `bun test --watch` |
 | Test (coverage) | `bun test --coverage` |
 | Test (single file) | `bun test src/__tests__/schedule-generator.test.ts` |
+| Desktop dev | `bun run desktop:dev` (Deno ≥ 2.9, Vite HMR in a native window) |
+| Desktop build | `bun run desktop:build` → `release/` (Vite `mode=desktop`, no SW) |
+| E2E (web) | `bun run e2e` (Playwright + Vite dev) |
+| E2E (desktop) | `bun run e2e:desktop` (Playwright CDP → Deno Desktop CEF; needs Deno ≥ 2.9) |
 
 Run `lint → typecheck → test` in that order to verify.
 
@@ -46,6 +50,7 @@ Full spec: `docs/algorithm.md`. Short version:
 - **Tests:** `src/__tests__/` (algorithm, storage, warnings, hooks, language). UI is not unit-tested; Playwright journeys live in `e2e/`.
 - **Persistence:** IndexedDB working copy always; optional `.rw` via File System Access API (auto-save). Other browsers: `<input type="file">` and download. Word export is lazy `docx`.
 - **PWA:** `vite-plugin-pwa` generates `public/sw.js` and `public/workbox-*.js` at build time. Gitignored — do not commit or edit them.
+- **Desktop:** optional Deno 2.9+ target. Do not move scheduling into the Deno process. `desktop/main.ts` only serves `dist/` and opens `Deno.BrowserWindow`. `vite build --mode desktop` disables the service worker. Native output is `release/`, never mix it with Vite `dist/`.
 
 ## Documentation
 

@@ -36,6 +36,12 @@ Rather than blocking those browsers (an earlier experiment), the app:
 
 Opening a `.rw` from the OS into the installed PWA uses `launchQueue`.
 
+The Deno Desktop build is the same SPA in a native webview. On macOS/Linux
+WebKit the File System Access API is usually absent, so desktop users see
+the same banner and download/open fallbacks as Firefox/Safari. Windows
+WebView2 may bind a file handle. Native file-picker APIs in Deno are not
+used yet (they are not a first-class `deno desktop` API).
+
 ---
 
 ## Generate is a suggestion, humans pin the truth

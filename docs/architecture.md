@@ -1,10 +1,12 @@
 # Architecture
 
 Rota-Wise is a **Vite 6 + React 19 SPA**. There is no SSR, no API, and no
-application backend. The browser is the runtime: the scheduler, the file
-format, IndexedDB, and Word export all run on the client.
+application backend. The scheduler, the file format, IndexedDB, and Word
+export all run in the client (a browser tab, a PWA, or a Deno Desktop
+webview).
 
-Entry: `src/main.tsx` → `src/rotawise-page.tsx`.
+Entry: `src/main.tsx` → `src/rotawise-page.tsx`. Desktop packaging:
+`desktop/main.ts` serves `dist/` and opens a native window.
 
 Path alias: `@/*` → `src/*`.
 
@@ -35,6 +37,8 @@ src/
 ├── workers/schedule.worker.ts   Off-main-thread generateSchedule
 ├── locales/                     en.json, es.json
 └── sw.ts                        Workbox injectManifest service worker
+
+desktop/main.ts                  Deno Desktop window + static server for dist/
 ```
 
 `rotawise-page.tsx` owns session state. Pure functions live in `src/lib/` so
@@ -230,6 +234,39 @@ not a version control system. The `.rw` `versions[]` field exists for named
 snapshots but the current UI does not expose a version manager
 (`fileVersions` stays `[]`).
 
+### ADR 14 — Dual target: web PWA and Deno Desktop
+
+**Context.** The same roster tool is useful in a browser (hospital network,
+shared PC, phone) and as a local desktop app (offline laptop, no install of
+Chrome as a PWA). `deno desktop` (Deno 2.9+, experimental) wraps a Vite SPA
+in a native webview and a loopback HTTP server.
+
+**Decision.**
+
+- Keep **Bun + Vite** as the web toolchain (`bun run dev` / `bun run build`).
+- Add **Deno only as a packager**. The scheduler still runs in
+  `schedule.worker.ts` inside the webview, never in the Deno process.
+- `bun run desktop:dev` → `deno desktop --hmr .` (Vite detection, Vite HMR).
+- `bun run desktop:build` → `vite build --mode desktop` then
+  `deno desktop desktop/main.ts`. Mode `desktop` disables the PWA plugin so
+  the webview does not register a service worker against loopback.
+- Native binaries land in `release/`, not `dist/` (Vite owns `dist/`).
+- Default backend is OS webview (`webview`). CEF (`--backend cef`) is opt-in
+  when identical Chromium behaviour is required.
+
+**Consequences.** File System Access auto-save remains Chromium-only
+(WebView2 on Windows may have it; macOS/Linux WebKit typically does not).
+The existing `<input type="file">` / download fallbacks cover desktop. Deno
+Desktop is experimental; packaging flags may change. CI stays Bun-only.
+
+End-to-end coverage of the desktop target is `bun run e2e:desktop`. That
+launches `deno desktop --backend cef` (CDP exists only on CEF, not OS
+webview) and attaches Playwright via `chromium.connectOverCDP`. The runner
+must use **Node** for Playwright: Bun's WebSocket client never finishes the
+CEF handshake. Tests share one window, so they run sequentially with
+storage cleared between cases. The default `bun run e2e` suite is unchanged
+(Vite dev + a fresh Chromium).
+
 ---
 
 ## Hosting
@@ -237,3 +274,6 @@ snapshots but the current UI does not expose a version manager
 Static `dist/` after `bun run build`. `vercel.json` sets `sw.js` /
 `registerSW.js` to `Cache-Control: public, max-age=0, must-revalidate` so
 clients pick up worker updates.
+
+Desktop binaries are not hosted. Build them with `bun run desktop:build`
+(requires Deno ≥ 2.9). The compiled app binds only to `127.0.0.1`.

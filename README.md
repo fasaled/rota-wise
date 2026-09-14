@@ -4,8 +4,9 @@ A client-side PWA for **fair doctor on-call scheduling**. It builds a rota over
 a date range while respecting rest intervals, free days, pre-assignments, and
 optional post-call coverage per medical unit.
 
-There is **no backend**. Rosters live in the browser (IndexedDB) and, if you
-choose, in a `.rw` file on disk.
+There is **no backend**. Rosters live on the device (IndexedDB) and, if you
+choose, in a `.rw` file on disk. The same app runs as a PWA in the browser
+or as a native desktop window via Deno Desktop.
 
 **Live app:** [rotawise.fasl.dev](https://rotawise.fasl.dev)
 
@@ -28,13 +29,14 @@ choose, in a `.rw` file on disk.
 - **Export** — Word (`.docx`) calendar, generated in the browser
 - **Save / load** — working copy in the browser; optional `.rw` auto-save via the File System Access API
 - **Offline PWA** — Workbox precache; full app after the first visit
+- **Desktop app** — optional `deno desktop` wrapper around the same SPA
 - **English and Spanish**, light / dark / system theme
 
 ## Tech stack
 
 Vite 6 · React 19 · TypeScript · Tailwind CSS + Radix (shadcn/ui) · date-fns ·
 react-hook-form + Zod · `docx` · vite-plugin-pwa / Workbox · **Bun** (install,
-dev, test)
+dev, test) · optional **Deno ≥ 2.9** (`deno desktop`)
 
 Geist Sans and Geist Mono are bundled under the SIL Open Font License 1.1
 ([`src/assets/fonts/OFL.txt`](src/assets/fonts/OFL.txt)).
@@ -57,8 +59,29 @@ bun run dev        # http://localhost:5173
 | `bun run typecheck` | TypeScript (app + node + tests) |
 | `bun test` | Unit tests (bun test + happy-dom) |
 | `bun run e2e` | Playwright journeys (Chromium) |
+| `bun run desktop:dev` | Native window + Vite HMR (Deno ≥ 2.9) |
+| `bun run desktop:build` | Production SPA (no service worker) → `release/` |
+| `bun run e2e:desktop` | Playwright against the Deno Desktop CEF webview |
 
 Verify a change with `lint` → `typecheck` → `test`.
+
+### Desktop app
+
+The web PWA and the desktop app share the React SPA. Scheduling still runs in
+the Web Worker inside the webview; Deno only serves files and owns the window.
+
+```bash
+# prerequisite: Deno 2.9 or later (https://docs.deno.com)
+bun run desktop:dev      # development, Vite HMR in a native window
+bun run desktop:build    # production binary in release/
+```
+
+`deno desktop` is experimental. The default backend is the OS webview (WebView2
+on Windows, WebKit on macOS/Linux). Chromium File System Access auto-save may
+be missing there; Open/Save still work via the file input and a download. Pass
+`--backend cef` to `deno desktop` if you need bundled Chromium.
+
+See [`docs/architecture.md`](docs/architecture.md) (ADR 14).
 
 ## How scheduling works
 
