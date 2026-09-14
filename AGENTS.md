@@ -6,10 +6,12 @@
 |---|---|
 | Dev server | `bun run dev` (http://localhost:5173) |
 | Build | `bun run build` → `dist/` |
+| Preview | `bun run preview` |
 | Lint | `bun run lint` |
 | Typecheck | `bun run typecheck` (app + node + tests) |
 | Test | `bun test` |
 | Test (watch) | `bun test --watch` |
+| Test (coverage) | `bun test --coverage` |
 | Test (single file) | `bun test src/__tests__/schedule-generator.test.ts` |
 
 Run `lint → typecheck → test` in that order to verify.
@@ -22,22 +24,28 @@ Run `lint → typecheck → test` in that order to verify.
 
 ## Architecture
 
-- Vite 6 + React 19 SPA. **No SSR, no API routes, no backend.** Fully client-side.
-- Entry: `src/main.tsx` → `src/rotawise-page.tsx`.
+Vite 6 + React 19 SPA. **No SSR, no API routes, no backend.** Fully client-side.
+
+- Entry: `src/main.tsx` → `src/rotawise-page.tsx` (form, schedule, persistence, undo).
 - Path alias: `@/*` → `src/*`.
-- **Scheduling runs in a Web Worker** (`src/workers/schedule.worker.ts`) via `useScheduleWorker` hook. Never call `generateSchedule` from the main thread.
+- **Scheduling runs in a Web Worker** (`src/workers/schedule.worker.ts`) via `useScheduleWorker`. Never call `generateSchedule` from the main thread.
 - Heavy components (calendar, summaries) and export (`docx`) are **lazy-loaded**. Wrap new heavy imports in `React.lazy` + `Suspense`.
+- Pure helpers: `src/lib/` (`schedule-generator`, `schedule-coverage`, `schedule-analyze`, `schedule-storage`, `schedule-warnings`, `schedule-edits`, `schedule-interval`). Types: `src/lib/types.ts`.
+- App UI: `src/components/rotawise/` (roster form, calendar, summaries, shell). Do not edit `src/components/ui/` by hand (shadcn/ui).
+
+Full spec: `docs/algorithm.md`. Short version:
+
+- **Hard (eligibility):** free days, excluded dates, auto-assignment exclusion, min interval, post-call (next calendar day; Saturday → Monday), unit coverage look-ahead.
+- **Soft (score only):** day-of-week balance, preferred days (Thu–Sun), weekend fairness, monthly load, idle time.
+- **Selection:** weighted random sampling over the score (higher score = higher weight).
+- **Units (optional):** weekday `minPostCallCoverage`, allied pools, temporary cover assignments.
 
 ## Conventions
 
-- **`src/components/ui/`** — shadcn/ui primitives. Do not edit directly; regenerate via shadcn CLI.
-- **i18n**: EN/ES via context (`src/context/language-context.tsx`). Every new user-facing string must be added to both `src/locales/en.json` and `src/locales/es.json`.
-- **Tests** live in `src/__tests__/` (algorithm, storage, warnings, hooks, language). UI components are not unit-tested; Playwright covers journeys in `e2e/`.
-- All state is client-side: IndexedDB working copy by default; optional `.rw` file via File System Access API (auto-save). Browsers without that API still work (open via `<input type="file">`, save as download).
-
-## PWA
-
-- `vite-plugin-pwa` generates `public/sw.js` and `public/workbox-*.js` at build time. These are gitignored — do not commit or edit them.
+- **i18n:** EN/ES via `src/context/language-context.tsx`. Every new user-facing string goes in both `src/locales/en.json` and `src/locales/es.json`.
+- **Tests:** `src/__tests__/` (algorithm, storage, warnings, hooks, language). UI is not unit-tested; Playwright journeys live in `e2e/`.
+- **Persistence:** IndexedDB working copy always; optional `.rw` via File System Access API (auto-save). Other browsers: `<input type="file">` and download. Word export is lazy `docx`.
+- **PWA:** `vite-plugin-pwa` generates `public/sw.js` and `public/workbox-*.js` at build time. Gitignored — do not commit or edit them.
 
 ## Documentation
 

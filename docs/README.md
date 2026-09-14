@@ -18,7 +18,7 @@ Contributor-facing files at the repository root:
 - [CONTRIBUTING.md](../CONTRIBUTING.md)
 - [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md)
 - [SECURITY.md](../SECURITY.md)
-- [AGENTS.md](../AGENTS.md) / [CLAUDE.md](../CLAUDE.md) — notes for coding agents
+- [AGENTS.md](../AGENTS.md) — notes for coding agents
 
 Live app: [https://rotawise.fasl.dev](https://rotawise.fasl.dev)
 
