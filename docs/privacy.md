@@ -17,9 +17,9 @@ A host (Vercel, Netlify, GitHub Pages, …) will still see ordinary HTTPS
 requests for static assets (HTML, JS, CSS, fonts, icons). That is hosting
 telemetry, not roster data.
 
-The optional Deno Desktop binary serves those same assets on `127.0.0.1`
-only. Other machines cannot reach it. Roster data stays in the webview’s
-IndexedDB / a user-chosen `.rw` file, as in the browser.
+The app is intended to be installed as a PWA so the shell and JS can be served
+from the device after the first visit. Roster data stays in the browser’s
+IndexedDB / a user-chosen `.rw` file in both cases.
 
 ---
 
