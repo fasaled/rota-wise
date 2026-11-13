@@ -126,7 +126,20 @@ plus coverage warnings (`warnings.postCallUncovered`).
 | Min interval | number | 1 | 0–30 |
 | Monthly shift limit | number | empty | 0–31, optional |
 | Strict limit | checkbox | off | When on, the generator never exceeds the monthly limit, even if a day stays unassigned |
-| Holidays | Multi-select calendar | none | No coverage required on these dates |
+| Holidays | Multi-select calendar | none | Units need no minimum staffing on these dates (like a weekend); the on-call shift is still assigned |
+
+Below the holiday picker:
+
+- The selected holidays as chips, each with a remove button.
+- **Import official holidays · Donostia / San Sebastián** — downloads the
+  official work calendar from Open Data Euskadi for every year of the schedule
+  period and adds the days that apply to the city (Basque Country, Gipuzkoa and
+  local holidays) and fall inside the period. Disabled until a period is set.
+  Nothing is downloaded until the button is pressed. Imported days are merged
+  with the ones already there and are ordinary holidays afterwards: they can
+  be removed from the chips or edited in the picker, and importing again never
+  duplicates them. A status line says how many were added, whether a year is
+  not published yet, or that the download failed (the list is left untouched).
 
 ### 5.2 Units (optional)
 

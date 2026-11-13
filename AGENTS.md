@@ -25,7 +25,7 @@ Run `lint → typecheck → test` in that order to verify.
 
 ## Architecture
 
-Vite 6 + React 19 SPA. **No SSR, no API routes, no backend.** Fully client-side.
+Vite 6 + React 19 SPA. **No SSR, no API routes, no backend.** Fully client-side. The only external request is the user-triggered holiday import (`src/lib/holiday-import.ts`, Open Data Euskadi, Donostia only for now); a new source needs its origin in `connect-src` (`vercel.json`) and a line in `docs/privacy.md`.
 
 - Entry: `src/main.tsx` → `src/rotawise-page.tsx` (wires the hooks below to the UI).
 - **One source of truth:** `useScheduleDocument` holds `{ schedule, formValues, currentMinInterval }` plus undo/redo. Doctors, units, holidays, warnings and the saved file are derived with `useMemo` — never store a copy of them. Saving is `useDocumentPersistence` (suspend/resume around open/new).

@@ -166,6 +166,18 @@ stay visible as “Removed doctor” and a warning asks for them to be reassigne
 
 ---
 
+## Official holidays are a shortcut, not a rule
+
+Typing a year of holidays by hand is tedious and error-prone, so the roster
+form can import them from the official source — for now only for Donostia /
+San Sebastián (Open Data Euskadi). It is deliberately **on demand**: one
+button, no background refresh, no automatic updates. What it brings is merged
+into the normal holiday list, so the planner can still remove a day the
+department works, or add one the calendar does not know about. The import
+never removes anything.
+
+---
+
 ## The picker only offers what the rules allow
 
 When assigning a day by hand, doctors who cannot take it (free day, excluded

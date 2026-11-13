@@ -39,6 +39,22 @@ is not deleted).
 
 ---
 
+## The one optional download
+
+**Import official holidays** (Roster tab) fetches the public work calendar
+published by Open Data Euskadi (`opendata.euskadi.eus`, Basque Government).
+
+- It happens **only when the button is pressed**, never on load or in the
+  background.
+- It is a plain `GET` of a public JSON file, one per year of the schedule
+  period. No roster data, cookies or referrer are sent; as with any web
+  request, the publisher sees the IP address and the year requested.
+- The result is filtered and stored locally like any other holiday.
+
+This is the only request the app makes to another origin.
+
+---
+
 ## What is not collected
 
 The application code does not send doctor names, dates, or schedules to a
@@ -60,9 +76,10 @@ else: no push, no background sync, no uploads.
 ## Enforced by the browser, not only by intent
 
 The hosted app is served with a Content-Security-Policy
-(`default-src 'self'; script-src 'self'; connect-src 'self'; …`, see
-`vercel.json`). The browser therefore refuses to load scripts from, or send
-requests to, any other origin, even if a dependency tried to. The page cannot
+(`default-src 'self'; script-src 'self'; connect-src 'self' https://opendata.euskadi.eus; …`,
+see `vercel.json`). The browser therefore refuses to load scripts from any
+other origin, and to send requests anywhere except the app itself and the
+holiday source above, even if a dependency tried to. The page cannot
 be framed by other sites (`frame-ancestors 'none'`), and the `Referrer-Policy`
 keeps the address out of outgoing links.
 

@@ -87,7 +87,7 @@
   "form.holidays.label": "Holidays",
   "form.holidays.pick": "Pick holidays",
   "form.holidays.selected": "{count} holiday(s) selected",
-  "form.holidays.help": "No coverage required on these dates",
+  "form.holidays.help": "Units need no minimum staffing on these dates (like a weekend). The on-call shift is still assigned.",
   "calendar.holiday.tooltip": "Holiday",
   "calendar.title": "Generated schedule",
   "calendar.legend.work": "Work",
@@ -263,5 +263,15 @@
   "form.minIntervalHelp": "Full days of rest between two shifts of the same doctor. The day after a shift is always off.",
   "form.enforceMonthlyLimit": "Strict limit",
   "form.enforceMonthlyLimitHelp": "Never exceed it, even if a day is left unassigned.",
-  "warnings.removedDoctorShifts": "{count} shift(s) belong to doctors that are no longer on the roster. Reassign them or regenerate."
+  "warnings.removedDoctorShifts": "{count} shift(s) belong to doctors that are no longer on the roster. Reassign them or regenerate.",
+  "form.holidays.list": "Selected holidays",
+  "form.holidays.remove": "Remove {date}",
+  "form.holidays.import": "Import official holidays · {city}",
+  "form.holidays.import.source": "Source: {source}. Downloaded only when you press the button; you can add or remove days afterwards.",
+  "form.holidays.import.needPeriod": "Pick the schedule period first.",
+  "form.holidays.import.added": "{added} holiday(s) added, {existing} already on the list.",
+  "form.holidays.import.none": "No official holidays fall inside the schedule period.",
+  "form.holidays.import.missingYears": "The official calendar for {years} has not been published yet.",
+  "form.holidays.import.error": "Could not download the official calendar. Check your connection and try again.",
+  "form.holidays.import.invalid": "The official calendar has an unexpected format and could not be read."
 }

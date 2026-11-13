@@ -180,3 +180,65 @@ test.describe('Starting from scratch', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe('Official holidays', () => {
+  const officialCalendar = [
+    { date: '2026/10/12', descripcionEs: 'Fiesta Nacional', municipalityEs: 'CAE', territory: 'Todos/denak', municipalitycode: null },
+    { date: '2026/10/05', descripcionEs: 'Fiesta local', municipalityEs: 'Donostia-San Sebastian  ', territory: 'Gipuzkoa', municipalitycode: 69 },
+    { date: '2026/10/07', descripcionEs: 'Otra', municipalityEs: 'Zarautz', territory: 'Gipuzkoa', municipalitycode: 79 },
+    { date: '2026/12/25', descripcionEs: 'Navidad', municipalityEs: 'CAE', territory: 'Todos/denak', municipalitycode: null },
+  ];
+
+  test('are imported only on demand and stay editable', async ({ page }) => {
+    const requests: string[] = [];
+    await page.route('https://opendata.euskadi.eus/**', async (route) => {
+      requests.push(route.request().url());
+      await route.fulfill({ json: officialCalendar, headers: { 'access-control-allow-origin': '*' } });
+    });
+    await mockFileSystemAccess(page, JSON.parse(octoberFile()));
+    await openAppAndLoadFile(page);
+    await navButton(page, 'Roster').click();
+
+    const list = page.getByRole('list', { name: 'Selected holidays' });
+    await expect(list).toHaveCount(0);
+    expect(requests).toEqual([]);
+
+    await page.getByRole('button', { name: /Import official holidays/ }).click();
+    await expect(page.getByText('2 holiday(s) added, 0 already on the list.')).toBeVisible();
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toContain('calendario_laboral_2026');
+    // Only the days of the city inside the period (1–14 Oct).
+    await expect(list.getByRole('listitem')).toHaveCount(2);
+    await expect(list).toContainText('5 Oct 2026');
+    await expect(list).toContainText('12 Oct 2026');
+
+    // Imported days are ordinary holidays: remove one, add another by hand.
+    await list.getByRole('button', { name: /Remove .*5 Oct 2026/ }).click();
+    await expect(list.getByRole('listitem')).toHaveCount(1);
+    await expect(page.locator('#form-holidays')).toHaveText('1 holiday(s) selected');
+    await page.locator('#form-holidays').click();
+    await page.getByRole('gridcell', { name: '8', exact: true }).first().click();
+    await page.keyboard.press('Escape');
+    await expect(list.getByRole('listitem')).toHaveCount(2);
+    await expect(list).toContainText('8 Oct 2026');
+
+    // Importing again restores the removed day without duplicating the rest.
+    await page.getByRole('button', { name: /Import official holidays/ }).click();
+    await expect(page.getByText('1 holiday(s) added, 1 already on the list.')).toBeVisible();
+    await expect(list.getByRole('listitem')).toHaveCount(3);
+
+    await goToTab(page, 'Calendar');
+    await expect(page.locator('.grid-cols-7').last()).toBeVisible();
+  });
+
+  test('a failed download leaves the holidays untouched', async ({ page }) => {
+    await page.route('https://opendata.euskadi.eus/**', (route) => route.abort());
+    await mockFileSystemAccess(page, JSON.parse(octoberFile()));
+    await openAppAndLoadFile(page);
+    await navButton(page, 'Roster').click();
+
+    await page.getByRole('button', { name: /Import official holidays/ }).click();
+    await expect(page.getByText('Could not download the official calendar.', { exact: false })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Selected holidays' })).toHaveCount(0);
+  });
+});

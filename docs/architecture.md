@@ -41,6 +41,7 @@ src/
 │   ├── schedule-storage.ts      .rw validate / serialize / deserialize / migrate
 │   ├── schedule-warnings.ts     Warning keys → translated strings
 │   ├── schedule-form-schema.ts  Zod form schema (messages are i18n keys)
+│   ├── holiday-import.ts        On-demand official holidays (Open Data Euskadi; Donostia only)
 │   ├── dates.ts                 Calendar-day keys and parsing (`yyyy-MM-dd`)
 │   ├── random.ts                Seedable PRNG
 │   ├── i18n.ts                  Typed translation keys, `translate`, language detection
@@ -75,6 +76,8 @@ replaces the roster: open, new, undo/redo of a change that touched the roster.
 
 ## Runtime data flow
 
+0. There is no backend. The only network request beyond the app's own files
+   is the optional, user-triggered holiday import (ADR 14).
 1. Hydration: PWA `launchQueue` file, else IndexedDB working copy, else empty roster.
 2. Roster tab edits flow through react-hook-form + Zod into
    `useScheduleDocument.setFormValues` (not recorded in history).
@@ -296,11 +299,12 @@ snapshots but the current UI does not expose a version manager
 
 ### ADR 14 — Strict Content-Security-Policy
 
-**Context.** The app handles staff rosters and has no reason to talk to any
-other origin or run any script it did not ship.
+**Context.** The app handles staff rosters and has no reason to run any script
+it did not ship, or to talk to other origins beyond the one public dataset the
+user can ask for.
 
 **Decision.** `vercel.json` sends
-`default-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; …`
+`default-src 'self'; script-src 'self'; connect-src 'self' https://opendata.euskadi.eus; frame-ancestors 'none'; object-src 'none'; …`
 plus `nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS and
 `X-Frame-Options: DENY`.
 
@@ -310,6 +314,14 @@ plus `nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS and
 `style` attributes need it. Adding a third-party script, font or API means
 changing the policy on purpose. Other hosts must send equivalent headers
 themselves.
+
+The single allowed external origin serves the official holiday calendar
+(`src/lib/holiday-import.ts`). The request is made only when the user presses
+**Import official holidays**, with `credentials: 'omit'` and
+`referrerPolicy: 'no-referrer'`. Cities are entries in `HOLIDAY_CITIES`; a
+city published elsewhere needs its own fetcher and its origin added to
+`connect-src`. The service worker does not cache this request, so the import
+needs a connection; everything else keeps working offline.
 
 ---
 

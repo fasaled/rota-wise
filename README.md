@@ -25,6 +25,7 @@ browser.
 - **Constraint-aware generator** — hard rest / post-call / coverage rules, soft fairness scoring, weighted sampling so consecutive runs can differ
 - **Medical units** — weekday post-call headcount, allied units that share a pool, temporary cover assignments
 - **Interactive calendar** — colour-coded chips, drag-and-drop, pinning, coverage dots
+- **Official holidays on demand** — one click imports the public work calendar (Donostia / San Sebastián for now, from Open Data Euskadi); the days stay editable
 - **Summaries** — workdays by weekday and by month, with an optional date filter
 - **Export** — Word (`.docx`) calendar, generated in the browser
 - **Save / load** — working copy in the browser; optional `.rw` auto-save via the File System Access API

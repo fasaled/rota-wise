@@ -87,7 +87,7 @@
   "form.holidays.label": "Días festivos",
   "form.holidays.pick": "Seleccionar festivos",
   "form.holidays.selected": "{count} festivo(s) seleccionado(s)",
-  "form.holidays.help": "No requieren cobertura",
+  "form.holidays.help": "En estas fechas no se exige presencia mínima en las unidades (como un fin de semana). La guardia se asigna igualmente.",
   "calendar.holiday.tooltip": "Festivo",
   "calendar.title": "Horario generado",
   "calendar.legend.work": "Trabajo",
@@ -263,5 +263,15 @@
   "form.minIntervalHelp": "Días completos de descanso entre dos guardias del mismo médico. El día siguiente a una guardia siempre es de descanso.",
   "form.enforceMonthlyLimit": "Límite estricto",
   "form.enforceMonthlyLimitHelp": "No superarlo nunca, aunque algún día quede sin asignar.",
-  "warnings.removedDoctorShifts": "{count} guardia(s) pertenecen a médicos que ya no están en el cuadrante. Reasígnalas o vuelve a generar."
+  "warnings.removedDoctorShifts": "{count} guardia(s) pertenecen a médicos que ya no están en el cuadrante. Reasígnalas o vuelve a generar.",
+  "form.holidays.list": "Festivos seleccionados",
+  "form.holidays.remove": "Quitar {date}",
+  "form.holidays.import": "Importar festivos oficiales · {city}",
+  "form.holidays.import.source": "Fuente: {source}. Solo se descarga al pulsar el botón; después puedes añadir o quitar días.",
+  "form.holidays.import.needPeriod": "Elige primero el periodo del cuadrante.",
+  "form.holidays.import.added": "{added} festivo(s) añadido(s), {existing} ya estaba(n) en la lista.",
+  "form.holidays.import.none": "No hay festivos oficiales dentro del periodo del cuadrante.",
+  "form.holidays.import.missingYears": "El calendario oficial de {years} aún no está publicado.",
+  "form.holidays.import.error": "No se pudo descargar el calendario oficial. Comprueba la conexión e inténtalo de nuevo.",
+  "form.holidays.import.invalid": "El calendario oficial tiene un formato inesperado y no se pudo leer."
 }

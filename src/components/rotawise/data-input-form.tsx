@@ -31,6 +31,7 @@ import { useMediaQuery } from '@/hooks/use-media-query';
 import { DoctorCard } from './form/doctor-card';
 import { FieldError } from './form/field-error';
 import { FIELD_LABEL } from './form/styles';
+import { HolidayTools } from './form/holiday-tools';
 import { MultiDatePicker } from './form/multi-date-picker';
 import { UnitCard } from './form/unit-card';
 
@@ -354,18 +355,26 @@ const DataInputForm = forwardRef<UseFormReturn<ScheduleFormValues>, DataInputFor
                     name="holidays"
                     control={control}
                     render={({ field }) => (
-                      <MultiDatePicker
-                        id="form-holidays"
-                        value={field.value}
-                        onChange={field.onChange}
-                        min={startDate}
-                        max={endDate}
-                        emptyLabel={t('form.holidays.pick')}
-                        selectedLabel={(count) => t('form.holidays.selected', { count })}
-                      />
+                      <>
+                        <MultiDatePicker
+                          id="form-holidays"
+                          value={field.value}
+                          onChange={field.onChange}
+                          min={startDate}
+                          max={endDate}
+                          emptyLabel={t('form.holidays.pick')}
+                          selectedLabel={(count) => t('form.holidays.selected', { count })}
+                        />
+                        <p className="mt-1 text-[11px] text-muted-foreground">{t('form.holidays.help')}</p>
+                        <HolidayTools
+                          value={field.value}
+                          onChange={field.onChange}
+                          startDate={startDate}
+                          endDate={endDate}
+                        />
+                      </>
                     )}
                   />
-                  <p className="mt-1 text-[11px] text-muted-foreground">{t('form.holidays.help')}</p>
                 </div>
               </div>
             </section>
