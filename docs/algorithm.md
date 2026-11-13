@@ -1,18 +1,25 @@
 # Scheduling algorithm
 
 This is the specification of the generator implemented in
-`src/lib/schedule-generator.ts`, with coverage helpers in
+`src/lib/schedule-generator.ts`, with the per-doctor rules in
+`src/lib/schedule-eligibility.ts`, coverage helpers in
 `src/lib/schedule-coverage.ts` and post-generation analysis in
 `src/lib/schedule-analyze.ts`.
 
-The generator is a **greedy day-by-day pass**. For each date it either preserves
-a pinned assignment, records pre-assignments and free days, or picks one
-eligible doctor with a **weighted random sample** biased toward a fairness
-score.
+One **attempt** is a **greedy day-by-day pass** followed by a small **repair
+pass**. For each date the greedy pass either preserves a pinned assignment,
+records pre-assignments and free days, or picks one eligible doctor with a
+**seeded weighted random sample** biased toward a fairness score. The repair
+pass then tries to fill days the greedy pass left uncovered.
 
-It is **not** a global optimiser (no ILP, no backtracking). Hard constraints
-filter eligibility. Soft factors only affect the score. Regenerating the same
-inputs can produce a different valid roster because of the weighted sample.
+The generator builds **several attempts** (24 in the app) and keeps the one
+with the lowest cost (section 7.2).
+
+It is **not** a global optimiser (no ILP, no full backtracking). Hard
+constraints filter eligibility. Soft factors only affect the score.
+Regenerating the same inputs produces a different valid roster because each
+run draws a new seed; the same inputs **with the same seed** always produce the
+same roster.
 
 ---
 
@@ -25,7 +32,8 @@ inputs can produce a different valid roster because of the weighted sample.
 | `startDate` | Date | Yes | First day of the planning period |
 | `endDate` | Date | Yes | Last day of the planning period (must be ≥ `startDate`) |
 | `minIntervalBetweenWorkDays` | integer 0–30 | No (default 1) | Minimum calendar-day gap **between** two work assignments for the same doctor. With `1`, consecutive days are forbidden. With `0`, consecutive days are allowed. **This is a hard eligibility filter**, not only a scoring hint. |
-| `globalMonthlyShiftLimit` | integer 0–31 | No | Soft cap on work shifts per doctor per calendar month. **Not used during selection.** Exceeding it produces a warning after generation. `0` or omitted means no cap. |
+| `globalMonthlyShiftLimit` | integer 0–31 | No | Cap on work shifts per doctor per calendar month. `0` or omitted means no cap. By default it is **soft**: a doctor at the cap gets a score penalty, and exceeding it produces a warning. |
+| `enforceMonthlyLimit` | boolean | No (default `false`) | Makes the monthly limit **hard** for automatic assignment: a doctor at the cap is not eligible, even if the day stays uncovered. Pinned and pre-assigned shifts can still exceed it (and are warned about). |
 | `units` | `Unit[]` | No (default `[]`) | Medical units used for post-call coverage. File version 1 files omit this field. |
 | `holidays` | Date[] | No (default `[]`) | Dates treated like weekends for coverage: no unit-coverage requirement. A holiday shift still produces a post-call day on the next calendar day. |
 
@@ -130,24 +138,49 @@ For each day D:
        a. Filter eligible doctors (section 5).
        b. If any: score them (section 6) and pick with weighted sampling
           (section 7). Emit Work, update statistics.
-       c. If none: emit Off.
-          Warn `warnings.uncoveredDay` if at least one doctor is not
-          globally excluded from automatic assignment.
-          (If every doctor is excluded from auto-assignment, Off is silent.)
+       c. If none: emit Off (the repair pass may still fill it).
 
   5. If the roster is empty: emit Off, no warning.
 ```
 
-After the loop:
+### 4.1 Repair pass
 
-1. `analyzeBrokenConstraints` — interval, free-day clashes, monthly cap, balance.
-2. `analyzeUnitCoverage` — weekday post-call undercoverage.
+The greedy pass cannot look back, so an early choice can leave a later day
+with nobody eligible. For every `Off` day, in order, and for every doctor not
+blocked there by a free day, an excluded date or the auto-assignment flag:
+
+1. Collect the doctor's own shifts that block the day (interval or post-call).
+   Skip the doctor if there are none, more than **two**, or if any of them is
+   pinned or pre-assigned (only automatic shifts of this run can move).
+2. Tentatively remove those shifts and check that the doctor is now fully
+   eligible for the uncovered day (all of section 5, coverage look-ahead
+   included).
+3. Hand each removed shift to another doctor who is fully eligible for it.
+4. If every step succeeds the day becomes `Work`; otherwise everything is
+   rolled back and the next doctor is tried.
+
+The repair pass never breaks a hard constraint: it only accepts moves that
+pass the same eligibility test as the greedy pass.
+
+### 4.2 After the best attempt is chosen
+
+1. `warnings.uncoveredDay` for every day still `Off`, if at least one doctor
+   is not globally excluded from automatic assignment. (If every doctor is
+   excluded, `Off` is silent.)
+2. `analyzeBrokenConstraints` — interval, free-day clashes, monthly cap, balance.
+3. `analyzeUnitCoverage` — weekday post-call undercoverage.
 
 ---
 
 ## 5. Hard constraints (eligibility)
 
-A doctor is eligible for automatic assignment on D only if **all** hold:
+A doctor is eligible for automatic assignment on D only if **all** hold.
+
+Rules 5.2–5.5 live in `getAssignmentBlockReason`
+(`src/lib/schedule-eligibility.ts`), which returns the first reason that blocks
+a doctor: `freeDay`, `excluded`, `interval` or `postCall`. The calendar's
+doctor picker calls the same function, so a doctor the generator would never
+place on a day is shown disabled there, with the reason next to the name.
 
 ### 5.1 Not excluded from automatic assignment
 
@@ -218,53 +251,99 @@ Coverage counting rules (see also `src/lib/schedule-coverage.ts`):
 - Doctors excluded from automatic assignment **do** count.
 - Doctors with no `unitId` (and no cover assignment) never count.
 
+### 5.7 Strict monthly limit (only when `enforceMonthlyLimit` is on)
+
+The doctor has fewer than `globalMonthlyShiftLimit` work shifts (automatic,
+pre-assigned or pinned) in D's calendar month.
+
 ---
 
 ## 6. Soft score
 
-Computed only for eligible doctors. Higher is better.
+Computed only for eligible doctors. Higher is better. Every deficit is
+"average over the whole roster minus this doctor's count", so a doctor below
+the average scores higher.
 
 ```
-dayOfWeekDeficit          = globalAvg(dayOfWeek) − doctorCount(dayOfWeek)
-dayOfWeekPreferredBonus   = isPreferredDay ? dayOfWeekDeficit * 1.5 : 0
-weekendDeficit            = globalAvgWeekendThisMonth − doctorWeekendThisMonth
-monthlyDeficit            = globalAvgTotalWorkdays − doctorWorkdaysThisMonth
-daysSinceLastWork         = lastWorkDay ? calendarDays(lastWorkDay, D) : 999
+totalDeficit      = avg(totalWorkdays)            − doctor.totalWorkdays
+dayDeficit        = avg(count on this weekday)    − doctor count on this weekday
+weekendDeficit    = avg(weekend days this month)  − doctor weekend days this month
+monthlyDeficit    = avg(workdays this month)      − doctor workdays this month
+idleDays          = min(14, days since lastWorkDay)     (14 if never worked)
 
-score = dayOfWeekDeficit
-      + dayOfWeekPreferredBonus
-      + weekendDeficit * 0.8
+score = totalDeficit   * 1.0
+      + dayDeficit     * 1.0
+      + dayDeficit     * 1.5      (only on Thu, Fri, Sat, Sun)
+      + weekendDeficit * 0.8      (only on Fri, Sat, Sun)
       + monthlyDeficit * 0.6
-      + daysSinceLastWork * 0.1
+      + idleDays       * 0.05
+      − 4                         (soft monthly limit reached, see below)
 ```
 
-Preferred days: Thu, Fri, Sat, Sun.
-
-`globalMonthlyShiftLimit` is **not** a term in this formula.
-
-| Priority | Factor | Weight |
+| Factor | Weight | Notes |
 |---|---|---|
-| 1 | Day-of-week balance | 1.0 |
-| 2 | Preferred-day bonus | 1.5 × the same deficit |
-| 3 | Weekend distribution | 0.8 |
-| 4 | Monthly load vs global average | 0.6 |
-| 5 | Idle time | 0.1 |
+| Total workload | 1.0 | Keeps totals level across the whole period |
+| Day-of-week balance | 1.0 | |
+| Preferred-day bonus | 1.5 × the day-of-week deficit | Thu–Sun |
+| Weekend distribution | 0.8 | Applied on Fri–Sun only, per calendar month |
+| Monthly load | 0.6 | Compared with the average **of the same month** |
+| Idle time | 0.05 per day, capped at 14 days | Tie-breaker; the cap stops a long absence from outweighing fairness |
+| Soft monthly limit | −4 | When `globalMonthlyShiftLimit` is set, not strict, and the doctor already reached it this month |
+
+With the strict limit (section 5.7) the penalty is not needed: the doctor is
+simply not eligible.
 
 ---
 
-## 7. Weighted sampling (tie-break / variety)
+## 7. Sampling, seeds and attempts
 
-The highest score does **not** always win. Every eligible doctor can be chosen;
-higher scores are more likely.
+### 7.1 Weighted sampling
+
+The highest score does **not** always win. Every eligible doctor can be chosen,
+but the probability falls exponentially with the distance to the best score
+(softmax, temperature 0.5):
 
 ```
-weights[i] = max(0, score[i] − min(scores)) + 1
-pick uniformly from [0, sum(weights))
+weights[i] = exp((score[i] − max(scores)) / 0.5)
+pick from [0, sum(weights)) with the seeded generator
 ```
 
-Shifting by the minimum keeps the lowest-scoring eligible doctor in the pool
-(weight 1). Consecutive runs of the same inputs therefore differ while still
-respecting hard constraints and the fairness bias.
+A doctor one point behind the best is about 7 times less likely to be picked;
+two points behind, about 55 times. This keeps variety between runs without
+letting clearly worse candidates win often.
+
+### 7.2 Seed and best-of-N
+
+Randomness comes from a small seeded generator (`mulberry32`,
+`src/lib/random.ts`), never from `Math.random()` directly.
+
+```
+generateSchedule(data, fixedEntries, { seed?, attempts? })
+```
+
+- `seed` — omitted: a fresh random seed. Given: fully reproducible output.
+- `attempts` — how many candidate rosters to build (default 1; the worker
+  asks for 24). Attempt *n* uses a seed derived from the base seed.
+
+Each attempt gets a cost; the lowest wins, and the loop stops early at cost 0:
+
+```
+cost = uncovered days                          × 10 000
+     + undercovered unit-days                  ×    500
+     + doctor-months above the monthly limit   ×    200
+     + spread of total workdays                ×     10
+     + Σ months spread of weekend days         ×      6
+     + Σ months spread of workdays             ×      3
+     + Σ weekdays spread of per-weekday counts ×      1
+```
+
+"Spread" is max − min among doctors who take part in automatic assignment.
+Coverage therefore always beats fairness, and fairness of totals beats the
+finer balances.
+
+The seed of the winning attempt is returned as `seed` and stored in
+`schedule.seed` (and in the `.rw` file), so a roster can be reproduced from
+its inputs.
 
 ---
 
@@ -292,6 +371,12 @@ Returned alongside the schedule. The UI translates `key` via i18n.
 | `warnings.unbalancedPreferredDays` | For a preferred weekday, max − min > 2 |
 
 Balance warnings ignore doctors with 0 on that slice when computing the min.
+
+Entries whose `doctorId` is no longer on the roster are skipped by these
+checks. The page reports them separately (`buildScheduleWarnings` in
+`schedule-warnings.ts`) as `warnings.removedDoctorShifts`, and the calendar
+shows them as "Removed doctor" until they are reassigned or the schedule is
+regenerated.
 
 ### 8.3 `analyzeUnitCoverage`
 
@@ -333,6 +418,7 @@ algorithm-assigned work.
 | Field | Rule |
 |---|---|
 | Number of doctors | 0–20 |
+| `startDate`, `endDate` | both required to generate |
 | `endDate` | ≥ `startDate` |
 | `minIntervalBetweenWorkDays` | integer 0–30, default 1 |
 | `globalMonthlyShiftLimit` | integer 0–31, optional |
@@ -345,12 +431,14 @@ algorithm-assigned work.
 ## 11. Implementation notes
 
 - **Dates** are compared at calendar-day precision (`date-fns` `isSameDay` /
-  `differenceInCalendarDays`). Persistence uses ISO-8601; date-only strings are
-  interpreted as local midnight (`toLocalDate` in `schedule-storage.ts`).
+  `differenceInCalendarDays`). Persistence uses date-only `yyyy-MM-dd` strings
+  (`toDateKey` / `parseDateValue` in `src/lib/dates.ts`), read back as local
+  midnight, so a file means the same days in every time zone.
 - **Partial regeneration.** Pass current `isFixed` entries as
   `existingFixedEntries`. The UI asks whether to keep pins when the user
   regenerates.
 - **Worker.** `generateSchedule` runs in `src/workers/schedule.worker.ts` via
-  `useScheduleWorker`. Tests may call it on the main thread.
+  `useScheduleWorker`, which asks for 24 attempts. Tests may call it on the
+  main thread. If generation fails, the previous schedule is kept.
 - **One work assignment per day.** The model is a single on-call doctor, plus
   any number of free-day markers.

@@ -140,7 +140,7 @@ test.describe('Calendar', () => {
     await expect(grid.getByText('Dr. Ada')).toHaveCount(1);
 
     await page.getByText('Select doctor').first().click();
-    await page.locator('.fixed.z-\\[1000\\]').getByText('Dr. Bob', { exact: true }).click();
+    await page.getByRole('option', { name: 'Dr. Bob' }).click();
     await expect(grid.getByText('Dr. Bob')).toHaveCount(1);
 
     const undo = page.getByRole('button', { name: 'Undo' });

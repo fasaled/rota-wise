@@ -1,4 +1,5 @@
 import { format, type Locale } from 'date-fns';
+import type { LooseTFunction } from './i18n';
 import type { DoctorProfile, Schedule, ScheduleEntry, Unit } from './types';
 import { type ScheduleWarning, analyzeBrokenConstraints, analyzeUnitCoverage } from './schedule-analyze';
 
@@ -9,7 +10,7 @@ export function computeScheduleWarnings(
   currentMinInterval: number,
   language: string,
   currentDateFnsLocale: Locale,
-  t: (key: string, params?: Record<string, any>) => string,
+  t: LooseTFunction,
   holidays: Date[] = [],
 ): string[] {
   if (!schedule) return [];
@@ -61,6 +62,15 @@ export function computeScheduleWarnings(
     }
   }
 
+  // Shifts whose doctor was removed from the roster after generation.
+  const rosterIds = new Set(doctorsProfiles.map((d) => d.id));
+  const orphanShifts = schedule.entries.filter(
+    (e) => (e.assignment === 'Work' || e.assignment === 'Pre-assigned') && !rosterIds.has(e.doctorId),
+  ).length;
+  if (orphanShifts > 0) {
+    rawWarnings.push({ key: 'warnings.removedDoctorShifts', params: { count: orphanShifts } });
+  }
+
   const anyDoctorPotentiallyAvailable = doctorsProfiles.some(
     (d) => !d.isExcludedFromAutomaticAssignment,
   );
@@ -92,6 +102,11 @@ export function computeScheduleWarnings(
         params[field] = format(params[field], 'P', { locale: currentDateFnsLocale });
       }
     });
+    // Month keys travel as `yyyy-MM`; show them as a localized month name.
+    if (typeof params.month === 'string' && /^\d{4}-\d{2}$/.test(params.month)) {
+      const [year, month] = params.month.split('-').map(Number);
+      params.month = format(new Date(year, month - 1, 1), 'LLLL yyyy', { locale: currentDateFnsLocale });
+    }
     return t(warning.key, params);
   });
 }

@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import type { scheduleFormSchema } from '@/lib/schedule-form-schema';
 
 // Current file format version. Bump whenever the on-disk shape changes.
-export const CURRENT_FILE_VERSION = 3 as const;
+export const CURRENT_FILE_VERSION = 4 as const;
 
 export interface Unit {
   id: string;
@@ -70,6 +70,7 @@ export interface Schedule {
   endDate: Date;
   minIntervalBetweenWorkDays?: number; // Added to carry context
   globalMonthlyShiftLimit?: number; // Global monthly shift limit for all doctors
+  seed?: number; // Seed of the generator run that produced this schedule
 }
 
 export interface DayDetails {
@@ -98,18 +99,22 @@ export interface UnitCoverage {
 }
 
 // --- Types for JSON Serialization/Deserialization ---
+// Calendar days are persisted as `yyyy-MM-dd` strings (file version 4).
+// File versions 1–3 used ISO datetimes; `parseDateValue` reads both.
 
 export interface SerializedScheduleEntry extends Omit<ScheduleEntry, 'date' | 'dayOfWeek'> {
-  date: string; // ISO date string
+  date: string;
   dayOfWeek?: string;
 }
 
-export interface SerializedSchedule extends Omit<Schedule, 'startDate' | 'endDate' | 'entries' | 'minIntervalBetweenWorkDays' | 'globalMonthlyShiftLimit'> {
-  startDate: string; // ISO date string
-  endDate: string; // ISO date string
+export interface SerializedSchedule {
+  /** Absent when there is no generated schedule. */
+  startDate?: string;
+  endDate?: string;
   entries: SerializedScheduleEntry[];
   minIntervalBetweenWorkDays?: number;
   globalMonthlyShiftLimit?: number;
+  seed?: number;
 }
 
 export interface SerializedUnitCoverAssignment extends Omit<UnitCoverAssignment, 'startDate' | 'endDate'> {
@@ -117,51 +122,50 @@ export interface SerializedUnitCoverAssignment extends Omit<UnitCoverAssignment,
   endDate: string;
 }
 
-export interface SerializedDoctorProfile extends Omit<DoctorProfile, 'freeDates' | 'preAssignedWorkDates' | 'excludedDates' | 'coverAssignments'> {
-  freeDates: string[]; // Array of ISO date strings
-  preAssignedWorkDates: string[]; // Array of ISO date strings
-  excludedDates: string[]; // Array of ISO date strings
-  isExcludedFromAutomaticAssignment: boolean;
-  unitId?: string;
+export interface SerializedDoctorFormFieldInput
+  extends Omit<DoctorFormFieldInput, 'freeDates' | 'preAssignedWorkDates' | 'excludedDates' | 'coverAssignments'> {
+  freeDates: string[];
+  preAssignedWorkDates: string[];
+  excludedDates: string[];
   coverAssignments?: SerializedUnitCoverAssignment[];
 }
 
-export interface SerializedDoctorFormFieldInput extends Omit<DoctorFormFieldInput, 'freeDates' | 'preAssignedWorkDates' | 'excludedDates' | 'coverAssignments'> {
-  freeDates: string[]; // Array of ISO date strings
-  preAssignedWorkDates: string[]; // Array of ISO date strings
-  excludedDates: string[]; // Array of ISO date strings
-  isExcludedFromAutomaticAssignment: boolean;
-  unitId?: string;
-  coverAssignments?: SerializedUnitCoverAssignment[];
-}
+/** Same shape as the form doctor; kept as a separate name for file readers. */
+export type SerializedDoctorProfile = SerializedDoctorFormFieldInput;
 
 // Units are already JSON-serializable (only primitive fields), so we use the same shape.
 export type SerializedUnit = Unit;
 
-export interface SerializedScheduleFormValues extends Omit<ScheduleFormValues, 'startDate' | 'endDate' | 'doctors' | 'minIntervalBetweenWorkDays' | 'globalMonthlyShiftLimit' | 'units' | 'holidays'> {
-  startDate: string; // ISO date string
-  endDate: string; // ISO date string
-  doctors: SerializedDoctorFormFieldInput[];
+export interface SerializedScheduleFormValues {
+  numberOfDoctors: number;
+  /** Absent until the user picks a period. */
+  startDate?: string;
+  endDate?: string;
   minIntervalBetweenWorkDays?: number;
   globalMonthlyShiftLimit?: number;
+  enforceMonthlyLimit?: boolean;
+  doctors: SerializedDoctorFormFieldInput[];
   units?: SerializedUnit[]; // Optional for backward compatibility with fileVersion 1
-  holidays?: string[]; // ISO date strings, optional for fileVersion 1 compatibility
+  holidays?: string[]; // Optional for fileVersion 1 compatibility
 }
 
 export interface PersistedScheduleData {
   schedule: SerializedSchedule;
+  /** Mirror of `formValues.doctors`, kept for readers of file versions 1–3. */
   doctorsProfiles: SerializedDoctorProfile[];
   formValues: SerializedScheduleFormValues;
-  scheduleWarnings?: string[]; // Optional: Added for persisting warnings
-  currentMinInterval?: number; // Optional: Added for persisting min interval context
+  /** @deprecated Written by file versions 1–3. Warnings are always recomputed on load. */
+  scheduleWarnings?: string[];
+  currentMinInterval?: number; // Min interval the stored schedule was generated with
 }
 
+/** Reserved for future named versions of a schedule. Always `[]` today. */
 export interface ScheduleVersion {
   id: string;
   name: string;
   description?: string;
-  createdAt: string;         // ISO date string
-  lastModified: string;      // ISO date string
+  createdAt: string;
+  lastModified: string;
   parameters: SerializedScheduleFormValues;
   generatedSchedule?: SerializedSchedule;
   warnings?: string[];

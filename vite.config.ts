@@ -19,6 +19,8 @@ export default defineConfig({
       injectManifest: {
         maximumFileSizeToCacheInBytes: 10_000_000,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,json}'],
+        // Store / social images are never shown by the app itself.
+        globIgnores: ['**/screenshots/**', '**/icons/mstile-*', '**/icons/maskable-*'],
       },
       devOptions: { enabled: false },
     }),

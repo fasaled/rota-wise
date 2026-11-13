@@ -23,6 +23,8 @@ interface ExportWordParams {
   holidays?: Date[];
   fileName: string | null;
   locale: Locale;
+  /** Localized document title used when there is no file name. */
+  defaultTitle?: string;
 }
 
 const FONT = 'Inter';
@@ -67,6 +69,7 @@ export async function exportWord({
   holidays = [],
   fileName,
   locale,
+  defaultTitle = 'Rotawise',
 }: ExportWordParams): Promise<void> {
   const getDoctorNameById = (id: string) =>
     doctorsProfiles.find((d) => d.id === id)?.name || id;
@@ -84,7 +87,7 @@ export async function exportWord({
   const allMonths = eachMonthOfInterval({ start: schedule.startDate, end: schedule.endDate })
     .map((m) => startOfMonth(m));
 
-  const title = (fileName?.replace(/\.(rw|json)$/, '').replace(/[_-]+/g, ' ').trim()) || 'Rotawise schedule';
+  const title = fileName?.replace(/\.(rw|json)$/i, '').replace(/[_-]+/g, ' ').trim() || defaultTitle;
 
   const children: (Paragraph | Table)[] = [];
 
@@ -105,7 +108,7 @@ export async function exportWord({
       }));
     }
 
-    const monthTitle = format(monthStart, 'MMMM yyyy', { locale });
+    const monthTitle = format(monthStart, 'LLLL yyyy', { locale });
     const monthTitleCapped = monthTitle.charAt(0).toUpperCase() + monthTitle.slice(1);
 
     children.push(new Paragraph({
@@ -226,7 +229,7 @@ export async function exportWord({
     }
   });
 
-  const baseName = fileName?.replace(/\.(rw|json)$/, '') ?? null;
+  const baseName = fileName?.replace(/\.(rw|json)$/i, '') ?? null;
   const docxName = baseName
     ? `${baseName}.docx`
     : `rotawise-schedule_${format(new Date(), 'yyyy-MM-dd')}.docx`;

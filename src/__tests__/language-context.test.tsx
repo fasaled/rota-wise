@@ -18,34 +18,30 @@ describe('useLanguage', () => {
     it('resolves a flat key that exists in the translation file', async () => {
       const { result } = renderHook(() => useLanguage(), { wrapper });
       await waitFor(() => {
-        expect(result.current.t('header.title')).toBe('Rotawise');
+        expect(result.current.t('file.menu')).toBe('File');
       });
     });
 
     it('resolves another flat key', async () => {
       const { result } = renderHook(() => useLanguage(), { wrapper });
       await waitFor(() => {
-        expect(result.current.t('header.description')).toBe(
-          'Fair and balanced doctor scheduling',
-        );
+        expect(result.current.t('nav.undo')).toBe('Undo');
       });
     });
 
-    it('resolves a nested key using dot-path traversal', async () => {
+    it('resolves a dotted key (keys are flat, dots are part of the name)', async () => {
       const { result } = renderHook(() => useLanguage(), { wrapper });
       await waitFor(() => {
-        // "page.noSchedule.title" is stored as a flat key in en.json
-        const value = result.current.t('page.noSchedule.title');
-        expect(value).toBe('No schedule generated yet');
+        const value = result.current.t('page.toast.clearedDoctorItems.title');
+        expect(value).toBe('Doctor Details Cleared');
       });
     });
 
     it('returns the key itself when no translation is found', async () => {
       const { result } = renderHook(() => useLanguage(), { wrapper });
       await waitFor(() => {
-        expect(result.current.t('definitely.does.not.exist')).toBe(
-          'definitely.does.not.exist',
-        );
+        const t = result.current.t as (key: string) => string;
+        expect(t('definitely.does.not.exist')).toBe('definitely.does.not.exist');
       });
     });
 
@@ -102,9 +98,7 @@ describe('useLanguage', () => {
       });
 
       await waitFor(() => {
-        expect(result.current.t('header.description')).toBe(
-          'Programación de médicos justa y equilibrada',
-        );
+        expect(result.current.t('nav.undo')).toBe('Deshacer');
       });
     });
 
@@ -144,7 +138,7 @@ describe('useLanguage', () => {
       });
 
       await waitFor(() => {
-        expect(result.current.t('header.title')).toBe('Rotawise');
+        expect(result.current.t('file.menu')).toBe('File');
         expect(result.current.language).toBe('en');
       });
     });
@@ -154,9 +148,26 @@ describe('useLanguage', () => {
       const { result } = renderHook(() => useLanguage(), { wrapper });
       await waitFor(() => {
         expect(result.current.language).toBe('es');
-        expect(result.current.t('header.description')).toBe(
-          'Programación de médicos justa y equilibrada',
-        );
+        expect(result.current.t('nav.undo')).toBe('Deshacer');
+      });
+    });
+  });
+
+  describe('document metadata', () => {
+    it('keeps <html lang> and the title in the active language', async () => {
+      const { result } = renderHook(() => useLanguage(), { wrapper });
+      await waitFor(() => {
+        expect(document.documentElement.lang).toBe('en');
+        expect(document.title).toBe(result.current.t('meta.title'));
+      });
+
+      act(() => {
+        result.current.setLanguage('es');
+      });
+
+      await waitFor(() => {
+        expect(document.documentElement.lang).toBe('es');
+        expect(document.title).toContain('guardias');
       });
     });
   });

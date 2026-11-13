@@ -15,44 +15,80 @@ Path alias: `@/*` → `src/*`.
 
 ```
 src/
-├── main.tsx                     Providers (theme, language, file system) + render
-├── rotawise-page.tsx            Orchestrator: form, schedule, persistence, undo
-├── components/rotawise/         App shell, config form, calendar, summaries
+├── main.tsx                     Providers (theme, language, file system), error boundary, render
+├── rotawise-page.tsx            Orchestrator: wires the hooks below to the UI
+├── components/rotawise/         App shell, command bar, banners, summaries
+│   ├── calendar/                Day cell, pickers, coverage dots, drag-and-drop, chip styles
+│   ├── form/                    Doctor / unit cards, date pickers, cover editor, field errors
+│   └── app-error-boundary.tsx   Last-resort screen; the roster stays in IndexedDB
 ├── components/ui/               shadcn/ui (do not edit by hand)
 ├── context/                     Language, theme, File System Access
-├── hooks/                       Worker, history, debounce, info-bar
+├── hooks/
+│   ├── use-schedule-document.ts     Single source of truth + undo / redo
+│   ├── use-document-persistence.ts  Debounced save to IndexedDB and the bound file
+│   ├── use-schedule-worker.ts       Promise API over the scheduling worker
+│   ├── use-history.ts               Generic undo / redo stacks
+│   ├── use-undo-shortcuts.ts        Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl+Y
+│   ├── use-file-drop.ts             Drag a .rw file onto the window
+│   └── use-media-query.ts, use-debounced-callback.ts, use-info-bar.ts
 ├── lib/
-│   ├── schedule-generator.ts    Day-by-day assignment
+│   ├── schedule-generator.ts    Attempts: greedy pass + repair, best-of-N
+│   ├── schedule-eligibility.ts  Per-doctor hard rules (generator + calendar picker)
 │   ├── schedule-coverage.ts     Post-call, alliances, availability
 │   ├── schedule-analyze.ts      Warnings after generation / edits
 │   ├── schedule-edits.ts        Pure calendar mutations
 │   ├── schedule-interval.ts     Neighbour / min-interval helpers
-│   ├── schedule-storage.ts      .rw serialize / deserialize / migrate
+│   ├── schedule-storage.ts      .rw validate / serialize / deserialize / migrate
 │   ├── schedule-warnings.ts     Warning keys → translated strings
-│   ├── schedule-form-schema.ts  Zod form schema
+│   ├── schedule-form-schema.ts  Zod form schema (messages are i18n keys)
+│   ├── dates.ts                 Calendar-day keys and parsing (`yyyy-MM-dd`)
+│   ├── random.ts                Seedable PRNG
+│   ├── i18n.ts                  Typed translation keys, `translate`, language detection
+│   ├── theme.ts                 Theme storage and resolution
 │   ├── browser-storage.ts       IndexedDB working copy
 │   ├── export-word.ts           Lazy-loaded .docx
 │   └── types.ts                 Domain types + CURRENT_FILE_VERSION
 ├── workers/schedule.worker.ts   Off-main-thread generateSchedule
-├── locales/                     en.json, es.json
+├── locales/                     en.json, es.json (flat keys, same set in both)
 └── sw.ts                        Workbox injectManifest service worker
+public/
+└── theme-init.js                Theme + lang before first paint (external because of the CSP)
 ```
 
-`rotawise-page.tsx` owns session state. Pure functions live in `src/lib/` so
-the algorithm and file format can be tested without the DOM.
+Pure functions live in `src/lib/` so the algorithm and file format can be
+tested without the DOM.
+
+### One document, everything else derived
+
+`useScheduleDocument` holds exactly three things: `schedule`, `formValues` and
+`currentMinInterval`. Doctors, units, holidays, warnings and the saved file are
+**derived** from them with `useMemo`; nothing else is stored. This is what
+keeps the calendar, the summaries, the warnings and the `.rw` file from ever
+disagreeing with the roster form.
+
+The form is uncontrolled (react-hook-form). It reports every change with a
+**snapshot** of its values (react-hook-form mutates its own object in place),
+and is re-mounted with a new `key` only when something other than typing
+replaces the roster: open, new, undo/redo of a change that touched the roster.
 
 ---
 
 ## Runtime data flow
 
 1. Hydration: PWA `launchQueue` file, else IndexedDB working copy, else empty roster.
-2. Roster tab writes `ScheduleFormValues` through react-hook-form + Zod.
-3. **Generate** posts `{ formValues, existingFixedEntries }` to the worker.
-4. The worker returns `{ schedule, warnings?, error? }`.
-5. The page stores the schedule, pushes an undo snapshot, navigates to Calendar,
-   and debounces a persist (IndexedDB always; disk if a file handle is bound).
-6. Calendar edits go through `src/lib/schedule-edits.ts`, then warnings are
-   recomputed with `computeScheduleWarnings`.
+2. Roster tab edits flow through react-hook-form + Zod into
+   `useScheduleDocument.setFormValues` (not recorded in history).
+3. **Generate** validates the form, then posts
+   `{ formValues, existingFixedEntries, options: { attempts: 24 } }` to the worker.
+4. The worker returns `{ schedule, warnings?, seed?, error? }`. On error the
+   previous schedule is kept and the error is shown.
+5. The page commits the schedule (one undo step) and navigates to Calendar.
+6. Calendar edits go through `src/lib/schedule-edits.ts` and are committed the
+   same way. Warnings are recomputed from the document by
+   `buildScheduleWarnings`; they are never stored.
+7. `useDocumentPersistence` saves the derived `AppFileData` 500 ms after the
+   last change (IndexedDB always; disk if a file handle is bound), and flushes
+   immediately when the tab is hidden or closed.
 
 ---
 
@@ -85,9 +121,10 @@ work to jank the UI if it runs on the main thread.
 
 **Consequences.** Dates crossing the worker boundary must survive structured
 clone (they do: `Date` is cloneable). Unit tests may still import
-`generateSchedule` directly. If the worker fails to start, the hook currently
-does not fall back to sync generation — treat worker availability as required
-in supported browsers.
+`generateSchedule` directly. Requests carry an id, so overlapping calls
+resolve independently. If the worker crashes, every pending request is settled
+with an error and a fresh worker is created on the next request; there is no
+synchronous fallback — worker availability is required.
 
 ### ADR 3 — Dual persistence (IndexedDB + optional file)
 
@@ -101,6 +138,14 @@ working copy between visits.
 - When the user picks **Save to file** in a supporting browser, bind a
   `FileSystemFileHandle` and auto-save on change (500 ms debounce).
 - Elsewhere, **Save** downloads a `.rw` blob. **Open** uses `<input type="file">`.
+
+- Opening, dropping or starting a new roster **suspends** persistence until the
+  new document and its file binding are both in place, so the old roster can
+  never be written into the newly opened file.
+- If the browser revokes write permission, auto-save to the file pauses
+  (`FilePermissionError`) and the command bar offers to re-enable it; the
+  IndexedDB copy keeps being written meanwhile.
+- Files are validated before they replace anything (`RotawiseFileError`).
 
 **Consequences.** “Browser only” is a first-class mode, not an error. A banner
 explains missing disk auto-save. Unlinking a file does not delete it on disk.
@@ -155,7 +200,12 @@ after the first visit. The default Workbox generateSW flow is harder to audit.
 
 **Decision.** `vite-plugin-pwa` + `injectManifest` with `src/sw.ts`. Precache
 all hashed assets. Navigation falls back to `index.html`. `registerType` is
-`autoUpdate`. Generated `public/sw.js` is gitignored.
+`autoUpdate`. Generated `public/sw.js` is gitignored. The worker does nothing
+else: no push, no background sync. Store screenshots and OS-only icons are
+left out of the precache.
+
+A tab still running an old bundle after an update can ask for a chunk that no
+longer exists; `main.tsx` listens for `vite:preloadError` and reloads once.
 
 **Consequences.** Offline works for the app shell and JS. Roster data is
 already local, so offline scheduling works. Manifest file handlers let the OS
@@ -166,11 +216,17 @@ open `.rw` files into the PWA (`launchQueue`).
 **Context.** The original users are bilingual (ES/EN). A full i18n framework is
 heavier than two JSON files.
 
-**Decision.** `language-context.tsx` plus `src/locales/{en,es}.json`. Preference
-in `localStorage`. Algorithm `dayOfWeek` stays English; the UI translates.
+**Decision.** `language-context.tsx` plus `src/locales/{en,es}.json`, with the
+framework-free parts in `src/lib/i18n.ts`. The initial language is `?lang=` in
+the URL, then the stored preference, then the browser language. Algorithm
+`dayOfWeek` stays English; the UI translates. The provider keeps
+`<html lang>`, the title, the description and the canonical link in step with
+the active language.
 
-**Consequences.** Every new string needs both files. Tests cover the language
-toggle. Warning keys (`warnings.*`) are stable ids, not display text.
+**Consequences.** Every new string needs both files. Keys are flat and typed
+(`TranslationKey = keyof en.json`), so a missing or misspelt key is a compile
+error, and a unit test checks both files have the same keys and placeholders.
+Warning and validation keys are stable ids, not display text.
 
 ### ADR 9 — shadcn/ui primitives are generated
 
@@ -192,8 +248,10 @@ theme, language. Playwright in `e2e/` for journeys. No Jest. File pattern
 `*.playwright.ts` so bun test does not load Playwright files.
 
 **Consequences.** UI regressions that are not in a journey can slip through.
-Prefer extending `e2e/core-journeys.playwright.ts` or
-`e2e/coverage-derivation.playwright.ts` over adding enzyme-style tests.
+Prefer extending `e2e/core-journeys.playwright.ts`,
+`e2e/coverage-derivation.playwright.ts` or `e2e/regressions.playwright.ts`
+(one test per fixed bug: roster edits with a schedule, redo, keyboard picker,
+phone layout) over adding enzyme-style tests.
 
 ### ADR 11 — Word export, not spreadsheets
 
@@ -218,12 +276,15 @@ chunk.
 **Consequences.** First paint of Roster is smaller. The service worker still
 precaches the extra chunks, so they are available offline after install.
 
-### ADR 13 — Undo is in-memory only
+### ADR 13 — Undo and redo are in-memory only
 
 **Context.** Users need to revert a bad drag or regenerate. Persisting a full
 history stack into `.rw` would grow files and complicate merge semantics.
 
-**Decision.** `useHistory` keeps schedule snapshots in RAM. Undo is disabled
+**Decision.** `useHistory` keeps up to 50 snapshots in RAM, with a redo stack
+that is cleared by any new change. A snapshot holds the schedule and, only for
+changes that also touched the roster (for example "clear doctor details"), the
+form values. Typing in the roster form is not an undo step. History is empty
 after reload. Persistence always stores the *current* roster.
 
 **Consequences.** Document this in the UI mental model: undo is a session tool,
@@ -233,11 +294,36 @@ snapshots but the current UI does not expose a version manager
 
 ---
 
+### ADR 14 — Strict Content-Security-Policy
+
+**Context.** The app handles staff rosters and has no reason to talk to any
+other origin or run any script it did not ship.
+
+**Decision.** `vercel.json` sends
+`default-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; …`
+plus `nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS and
+`X-Frame-Options: DENY`.
+
+**Consequences.** No inline scripts: the pre-paint theme script is
+`public/theme-init.js` and the service-worker registration is the external
+`registerSW.js`. `style-src` keeps `'unsafe-inline'` because Radix and
+`style` attributes need it. Adding a third-party script, font or API means
+changing the policy on purpose. Other hosts must send equivalent headers
+themselves.
+
+---
+
 ## Hosting
 
-Static `dist/` after `bun run build`. `vercel.json` sets `sw.js` /
-`registerSW.js` to `Cache-Control: public, max-age=0, must-revalidate` so
-clients pick up worker updates.
+Static `dist/` after `bun run build`. `vercel.json` sets the security headers
+above, `Cache-Control: public, max-age=0, must-revalidate` for `sw.js`,
+`registerSW.js`, `theme-init.js` and `manifest.json` so clients pick up
+updates, and a one-year `immutable` cache for the hashed files in `/assets/`.
+
+SEO is static: `index.html` carries the title, description, Open Graph /
+Twitter tags, `hreflang` links for `/?lang=en` and `/?lang=es`, JSON-LD
+(`WebApplication`) and a no-JavaScript message; `public/robots.txt` points at
+`public/sitemap.xml`.
 
 The same `dist/` is the installable PWA — point `PWABuilder` (or any static
 host) at `dist/`; no second build target.

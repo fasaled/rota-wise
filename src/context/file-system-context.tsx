@@ -8,7 +8,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { type AppFileData } from '@/lib/types';
-import { parseAppFileJson } from '@/lib/schedule-storage';
+import { FilePermissionError, parseAppFileJson } from '@/lib/schedule-storage';
 import {
   clearPersistedFileHandle,
   loadPersistedFileHandle,
@@ -40,10 +40,15 @@ interface FileSystemContextValue {
   /** True if showOpenFilePicker / showSaveFilePicker exist (Chromium). */
   isFileSystemAccessSupported: boolean;
   launchQueueData: AppFileData | null;
+  /** Set when a file passed by the OS (file handler) could not be read. */
+  launchError: Error | null;
   clearLaunchQueueData: () => void;
   openFile: () => Promise<OpenFileResult | null>;
   saveAsFile: (data: AppFileData) => Promise<SaveFileResult | null>;
+  /** Writes to the bound file. Throws `FilePermissionError` if write access is missing. */
   saveToFile: (data: AppFileData) => Promise<void>;
+  /** Ask for write access to the bound file. Must be called from a user gesture. */
+  requestWritePermission: () => Promise<boolean>;
   clearBinding: () => Promise<void>;
 }
 
@@ -76,13 +81,15 @@ async function writeFileData(handle: FileSystemFileHandle, data: AppFileData): P
   const perm = await (
     handle as FileSystemFileHandle & { queryPermission: (d: { mode: string }) => Promise<string> }
   ).queryPermission({ mode: 'readwrite' });
-  if (perm !== 'granted') {
-    console.warn('[FileSystem] Skipping write — readwrite permission not granted.');
-    return;
-  }
+  if (perm !== 'granted') throw new FilePermissionError();
   const writable = await handle.createWritable();
-  await writable.write(JSON.stringify(data, null, 2));
-  await writable.close();
+  try {
+    await writable.write(JSON.stringify(data, null, 2));
+    await writable.close();
+  } catch (err) {
+    await writable.abort?.().catch(() => {});
+    throw err;
+  }
 }
 
 function pickFileViaInput(): Promise<File | null> {
@@ -137,7 +144,11 @@ export function useFileSystem(): FileSystemContextValue {
 
 export function FileSystemProvider({ children }: { children: ReactNode }) {
   const [fileHandle, setFileHandleState] = useState<FileSystemFileHandle | null>(null);
+  // Name of the last file opened or downloaded in browsers without the File
+  // System Access API (there is no handle to read it from).
+  const [looseFileName, setLooseFileName] = useState<string | null>(null);
   const [launchQueueData, setLaunchQueueData] = useState<AppFileData | null>(null);
+  const [launchError, setLaunchError] = useState<Error | null>(null);
   const [isFileSystemAccessSupported, setIsFileSystemAccessSupported] = useState(false);
 
   useEffect(() => {
@@ -166,6 +177,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
 
   const bindHandle = useCallback(async (handle: FileSystemFileHandle | null) => {
     setFileHandleState(handle);
+    setLooseFileName(null);
     try {
       if (handle) await savePersistedFileHandle(handle);
       else await clearPersistedFileHandle();
@@ -176,6 +188,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
 
   const clearLaunchQueueData = useCallback(() => {
     setLaunchQueueData(null);
+    setLaunchError(null);
   }, []);
 
   useEffect(() => {
@@ -191,10 +204,14 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         const handle = launchParams.files[0];
         const file = await handle.getFile();
         const data = parseAppFileJson(await file.text());
-        await bindHandle(handle);
+        // Bind and publish in the same tick so the page never sees the new
+        // handle paired with the previous document (or the other way round).
+        const bound = bindHandle(handle);
         setLaunchQueueData(data);
+        await bound;
       } catch (err) {
         console.error('[FileSystem] Error reading file from launchQueue', err);
+        setLaunchError(err instanceof Error ? err : new Error(String(err)));
       }
     });
   }, [bindHandle]);
@@ -211,10 +228,10 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
           types: RW_OPEN_TYPES,
           multiple: false,
         });
-        const granted = await permissionGranted(handle, true);
-        if (!granted) {
-          console.warn('[FileSystem] Write permission not granted; auto-save will be unavailable.');
-        }
+        // Ask for write access up front so auto-save works. If the user
+        // declines, the first auto-save fails with FilePermissionError and the
+        // page shows the "auto-save paused" control.
+        await permissionGranted(handle, true);
 
         const file = await handle.getFile();
         const data = parseAppFileJson(await file.text());
@@ -248,6 +265,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     if (!file) return null;
     const data = parseAppFileJson(await file.text());
     await bindHandle(null);
+    setLooseFileName(file.name);
     return { handle: null, data, fileName: file.name };
   }, [isFileSystemAccessSupported, bindHandle]);
 
@@ -270,11 +288,11 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      const name = fileHandle?.name ?? 'schedule.rw';
+      const name = fileHandle?.name ?? looseFileName ?? 'schedule.rw';
       downloadRwFile(data, name);
       return { handle: null, fileName: name, downloaded: true };
     },
-    [isFileSystemAccessSupported, fileHandle, bindHandle],
+    [isFileSystemAccessSupported, fileHandle, looseFileName, bindHandle],
   );
 
   const saveToFile = useCallback(
@@ -285,11 +303,16 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     [fileHandle],
   );
 
+  const requestWritePermission = useCallback(async () => {
+    if (!fileHandle) return false;
+    return permissionGranted(fileHandle, true);
+  }, [fileHandle]);
+
   const clearBinding = useCallback(async () => {
     await bindHandle(null);
   }, [bindHandle]);
 
-  const fileName = fileHandle?.name ?? null;
+  const fileName = fileHandle?.name ?? looseFileName;
   const persistenceMode: PersistenceMode = fileHandle ? 'file' : 'browser';
 
   return (
@@ -300,10 +323,12 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
         persistenceMode,
         isFileSystemAccessSupported,
         launchQueueData,
+        launchError,
         clearLaunchQueueData,
         openFile,
         saveAsFile,
         saveToFile,
+        requestWritePermission,
         clearBinding,
       }}
     >

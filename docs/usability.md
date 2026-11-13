@@ -128,10 +128,13 @@ regenerating. They count Work + Pre-assigned only.
 
 ---
 
-## Session undo, not file history
+## Session undo and redo, not file history
 
-Undo in the command bar walks an in-memory stack (generate, drag, pin, manual
-assign). It does not survive reload and is not written to `.rw`.
+Undo and redo in the command bar (`Ctrl/Cmd+Z`, `Ctrl/Cmd+Shift+Z`) walk an
+in-memory stack of up to 50 steps (generate, drag, pin, manual assign, clear
+doctor details). Typing in the roster form is not a step — text fields keep
+the browser's own undo. History does not survive reload and is not written to
+`.rw`.
 
 That matches “I misplaced a shift” rather than “I want named versions”. The
 file format still has a `versions` array for a future manager; the current UI
@@ -141,12 +144,43 @@ does not expose it.
 
 ## Language and theme are chrome, not content
 
-EN/ES and light/dark/system live in the sidebar footer so they are reachable
-from every tab and never mixed with roster fields. Language preference and
-theme are the only `localStorage` keys; roster data is not stored there.
+EN/ES and light/dark/system live in the sidebar footer (the **More** menu of
+the bottom bar on phones) so they are reachable from every tab and never mixed
+with roster fields. Language preference and theme are the only `localStorage`
+keys; roster data is not stored there. A link can force a language with
+`?lang=en` or `?lang=es`.
 
-Theme is applied in a tiny inline script in `index.html` before paint to avoid
-a flash.
+Theme and language are applied by `public/theme-init.js` before paint to avoid
+a flash. It is an external file because the Content-Security-Policy forbids
+inline scripts.
+
+---
+
+## One roster, one truth
+
+The calendar, the summaries, the warnings and the saved file are all computed
+from the roster form and the schedule. Renaming a doctor, changing a unit or
+removing someone is reflected everywhere at once, with no "regenerate to
+refresh" step. Removing a doctor does not silently delete their shifts: they
+stay visible as “Removed doctor” and a warning asks for them to be reassigned.
+
+---
+
+## The picker only offers what the rules allow
+
+When assigning a day by hand, doctors who cannot take it (free day, excluded
+date, adjacent shift, post-call) are listed but disabled, with the reason.
+These are the generator's own rules, so a manual edit cannot quietly create a
+roster the generator would refuse. Pre-assignments and pins remain the way to
+overrule the rules on purpose.
+
+---
+
+## Phones get an agenda, not a shrunken grid
+
+Seven columns do not fit a duty phone. Under 640 px the month is a list of
+days with the same chips and pickers; drag and drop is replaced by the
+pickers. Tablets and desktops keep the grid.
 
 ---
 
@@ -173,16 +207,30 @@ library is not on the critical path.
 - Calendar with no schedule: empty state + button back to Roster.
 - Generate / export: command-bar actions disable under `isBusy`; the generate
   button shows a spinner.
+- Generate with something missing: the app goes to Roster, scrolls to the
+  first field with an error and says what to fix, instead of failing silently.
+- A failed generation or a rejected file never discards the roster on screen.
+- Lost write permission to the bound file: auto-save pauses visibly and one
+  click re-enables it; nothing is lost because the browser copy keeps saving.
 
 ---
 
 ## Accessibility notes (current bar, not a claim of WCAG)
 
-- Icon+label nav; disabled tabs use `disabled` + reduced opacity.
+- Icon+label nav with `aria-current`; disabled tabs use `disabled` + reduced
+  opacity. One `<h1>`, section `<h2>`s, `<html lang>` follows the language.
+- Pinch-zoom is allowed; a visible focus ring on every interactive element;
+  animations respect `prefers-reduced-motion`.
 - Doctor cards expose a keyboard drag handle via dnd-kit sensors.
-- Coverage dots have `title` and `aria-label`.
-- Info-bar messages can be dismissed; some auto-dismiss.
+- Calendar pickers are Radix popovers with a searchable listbox (arrows,
+  Enter, Escape, focus returned to the trigger).
+- Coverage dots differ in shape as well as colour and have `title` and
+  `aria-label`.
+- Icon-only buttons have accessible names; lock toggles expose `aria-pressed`.
+- Info-bar errors are alerts, other messages polite status; all can be
+  dismissed, some auto-dismiss.
 - File menu uses a native-accessible dropdown (`File` / `Archivo`).
 
-Known gaps (not hidden): some calendar chips are pointer-first; coverage dots
-are small (hit target padded with a pseudo-element). Improvements welcome.
+Known gaps (not hidden): moving a shift by drag and drop is pointer-only (the
+picker is the keyboard path); coverage dots are small (hit target padded with
+a pseudo-element). Improvements welcome.

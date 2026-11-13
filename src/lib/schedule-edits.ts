@@ -6,14 +6,14 @@ function isWorkLike(assignment: ScheduleEntry['assignment']): boolean {
   return assignment === 'Work' || assignment === 'Pre-assigned';
 }
 
-export function toDoctorProfile(doc: DoctorFormFieldInput): DoctorProfile {
+export function toDoctorProfile(doc: Partial<DoctorFormFieldInput> & { id: string }): DoctorProfile {
   return {
     id: doc.id,
-    name: doc.name,
-    freeDates: doc.freeDates,
-    preAssignedWorkDates: doc.preAssignedWorkDates,
-    excludedDates: doc.excludedDates || [],
-    isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment || false,
+    name: doc.name ?? '',
+    freeDates: doc.freeDates ?? [],
+    preAssignedWorkDates: doc.preAssignedWorkDates ?? [],
+    excludedDates: doc.excludedDates ?? [],
+    isExcludedFromAutomaticAssignment: doc.isExcludedFromAutomaticAssignment ?? false,
     unitId: doc.unitId || undefined,
     coverAssignments: doc.coverAssignments ?? [],
   };

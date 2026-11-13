@@ -1,13 +1,13 @@
-import type { ScheduleWarning } from '@/lib/schedule-analyze';
-import type { ScheduleFormValues, ScheduleEntry, Schedule } from '@/lib/types';
+import type { GenerateOptions, GenerateResult } from '@/lib/schedule-generator';
+import type { ScheduleFormValues, ScheduleEntry } from '@/lib/types';
 
 export interface WorkerRequest {
+  id: number;
   formValues: ScheduleFormValues;
   existingFixedEntries: ScheduleEntry[];
+  options?: GenerateOptions;
 }
 
-export interface WorkerResponse {
-  schedule?: Schedule;
-  error?: string;
-  warnings?: ScheduleWarning[];
+export interface WorkerResponse extends GenerateResult {
+  id: number;
 }

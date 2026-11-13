@@ -4,6 +4,8 @@ import { NavigationRoute, registerRoute } from 'workbox-routing';
 
 declare const self: ServiceWorkerGlobalScope;
 
+// New versions take over immediately; open tabs that still run the old bundle
+// recover through the `vite:preloadError` reload in `main.tsx`.
 self.skipWaiting();
 
 precacheAndRoute(self.__WB_MANIFEST);
@@ -13,18 +15,10 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')));
-
-self.addEventListener('push', (event) => {
-  const data = event.data?.json() ?? {};
-  event.waitUntil(
-    self.registration.showNotification(data.title ?? 'Rotawise', {
-      body: data.body ?? '',
-      icon: '/icons/icon-192x192.png',
-    })
-  );
-});
-
-self.addEventListener('sync', (_event) => {});
-
-self.addEventListener('periodicsync', (_event) => {});
+// Single-page app: every navigation is answered with the precached shell,
+// which is what makes the app work offline.
+registerRoute(
+  new NavigationRoute(createHandlerBoundToURL('/index.html'), {
+    denylist: [/^\/sitemap\.xml$/, /^\/robots\.txt$/],
+  }),
+);

@@ -132,88 +132,67 @@ export function analyzeBrokenConstraints(
     });
   }
 
-  const doctorMonthlyTotals: { [doctorId: string]: { [monthKey: string]: number } } = {};
-  doctors.forEach((doc) => {
-    doctorMonthlyTotals[doc.id] = {};
-  });
+  // Balance checks only look at doctors who take part in the rotation: anyone
+  // who can be auto-assigned, plus anyone who has at least one shift. Doctors
+  // with zero shifts count (that is the worst imbalance); entries of doctors
+  // that are no longer on the roster are ignored.
+  const knownIds = new Set(doctors.map((d) => d.id));
+  const rosterWorkEntries = allWorkEntries.filter((e) => knownIds.has(e.doctorId));
+  const workingIds = new Set(rosterWorkEntries.map((e) => e.doctorId));
+  const rotation = doctors.filter((d) => !d.isExcludedFromAutomaticAssignment || workingIds.has(d.id));
 
-  allWorkEntries.forEach((entry) => {
+  const monthlyTotals = new Map<string, Map<string, number>>();
+  const dayOfWeekTotals = new Map<string, Map<string, number>>();
+  for (const entry of rosterWorkEntries) {
     const monthKey = format(entry.date, 'yyyy-MM');
-    doctorMonthlyTotals[entry.doctorId][monthKey] = (doctorMonthlyTotals[entry.doctorId][monthKey] || 0) + 1;
-  });
-
-  const allMonthKeys = new Set<string>();
-  allWorkEntries.forEach((entry) => {
-    allMonthKeys.add(format(entry.date, 'yyyy-MM'));
-  });
-
-  allMonthKeys.forEach((monthKey) => {
-    const monthTotals = doctors.map((doc) => doctorMonthlyTotals[doc.id][monthKey] || 0);
-    const maxMonth = Math.max(...monthTotals);
-    const minMonth = Math.min(...monthTotals.filter((t) => t > 0));
-    if (maxMonth - minMonth > 3) {
-      const maxDoctor = doctors.find((doc) => doctorMonthlyTotals[doc.id][monthKey] === maxMonth);
-      const minDoctor = doctors.find((doc) => doctorMonthlyTotals[doc.id][monthKey] === minMonth);
-      warnings.push({
-        key: 'warnings.unbalancedMonthlyWorkdays',
-        params: {
-          month: monthKey,
-          maxDoctor: maxDoctor?.name || maxDoctor?.id,
-          maxCount: maxMonth,
-          minDoctor: minDoctor?.name || minDoctor?.id,
-          minCount: minMonth,
-        },
-      });
-    }
-  });
-
-  const doctorDayOfWeekTotals: { [doctorId: string]: { [dayKey: string]: number } } = {};
-  doctors.forEach((doc) => {
-    doctorDayOfWeekTotals[doc.id] = {};
-    dayKeys.forEach((key) => (doctorDayOfWeekTotals[doc.id][key] = 0));
-  });
-
-  allWorkEntries.forEach((entry) => {
     const dayKey = format(entry.date, 'EEE', { locale: enUS });
-    doctorDayOfWeekTotals[entry.doctorId][dayKey] = (doctorDayOfWeekTotals[entry.doctorId][dayKey] || 0) + 1;
-  });
+    const byMonth = monthlyTotals.get(monthKey) ?? new Map<string, number>();
+    byMonth.set(entry.doctorId, (byMonth.get(entry.doctorId) ?? 0) + 1);
+    monthlyTotals.set(monthKey, byMonth);
+    const byDay = dayOfWeekTotals.get(dayKey) ?? new Map<string, number>();
+    byDay.set(entry.doctorId, (byDay.get(entry.doctorId) ?? 0) + 1);
+    dayOfWeekTotals.set(dayKey, byDay);
+  }
+
+  const extremes = (counts: Map<string, number> | undefined) => {
+    if (rotation.length < 2) return null;
+    let maxDoctor = rotation[0];
+    let minDoctor = rotation[0];
+    for (const doc of rotation) {
+      const value = counts?.get(doc.id) ?? 0;
+      if (value > (counts?.get(maxDoctor.id) ?? 0)) maxDoctor = doc;
+      if (value < (counts?.get(minDoctor.id) ?? 0)) minDoctor = doc;
+    }
+    return {
+      maxDoctor: maxDoctor.name || maxDoctor.id,
+      maxCount: counts?.get(maxDoctor.id) ?? 0,
+      minDoctor: minDoctor.name || minDoctor.id,
+      minCount: counts?.get(minDoctor.id) ?? 0,
+    };
+  };
+
+  Array.from(monthlyTotals.keys())
+    .sort()
+    .forEach((monthKey) => {
+      const e = extremes(monthlyTotals.get(monthKey));
+      if (e && e.maxCount - e.minCount > 3) {
+        warnings.push({ key: 'warnings.unbalancedMonthlyWorkdays', params: { month: monthKey, ...e } });
+      }
+    });
 
   dayKeys.forEach((dayKey) => {
-    const dayTotals = doctors.map((doc) => doctorDayOfWeekTotals[doc.id][dayKey] || 0);
-    const maxCount = Math.max(...dayTotals);
-    const minCount = Math.min(...dayTotals.filter((t) => t > 0));
-    if (maxCount - minCount > 3) {
-      const maxDoctor = doctors.find((doc) => doctorDayOfWeekTotals[doc.id][dayKey] === maxCount);
-      const minDoctor = doctors.find((doc) => doctorDayOfWeekTotals[doc.id][dayKey] === minCount);
-      warnings.push({
-        key: 'warnings.unbalancedDayOfWeek',
-        params: {
-          day: translateDayKey(dayKey, language),
-          maxDoctor: maxDoctor?.name || maxDoctor?.id,
-          maxCount: maxCount,
-          minDoctor: minDoctor?.name || minDoctor?.id,
-          minCount: minCount,
-        },
-      });
+    const e = extremes(dayOfWeekTotals.get(dayKey));
+    if (e && e.maxCount - e.minCount > 3) {
+      warnings.push({ key: 'warnings.unbalancedDayOfWeek', params: { day: translateDayKey(dayKey, language), ...e } });
     }
   });
 
   preferredDayKeys.forEach((preferredKey) => {
-    const dayTotals = doctors.map((doc) => doctorDayOfWeekTotals[doc.id][preferredKey] || 0);
-    const maxCount = Math.max(...dayTotals);
-    const minCount = Math.min(...dayTotals.filter((t) => t > 0));
-    if (maxCount - minCount > 2) {
-      const maxDoctor = doctors.find((doc) => doctorDayOfWeekTotals[doc.id][preferredKey] === maxCount);
-      const minDoctor = doctors.find((doc) => doctorDayOfWeekTotals[doc.id][preferredKey] === minCount);
+    const e = extremes(dayOfWeekTotals.get(preferredKey));
+    if (e && e.maxCount - e.minCount > 2) {
       warnings.push({
         key: 'warnings.unbalancedPreferredDays',
-        params: {
-          day: translateDayKey(preferredKey, language),
-          maxDoctor: maxDoctor?.name || maxDoctor?.id,
-          maxCount: maxCount,
-          minDoctor: minDoctor?.name || minDoctor?.id,
-          minCount: minCount,
-        },
+        params: { day: translateDayKey(preferredKey, language), ...e },
       });
     }
   });

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useId } from 'react';
 import { ChevronLeft, Search, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import type { DoctorProfile } from '@/lib/types';
 import { useLanguage } from '@/context/language-context';
 import { WorkIcon, FreeDayIcon, PreAssignedIcon, ExcludedIcon } from '@/components/icons';
+import { CHIP_CLASS } from './calendar/chips';
 
 export interface ActiveFilter {
   type: 'doctor' | 'assignment';
@@ -22,30 +23,10 @@ interface CalendarFilterBarProps {
 type DropdownLevel = 'root' | 'doctor' | 'assignment';
 
 const ASSIGNMENT_OPTIONS = [
-  {
-    value: 'Work',
-    labelKey: 'calendar.filter.assignment.work' as const,
-    Icon: WorkIcon,
-    chipStyle: { backgroundColor: 'var(--chip-work-bg)', color: 'var(--chip-work-text)', border: '1px solid var(--chip-work-border)' },
-  },
-  {
-    value: 'Free',
-    labelKey: 'calendar.filter.assignment.freeDay' as const,
-    Icon: FreeDayIcon,
-    chipStyle: { backgroundColor: 'var(--chip-free-bg)', color: 'var(--chip-free-text)', border: '1px solid var(--chip-free-border)' },
-  },
-  {
-    value: 'Pre-assigned',
-    labelKey: 'calendar.filter.assignment.preassigned' as const,
-    Icon: PreAssignedIcon,
-    chipStyle: { backgroundColor: 'var(--chip-preassigned-bg)', color: 'var(--chip-preassigned-text)', border: '1px solid var(--chip-preassigned-border)' },
-  },
-  {
-    value: 'Excluded',
-    labelKey: 'calendar.filter.assignment.excluded' as const,
-    Icon: ExcludedIcon,
-    chipStyle: { backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)', border: '2px dashed var(--foreground)' },
-  },
+  { value: 'Work', labelKey: 'calendar.filter.assignment.work', Icon: WorkIcon },
+  { value: 'Free', labelKey: 'calendar.filter.assignment.freeDay', Icon: FreeDayIcon },
+  { value: 'Pre-assigned', labelKey: 'calendar.filter.assignment.preassigned', Icon: PreAssignedIcon },
+  { value: 'Excluded', labelKey: 'calendar.filter.assignment.excluded', Icon: ExcludedIcon },
 ] as const;
 
 export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: CalendarFilterBarProps) {
@@ -55,6 +36,7 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
   const [searchText, setSearchText] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const menuId = useId();
 
   // Close on outside click
   useEffect(() => {
@@ -117,9 +99,6 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
     onFiltersChange(activeFilters.filter(f => !(f.type === filter.type && f.value === filter.value)));
   };
 
-  const getAssignmentChipStyle = (value: string) =>
-    ASSIGNMENT_OPTIONS.find(o => o.value === value)?.chipStyle;
-
   const filteredDoctors = doctors.filter(d =>
     d.name.toLowerCase().includes(searchText.toLowerCase())
   );
@@ -144,17 +123,13 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
 
         {/* Active filter chips */}
         {activeFilters.map(filter => {
-          const chipStyle = filter.type === 'assignment' ? getAssignmentChipStyle(filter.value) : undefined;
-          const isExcluded = filter.type === 'assignment' && filter.value === 'Excluded';
+          const chipClass =
+            filter.type === 'assignment' ? CHIP_CLASS[filter.value as keyof typeof CHIP_CLASS] : undefined;
           return (
             <Badge
               key={`${filter.type}-${filter.value}`}
               variant="outline"
-              className={cn(
-                "gap-0.5 pr-0.5 h-5 text-xs font-normal cursor-default shrink-0",
-                isExcluded && "bg-muted/50 border-dashed border-muted-foreground/30 text-muted-foreground"
-              )}
-              style={isExcluded ? undefined : chipStyle}
+              className={cn("gap-0.5 pr-0.5 h-5 text-xs font-normal cursor-default shrink-0", chipClass)}
             >
               <span>
                 {filter.type === 'doctor'
@@ -162,10 +137,12 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
                   : `${t('calendar.filter.prefix.assignment')}:${filter.label}`}
               </span>
               <button
-                onMouseDown={e => removeFilter(filter, e)}
-                className="ml-0.5 rounded-full opacity-50 hover:opacity-100 transition-opacity"
+                type="button"
+                onClick={e => removeFilter(filter, e)}
+                aria-label={t('calendar.filter.remove', { filter: filter.label })}
+                className="ml-0.5 rounded-full opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
               >
-                <X className="h-2.5 w-2.5" />
+                <X className="h-2.5 w-2.5" aria-hidden="true" />
               </button>
             </Badge>
           );
@@ -180,13 +157,19 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
           onFocus={() => setIsOpen(true)}
           onClick={e => e.stopPropagation()}
           placeholder={activeFilters.length === 0 ? t('calendar.filter.addFilter') : ''}
+          aria-label={t('calendar.filter.addFilter')}
+          aria-expanded={isOpen}
+          role="combobox"
+          aria-controls={menuId}
+          autoComplete="off"
           className="flex-1 min-w-[80px] outline-none bg-transparent text-sm placeholder:text-muted-foreground"
         />
 
         {/* Clear all */}
         {activeFilters.length > 0 && (
           <button
-            onMouseDown={e => { e.stopPropagation(); onFiltersChange([]); }}
+            type="button"
+            onClick={e => { e.stopPropagation(); onFiltersChange([]); }}
             className="text-muted-foreground hover:text-foreground transition-colors ml-1 shrink-0"
             aria-label={t('calendar.filter.clearAll')}
           >
@@ -198,6 +181,7 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
       {/* Dropdown — stopPropagation prevents container onClick from resetting level */}
       {isOpen && (
         <div
+          id={menuId}
           className="absolute top-full left-0 z-50 mt-1 min-w-[220px] rounded-md border bg-popover shadow-md text-popover-foreground"
           onClick={e => e.stopPropagation()}
           onMouseDown={e => e.stopPropagation()}
@@ -210,6 +194,7 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
               ) : (
                 rootOptions.map(option => (
                   <button
+                    type="button"
                     key={option.key}
                     className="flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-muted transition-colors"
                     onClick={() => navigateTo(option.key === 'doctor' ? 'doctor' : 'assignment')}
@@ -226,6 +211,7 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
           {level === 'doctor' && (
             <div>
               <button
+                type="button"
                 className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground border-b hover:bg-muted transition-colors"
                 onClick={() => navigateTo('root')}
               >
@@ -239,26 +225,29 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
                   placeholder={t('calendar.filter.searchDoctors')}
+                  aria-label={t('calendar.filter.searchDoctors')}
                   className="w-full text-xs outline-none bg-transparent placeholder:text-muted-foreground"
                 />
               </div>
               <div className="overflow-y-auto max-h-52">
                 <div className="py-1">
                   {filteredDoctors.length === 0 ? (
-                    <p className="px-3 py-2 text-xs text-muted-foreground">{t('calendar.filter.searchDoctors')}</p>
+                    <p className="px-3 py-2 text-xs text-muted-foreground">{t('calendar.daySelector.noResults')}</p>
                   ) : (
                     filteredDoctors.map(doc => {
                       const checked = activeFilters.some(f => f.type === 'doctor' && f.value === doc.id);
                       return (
                         <button
+                          type="button"
                           key={doc.id}
                           className={cn(
                             "flex w-full items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-muted transition-colors",
                             checked && "bg-muted/50"
                           )}
+                          aria-pressed={checked}
                           onClick={() => toggleFilter({ type: 'doctor', value: doc.id, label: doc.name })}
                         >
-                          <Checkbox checked={checked} className="h-3.5 w-3.5 pointer-events-none" />
+                          <Checkbox checked={checked} tabIndex={-1} aria-hidden="true" className="h-3.5 w-3.5 pointer-events-none" />
                           <span className="truncate">{doc.name}</span>
                         </button>
                       );
@@ -273,6 +262,7 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
           {level === 'assignment' && (
             <div>
               <button
+                type="button"
                 className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground border-b hover:bg-muted transition-colors"
                 onClick={() => navigateTo('root')}
               >
@@ -280,21 +270,23 @@ export function CalendarFilterBar({ doctors, activeFilters, onFiltersChange }: C
                 {t('calendar.filter.back')}
               </button>
               <div className="py-1">
-                {ASSIGNMENT_OPTIONS.map(({ value, labelKey, Icon, chipStyle }) => {
+                {ASSIGNMENT_OPTIONS.map(({ value, labelKey, Icon }) => {
                   const label = t(labelKey);
                   const checked = activeFilters.some(f => f.type === 'assignment' && f.value === value);
                   return (
                     <button
+                      type="button"
                       key={value}
                       className={cn(
                         "flex w-full items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-muted transition-colors",
                         checked && "bg-muted/50"
                       )}
+                      aria-pressed={checked}
                       onClick={() => toggleFilter({ type: 'assignment', value, label })}
                     >
-                      <Checkbox checked={checked} className="h-3.5 w-3.5 pointer-events-none" />
+                      <Checkbox checked={checked} tabIndex={-1} aria-hidden="true" className="h-3.5 w-3.5 pointer-events-none" />
                       <span className="flex items-center gap-1.5">
-                        <Icon className="h-3 w-3" style={{ color: chipStyle.color }} />
+                        <Icon className="h-3 w-3" aria-hidden="true" />
                         {label}
                       </span>
                     </button>

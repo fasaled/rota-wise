@@ -52,12 +52,11 @@ export interface CreateTestFileOptions {
 
 /**
  * Build the JSON payload that the File System Access mock will hand back to
- * the app. The app's `readFileData` parses this verbatim and then
- * `deserializeAppFileData` converts the ISO strings back to `Date` objects.
- * So this helper MUST emit ISO strings, not `Date` objects.
+ * the app. Calendar days are `yyyy-MM-dd` strings (file version 4), exactly
+ * as the app writes them.
  */
 export function createTestFileJson(opts: CreateTestFileOptions): string {
-  const toIso = (d: string) => new Date(d).toISOString();
+  const toIso = (d: string) => d.slice(0, 10);
   const startIso = toIso(opts.scheduleRange.start);
   const endIso = toIso(opts.scheduleRange.end);
 

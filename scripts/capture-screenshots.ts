@@ -8,7 +8,7 @@
 import { chromium } from '@playwright/test';
 import { generateSchedule } from '../src/lib/schedule-generator';
 import { buildAppFileData } from '../src/lib/schedule-storage';
-import type { DoctorFormFieldInput, DoctorProfile } from '../src/lib/types';
+import type { DoctorFormFieldInput, ScheduleFormValues } from '../src/lib/types';
 import path from 'node:path';
 
 const OUT = path.resolve(import.meta.dir, '../public/screenshots');
@@ -25,44 +25,28 @@ const doctors: DoctorFormFieldInput[] = ['Ada', 'Beau', 'Cam', 'Drew', 'Eve', 'F
   }),
 );
 
-const startDate = new Date('2026-06-01T00:00:00');
-const endDate = new Date('2026-06-30T00:00:00');
-
-const generated = generateSchedule({
+const formValues: ScheduleFormValues = {
   numberOfDoctors: doctors.length,
-  startDate,
-  endDate,
+  startDate: new Date(2026, 5, 1),
+  endDate: new Date(2026, 5, 30),
   minIntervalBetweenWorkDays: 1,
   doctors,
   units: [],
   holidays: [],
-});
+};
+
+// Fixed seed: the screenshots only change when the app does.
+const generated = generateSchedule(formValues, [], { seed: 2026, attempts: 8 });
 
 if (!generated.schedule) {
   throw new Error(generated.error ?? 'generateSchedule failed');
 }
 
-const profiles: DoctorProfile[] = doctors.map((d) => ({
-  ...d,
-  coverAssignments: [],
-}));
-
-const fileData = buildAppFileData(
-  generated.schedule,
-  profiles,
-  {
-    numberOfDoctors: doctors.length,
-    startDate,
-    endDate,
-    minIntervalBetweenWorkDays: 1,
-    doctors,
-    units: [],
-    holidays: [],
-  },
-  [],
-  1,
-  [],
-);
+const fileData = buildAppFileData({
+  schedule: generated.schedule,
+  formValues,
+  currentMinInterval: 1,
+});
 
 const payload = JSON.stringify(fileData);
 

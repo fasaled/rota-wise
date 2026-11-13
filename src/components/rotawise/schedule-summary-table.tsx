@@ -1,213 +1,109 @@
-
-
-
-import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { useMemo } from 'react';
+import { BarChart3 } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Schedule, DoctorProfile } from '@/lib/types';
-import { format, isWithinInterval, isBefore, isAfter, startOfDay, endOfDay } from 'date-fns';
-import { enUS } from 'date-fns/locale'; // For consistent internal day key generation
+import type { TranslationKey } from '@/lib/i18n';
 import { useLanguage } from '@/context/language-context';
-import { BarChart3, CalendarIcon, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { DateRange } from 'react-day-picker';
-
+import { SummaryRangeFilter } from './summary-range';
+import { getHeatClass, useSummaryRange } from './use-summary-range';
 
 interface ScheduleSummaryTableProps {
-  schedule: Schedule | null;
+  schedule: Schedule;
   doctors: DoctorProfile[];
 }
 
-interface DoctorSummaryStats {
-  doctorId: string;
-  doctorName: string;
-  daysOfWeek: { [key: string]: number }; // Mon, Tue, etc.
-  totalWorkdays: number;
-}
+/** Monday-first; `Date.getDay()` index of each column. */
+const DAY_COLUMNS: { key: TranslationKey; day: number; weekend?: boolean }[] = [
+  { key: 'summaryTable.monHeader', day: 1 },
+  { key: 'summaryTable.tueHeader', day: 2 },
+  { key: 'summaryTable.wedHeader', day: 3 },
+  { key: 'summaryTable.thuHeader', day: 4 },
+  { key: 'summaryTable.friHeader', day: 5 },
+  { key: 'summaryTable.satHeader', day: 6, weekend: true },
+  { key: 'summaryTable.sunHeader', day: 0, weekend: true },
+];
 
-const dayKeys = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const weekendKeys = new Set(['Sat', 'Sun']);
+export default function ScheduleSummaryTable({ schedule, doctors }: ScheduleSummaryTableProps) {
+  const { t } = useLanguage();
+  const range = useSummaryRange(schedule);
 
-function getHeatClass(value: number, max: number): string {
-  if (value === 0 || max === 0) return '';
-  const ratio = value / max;
-  if (ratio < 0.4) return 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300';
-  if (ratio < 0.75) return 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200';
-  return 'bg-blue-200 dark:bg-blue-800/60 text-blue-900 dark:text-blue-100 font-medium';
-}
-
-const ScheduleSummaryTable: React.FC<ScheduleSummaryTableProps> = ({ schedule, doctors }) => {
-  const { t, currentDateFnsLocale } = useLanguage();
-  const [filterRange, setFilterRange] = useState<DateRange | undefined>(undefined);
-
-  useEffect(() => {
-    if (schedule) {
-      setFilterRange({ from: schedule.startDate, to: schedule.endDate });
+  const rows = useMemo(() => {
+    const byDoctor = new Map(doctors.map((d) => [d.id, { doctor: d, perDay: Array<number>(7).fill(0), total: 0 }]));
+    for (const entry of schedule.entries) {
+      if (entry.assignment !== 'Work' && entry.assignment !== 'Pre-assigned') continue;
+      if (!range.contains(entry.date)) continue;
+      const row = byDoctor.get(entry.doctorId);
+      if (!row) continue; // 'system' or a doctor no longer on the roster
+      row.perDay[entry.date.getDay()]++;
+      row.total++;
     }
-  }, [schedule]);
+    return [...byDoctor.values()];
+  }, [schedule.entries, doctors, range]);
 
-  const isFilterActive = !!schedule && !!filterRange && !!filterRange.from && !!filterRange.to && (
-    filterRange.from.getTime() !== startOfDay(schedule.startDate).getTime() ||
-    filterRange.to.getTime() !== endOfDay(schedule.endDate).getTime()
-  );
+  if (rows.length === 0) return null;
 
-  const summaryData = useMemo(() => {
-    if (!schedule || !doctors.length) {
-      return [];
-    }
-
-    const doctorStatsMap = new Map<string, DoctorSummaryStats>();
-
-    doctors.forEach(doctor => {
-      const initialDaysOfWeek: { [key: string]: number } = {};
-      dayKeys.forEach(key => initialDaysOfWeek[key] = 0);
-      doctorStatsMap.set(doctor.id, {
-        doctorId: doctor.id,
-        doctorName: doctor.name,
-        daysOfWeek: initialDaysOfWeek,
-        totalWorkdays: 0,
-      });
-    });
-
-    const interval = filterRange?.from && filterRange.to
-      ? { start: startOfDay(filterRange.from), end: endOfDay(filterRange.to) }
-      : null;
-
-    schedule.entries.forEach(entry => {
-      if ((entry.assignment === 'Work' || entry.assignment === 'Pre-assigned')) {
-        if (interval && !isWithinInterval(entry.date, interval)) return;
-        const doctorStat = doctorStatsMap.get(entry.doctorId);
-        if (doctorStat) { // Ensure doctor is in the current profiles (e.g., not 'system')
-          const dayKey = format(entry.date, 'EEE', { locale: enUS }); // Consistent key like 'Mon'
-          if (dayKeys.includes(dayKey)) {
-            doctorStat.daysOfWeek[dayKey]++;
-          }
-          doctorStat.totalWorkdays++;
-        }
-      }
-    });
-
-    return Array.from(doctorStatsMap.values());
-  }, [schedule, doctors, filterRange]);
-
-  if (!schedule || !summaryData.length) {
-    return null;
-  }
-
-  const maxValue = Math.max(
-    ...summaryData.flatMap(s => dayKeys.map(k => s.daysOfWeek[k] ?? 0))
-  );
+  const maxValue = Math.max(0, ...rows.flatMap((r) => r.perDay));
+  const columnTotal = (day: number) => rows.reduce((sum, r) => sum + r.perDay[day], 0);
 
   return (
     <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl font-semibold">
-          <BarChart3 className="w-5 h-5 text-primary shrink-0" /> {t('summaryTable.title')}
+          <BarChart3 className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" /> {t('summaryTable.title')}
         </CardTitle>
-        <div className="flex flex-wrap items-center gap-2 pt-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className={cn(
-                  "font-normal",
-                  isFilterActive && "border-primary/40 bg-primary/5 text-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {filterRange?.from && filterRange.to ? (
-                  <span>
-                    {format(filterRange.from, 'PP', { locale: currentDateFnsLocale })}
-                    {' → '}
-                    {format(filterRange.to, 'PP', { locale: currentDateFnsLocale })}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">{t('summary.filter.pickRange')}</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
-              <Calendar
-                mode="range"
-                selected={filterRange}
-                onSelect={setFilterRange}
-                locale={currentDateFnsLocale}
-                disabled={(date) => isBefore(date, startOfDay(schedule.startDate)) || isAfter(date, endOfDay(schedule.endDate))}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-          {isFilterActive && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setFilterRange({ from: schedule.startDate, to: schedule.endDate })}
-            >
-              <X className="h-3 w-3 mr-1" /> {t('summary.filter.reset')}
-            </Button>
-          )}
-        </div>
+        <SummaryRangeFilter schedule={schedule} range={range} />
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[150px]">{t('summaryTable.doctorHeader')}</TableHead>
-                {dayKeys.map(dayKey => (
+                <TableHead scope="col" className="min-w-[150px]">
+                  {t('summaryTable.doctorHeader')}
+                </TableHead>
+                {DAY_COLUMNS.map((col) => (
                   <TableHead
-                    key={dayKey}
-                    className={cn(
-                      "text-center min-w-[50px]",
-                      weekendKeys.has(dayKey) && "bg-muted/40"
-                    )}
+                    key={col.day}
+                    scope="col"
+                    className={cn('min-w-[50px] text-center', col.weekend && 'bg-muted/40')}
                   >
-                    {t(`summaryTable.${dayKey.toLowerCase()}Header` as any)}
+                    {t(col.key)}
                   </TableHead>
                 ))}
-                <TableHead className="text-center min-w-[60px]">{t('summaryTable.totalHeader')}</TableHead>
+                <TableHead scope="col" className="min-w-[60px] text-center">
+                  {t('summaryTable.totalHeader')}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {summaryData.map((doctorStat) => (
-                <TableRow key={doctorStat.doctorId} className="[&:hover>td]:!bg-primary/15">
-                  <TableCell className="font-medium">{doctorStat.doctorName}</TableCell>
-                  {dayKeys.map(dayKey => {
-                    const value = doctorStat.daysOfWeek[dayKey];
-                    return (
-                      <TableCell
-                        key={dayKey}
-                        className={cn(
-                          "text-center tabular-nums",
-                          weekendKeys.has(dayKey) && "bg-muted/40",
-                          getHeatClass(value, maxValue)
-                        )}
-                      >
-                        {value}
-                      </TableCell>
-                    );
-                  })}
-                  <TableCell className="text-center font-semibold tabular-nums">{doctorStat.totalWorkdays}</TableCell>
+              {rows.map(({ doctor, perDay, total }) => (
+                <TableRow key={doctor.id} className="[&:hover>td]:!bg-primary/15">
+                  <TableCell className="font-medium">{doctor.name}</TableCell>
+                  {DAY_COLUMNS.map((col) => (
+                    <TableCell
+                      key={col.day}
+                      className={cn(
+                        'text-center tabular-nums',
+                        col.weekend && 'bg-muted/40',
+                        getHeatClass(perDay[col.day], maxValue),
+                      )}
+                    >
+                      {perDay[col.day]}
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-center font-semibold tabular-nums">{total}</TableCell>
                 </TableRow>
               ))}
-              <TableRow className="bg-muted/70 font-semibold border-t-2">
+              <TableRow className="border-t-2 bg-muted/70 font-semibold">
                 <TableCell>{t('summaryTable.totalHeader')}</TableCell>
-                {dayKeys.map(dayKey => (
-                  <TableCell
-                    key={dayKey}
-                    className={cn("text-center tabular-nums", weekendKeys.has(dayKey) && "bg-muted/40")}
-                  >
-                    {summaryData.reduce((sum, s) => sum + (s.daysOfWeek[dayKey] ?? 0), 0)}
+                {DAY_COLUMNS.map((col) => (
+                  <TableCell key={col.day} className={cn('text-center tabular-nums', col.weekend && 'bg-muted/40')}>
+                    {columnTotal(col.day)}
                   </TableCell>
                 ))}
-                <TableCell className="text-center tabular-nums">
-                  {summaryData.reduce((sum, s) => sum + s.totalWorkdays, 0)}
-                </TableCell>
+                <TableCell className="text-center tabular-nums">{rows.reduce((sum, r) => sum + r.total, 0)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -215,6 +111,4 @@ const ScheduleSummaryTable: React.FC<ScheduleSummaryTableProps> = ({ schedule, d
       </CardContent>
     </Card>
   );
-};
-
-export default ScheduleSummaryTable;
+}

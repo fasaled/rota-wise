@@ -8,7 +8,11 @@ Describes the web UI as implemented. Interaction rationale lives in
 ## 1. Global layout
 
 Two-column shell (`app-shell`): a narrow left sidebar and a scrollable main
-body. No page footer.
+body. No page footer. The page has one visually hidden `<h1>`; each tab's
+sections use `<h2>`.
+
+Under 640 px the sidebar becomes a bottom navigation bar (respecting the
+device safe area) and the calendar switches to an agenda list (section 6.2).
 
 The shell is visible after a short hydration spinner. An empty roster is shown
 unless a previous IndexedDB working copy (or a PWA `launchQueue` file) is
@@ -30,7 +34,11 @@ Fixed-width column. Three bands, top to bottom:
 | Monthly summary | `monthly` | No schedule or 0 entries |
 
 **Bottom** — language selector (EN / ES), theme toggle (light / dark / system),
-and a “Source code” link (AGPL corresponding-source offer).
+and a “Source code” link (AGPL corresponding-source offer). On phones this band
+is hidden and the same three controls live in a **More** menu at the end of
+the bottom bar.
+
+The active tab carries `aria-current="page"`.
 
 ### 1.2 Main body
 
@@ -50,7 +58,8 @@ and a “Source code” link (AGPL corresponding-source offer).
 **File menu** (command bar, left): New schedule, Open, Save to file / Save as.
 
 - **New schedule** — confirm, then clear roster, calendar, undo history, IndexedDB copy, and unbind any handle (disk file is not deleted).
-- **Open** — File System Access picker when available, otherwise `<input type="file">`. Confirms if the current copy is not empty.
+- **Open** — File System Access picker when available, otherwise `<input type="file">`. Confirms if the current copy is not empty. A `.rw` file can also be **dropped** anywhere on the window (same confirmation).
+- A file that is not valid (not JSON, not a Rotawise file, written by a newer version, or with unreadable data) is rejected with a specific message and the current roster is left untouched.
 - **Save to file** — Chromium: save picker, bind handle, later edits auto-save. Other browsers: download `.rw`, stay in browser-only mode.
 
 **Browser only** badge: no bound handle.
@@ -69,10 +78,20 @@ Right, all `size="sm"`. Busy state (generating or exporting) disables actions.
 
 | Button | Enabled when | Action |
 |---|---|---|
-| Generate | At least one named doctor, not busy | Runs the worker. If pinned entries exist, asks Keep pinned / From scratch. |
-| Undo | History stack non-empty, not busy | Restores previous schedule snapshot; jumps to Calendar if the snapshot has a schedule. |
-| Export | A schedule exists | Lazy-imports `export-word.ts`, downloads `.docx`. |
-| Clear doctors | Named doctors exist | Confirmation, then empty the roster form. |
+| Generate | At least one named doctor, not busy | Validates the roster form. If something is missing, switches to Roster, scrolls to the first field with an error and shows a toast. Otherwise runs the worker; if pinned entries exist, asks Keep pinned / From scratch. This is the only Generate button. |
+| Undo | History non-empty, not busy | Restores the previous snapshot. Also `Ctrl/Cmd+Z`. |
+| Redo | Something was undone, not busy | Re-applies it. Also `Ctrl/Cmd+Shift+Z` or `Ctrl+Y`. |
+| Export | A schedule exists | Menu → “Export as Word”: lazy-imports `export-word.ts`, downloads `.docx`. |
+| Clear doctors | Doctors exist | Confirmation, then empties the doctor list (undoable). |
+
+The keyboard shortcuts are ignored while the focus is in a text field, so the
+browser's own undo keeps working there.
+
+If the bound file can no longer be written (the browser revoked permission),
+an **Auto-save paused** button appears next to the file name; pressing it asks
+for permission again and saves. The browser copy keeps being saved meanwhile.
+
+If generation fails, the previous schedule stays in place.
 
 Export shows a spinner while `docx` runs. Labels hide on small screens
 (`hidden md:inline`).
@@ -83,7 +102,12 @@ Export shows a spinner while `docx` runs. Labels hide on small screens
 
 Visible when there is at least one warning **and** the active tab is not Roster.
 
-Amber bar: icon, title, collapsible bulleted list (starts collapsed).
+Amber bar: icon, title, count, collapsible bulleted list (starts collapsed;
+the toggle exposes `aria-expanded`).
+
+Warnings are always computed from the current roster and schedule, in the
+current language. Shifts of doctors who were removed from the roster are
+reported here too.
 
 Strings come from algorithm keys (`warnings.*`) translated in the locale files,
 plus coverage warnings (`warnings.postCallUncovered`).
@@ -101,19 +125,23 @@ plus coverage warnings (`warnings.postCallUncovered`).
 | Start / end dates | Popover calendar (range) | — | Required; end ≥ start |
 | Min interval | number | 1 | 0–30 |
 | Monthly shift limit | number | empty | 0–31, optional |
+| Strict limit | checkbox | off | When on, the generator never exceeds the monthly limit, even if a day stays unassigned |
 | Holidays | Multi-select calendar | none | No coverage required on these dates |
 
 ### 5.2 Units (optional)
 
 Card list. Each unit: name, `minPostCallCoverage` (0 = untracked), allied-unit
-checkboxes. “Add unit” appends an empty card. Empty-state copy explains that
+checkboxes. Removing a unit also removes it from other units' alliances and
+from the doctors who belonged to it or covered it. “Add unit” appends an empty card. Empty-state copy explains that
 units can be skipped.
 
 ### 5.3 Doctor cards
 
-Reorderable with `@dnd-kit` (8 px threshold, keyboard). Each card:
+Reorderable with `@dnd-kit` from the **drag handle** in the header only (8 px
+threshold; keyboard: focus the handle, Space, arrows), so text can be selected
+and fields used normally. Each card:
 
-- Header: “Doctor N” + delete.
+- Header: handle, number, name + delete.
 - Name (required) and “Exclude from automatic assignment”.
 - Unit select (`No unit` = free agent).
 - Free dates / Pre-assigned dates / Excluded dates — buttons opening a
@@ -121,8 +149,13 @@ Reorderable with `@dnd-kit` (8 px threshold, keyboard). Each card:
   a range.
 - Optional cover-assignment rows: destination unit + date range.
 
-“Add doctor” appends a card. Generate is also available at the bottom of the
-form (same worker path as the command bar).
+“Add doctor” appends a card. Validation messages appear under the field they
+refer to, in the current language.
+
+Editing the roster while a schedule exists is safe: the calendar, summaries
+and warnings follow the form immediately. Shifts of a removed doctor stay on
+the calendar as “Removed doctor” until they are reassigned or the schedule is
+regenerated.
 
 After a successful generate: history snapshot, navigate to Calendar, persist
 (debounced 500 ms).
@@ -146,12 +179,19 @@ Title “Generated schedule”. Controls:
 ### 6.2 Grid
 
 Seven columns, locale-abbreviated weekday headers. Weekend and holiday cells
-use distinct styling; holidays show a marker + tooltip.
+use distinct styling; holidays show a flag marker + tooltip. Days outside the
+schedule period are read-only.
+
+**Phones (under 640 px):** the month is an agenda — one row per day of the
+period with the weekday, the day number and the same chips and pickers. Drag
+and drop is off there; shifts are changed through the pickers.
 
 Each cell:
 
 - Day number (today = primary badge).
 - Unit coverage dots on weekdays that are not holidays (see usability doc).
+  Each level has its own shape as well as colour, so it does not rely on
+  colour alone.
 - Assignment chips. `Off` / `system` entries are not rendered.
 - Empty cells are click targets to assign a doctor.
 
@@ -180,7 +220,11 @@ doctor filter is active (info-bar hint).
 
 ### 6.5 Other clicks
 
-- Empty cell / Work chip: day selector (searchable doctor list) or clear assignment.
+- Empty cell / Work chip: day selector (searchable doctor list) or clear
+  assignment. The list is a keyboard-operable listbox: type to filter,
+  arrows / Home / End to move, Enter to choose, Escape to close. Doctors who
+  cannot take that day are shown disabled with the reason (free day, excluded,
+  adjacent shift, post-call) — the same rules the generator applies.
 - Free chip: not edited here when the toast path is used; free days can also be
   toggled from the calendar via `applyToggleFreeDayOnSchedule`.
 - Lock control: toggle `isFixed` on that day’s work assignment.
@@ -212,7 +256,8 @@ totals row. Same date-range filter as weekly.
 
 ## 9. Notifications (`InfoBarList`)
 
-Fixed bottom-right stack. Severities: success (emerald), warning (amber),
+Fixed bottom-right stack (above the navigation bar on phones). Errors are
+announced as alerts, everything else as polite status messages. Severities: success (emerald), warning (amber),
 error (red), info (blue). Optional auto-dismiss.
 
 Used for generate/load/save, drag results, interval warnings on manual edits,
@@ -234,7 +279,8 @@ and blocked actions.
 ## 11. Word export
 
 Lazy `import('@/lib/export-word')`. Filename matches the bound `.rw` base name,
-or `rotawise-schedule_<yyyy-MM-dd>.docx`. Content: title from the file name,
+or `rotawise-schedule_<yyyy-MM-dd>.docx`. Content: title from the file name
+(or a translated default when no file is bound),
 then monthly calendar tables, two months per page, localized weekday headers,
 Inter-like sizing defined in `export-word.ts`. Not round-tripped back into the app.
 
@@ -244,9 +290,12 @@ Inter-like sizing defined in `export-word.ts`. Not round-tripped back into the a
 
 | Event | Storage |
 |---|---|
-| Any roster change | IndexedDB working copy (debounced 500 ms) |
+| Any roster change | IndexedDB working copy (debounced 500 ms; flushed when the tab is hidden or closed) |
 | Same, with a bound handle | Also write the `.rw` file |
 | Unsupported File System Access | Manual download via Save |
 | PWA file association | `launchQueue` on launch |
 
-Undo history is **not** persisted.
+Undo / redo history is **not** persisted.
+
+If the app hits an unexpected error it shows a recovery screen with a reload
+button; the working copy in IndexedDB is not affected.

@@ -9,7 +9,7 @@ successful open of `.json` prompts **Save As** `.rw`.
 There is no encryption. Anyone with the file can read doctor names and dates.
 Treat `.rw` files like any other staff roster.
 
-Current on-disk version: **`fileVersion: 3`**
+Current on-disk version: **`fileVersion: 4`**
 (`CURRENT_FILE_VERSION` in `src/lib/types.ts`).
 
 ---
@@ -18,12 +18,11 @@ Current on-disk version: **`fileVersion: 3`**
 
 ```json
 {
-  "fileVersion": 3,
+  "fileVersion": 4,
   "versions": [],
   "schedule": { "...": "SerializedSchedule" },
   "doctorsProfiles": [ "...SerializedDoctorProfile" ],
   "formValues": { "...": "SerializedScheduleFormValues" },
-  "scheduleWarnings": ["translated or keyed warning strings"],
   "currentMinInterval": 1
 }
 ```
@@ -33,14 +32,23 @@ Current on-disk version: **`fileVersion: 3`**
 | `fileVersion` | Format generation. Missing values are treated as current on parse. |
 | `versions` | Reserved named snapshots (`ScheduleVersion[]`). The UI currently persists this as `[]`. |
 | `schedule` | Generated (and manually edited) entries. |
-| `doctorsProfiles` | Display/copy of doctor constraints used with the calendar. |
-| `formValues` | Roster-tab form, including units and holidays. |
-| `scheduleWarnings` | Last computed warning **strings** (already translated). Recomputed on load/edit. |
+| `doctorsProfiles` | Copy of `formValues.doctors`, written only so readers of versions 1–3 keep working. The app reads `formValues.doctors` and falls back to this list only when that one is empty. |
+| `formValues` | Roster-tab form, including units and holidays. **The source of truth for the roster.** |
 | `currentMinInterval` | Interval used for edit-time checks. |
 
-Dates are ISO-8601 strings. Date-only values (`YYYY-MM-DD`) are read as **local
-midnight** so calendar days do not shift across time zones. Values with `T` use
-`new Date`.
+Warnings are not stored: they are recomputed from the schedule and the roster
+every time the file is loaded or edited, in the current language. Files from
+versions 1–3 may carry a `scheduleWarnings` array; it is ignored.
+
+### Dates
+
+Every date is a **calendar day** written as `yyyy-MM-dd` and read as local
+midnight, so a file means the same days in every time zone.
+
+Versions 1–3 wrote full ISO datetimes (`2026-01-05T23:00:00.000Z`, local
+midnight expressed in UTC). They are still accepted: the instant is snapped to
+the nearest UTC midnight, which recovers the intended calendar day whatever
+time zone wrote the file (offsets up to ±12 h).
 
 ---
 
@@ -49,11 +57,12 @@ midnight** so calendar days do not shift across time zones. Values with `T` use
 ```json
 {
   "numberOfDoctors": 2,
-  "startDate": "2026-01-01T00:00:00.000Z",
-  "endDate": "2026-03-31T00:00:00.000Z",
+  "startDate": "2026-01-01",
+  "endDate": "2026-03-31",
   "minIntervalBetweenWorkDays": 1,
   "globalMonthlyShiftLimit": 6,
-  "holidays": ["2026-01-01T00:00:00.000Z"],
+  "enforceMonthlyLimit": false,
+  "holidays": ["2026-01-01"],
   "units": [
     {
       "id": "unit-ward-a",
@@ -75,8 +84,8 @@ midnight** so calendar days do not shift across time zones. Values with `T` use
         {
           "id": "cover-1",
           "targetUnitId": "unit-ward-b",
-          "startDate": "2026-02-01T00:00:00.000Z",
-          "endDate": "2026-02-14T00:00:00.000Z"
+          "startDate": "2026-02-01",
+          "endDate": "2026-02-14"
         }
       ]
     }
@@ -84,8 +93,10 @@ midnight** so calendar days do not shift across time zones. Values with `T` use
 }
 ```
 
-`globalMonthlyShiftLimit`, `units`, `holidays`, `unitId`, and
-`coverAssignments` are optional for older files.
+`globalMonthlyShiftLimit`, `enforceMonthlyLimit`, `units`, `holidays`,
+`unitId`, and `coverAssignments` are optional for older files.
+`enforceMonthlyLimit` makes the monthly limit a hard rule for automatic
+assignment (see `docs/algorithm.md`, section 5.7).
 
 ---
 
@@ -93,13 +104,14 @@ midnight** so calendar days do not shift across time zones. Values with `T` use
 
 ```json
 {
-  "startDate": "2026-01-01T00:00:00.000Z",
-  "endDate": "2026-03-31T00:00:00.000Z",
+  "startDate": "2026-01-01",
+  "endDate": "2026-03-31",
   "minIntervalBetweenWorkDays": 1,
   "globalMonthlyShiftLimit": 6,
+  "seed": 2891336453,
   "entries": [
     {
-      "date": "2026-01-05T00:00:00.000Z",
+      "date": "2026-01-05",
       "doctorId": "doc-1",
       "assignment": "Work",
       "dayOfWeek": "Monday",
@@ -113,6 +125,13 @@ midnight** so calendar days do not shift across time zones. Values with `T` use
 On load, legacy `"Vacation"` is rewritten to `"Free"`.
 
 `doctorId` `"system"` is used for `Off` (uncovered) days.
+
+`seed` is the seed of the generation run that produced the roster (optional;
+absent in older files and never required). Entries can reference a `doctorId`
+that is no longer on the roster; the app keeps them, shows them as "Removed
+doctor" and warns about them.
+
+When the roster has no doctors, `schedule` is written as `{ "entries": [] }`.
 
 ---
 
@@ -136,9 +155,26 @@ without a format bump. Readers should tolerate an empty or missing array.
 
 ---
 
+## Validation on open
+
+`parseAppFileJson` in `src/lib/schedule-storage.ts` validates the payload
+before anything reaches the app, and throws a `RotawiseFileError` with one of
+these codes (shown to the user as `file.error.<code>`):
+
+| Code | When |
+|---|---|
+| `invalidJson` | The text is not JSON |
+| `notRotawiseFile` | Not an object, or none of `schedule`, `formValues`, `doctorsProfiles` is present |
+| `newerVersion` | `fileVersion` is greater than the version this build understands |
+| `invalidData` | A field has the wrong type or an unparseable date (`detail` carries the path) |
+
+A rejected file leaves the open roster untouched.
+
+---
+
 ## Migrations applied on parse
 
-`parseAppFileJson` in `src/lib/schedule-storage.ts`:
+After validation:
 
 | Old | New |
 |---|---|
@@ -151,6 +187,15 @@ without a format bump. Readers should tolerate an empty or missing array.
 | missing `alliedUnitIds` | `[]` |
 | missing `versions` | `[]` |
 | missing `fileVersion` | current version |
+| ISO datetime dates (versions 1–3) | local calendar day |
+| `scheduleWarnings` | dropped |
+
+Version history:
+
+| Version | Change |
+|---|---|
+| 1–3 | Earlier formats: ISO datetimes; units, alliances, cover assignments and holidays were added along the way |
+| 4 | Date-only strings, `enforceMonthlyLimit`, `schedule.seed`, no stored warnings, validation on open |
 
 Bump `CURRENT_FILE_VERSION` when the on-disk shape changes, and extend this
 table in the same PR.

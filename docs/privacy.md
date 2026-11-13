@@ -27,10 +27,10 @@ IndexedDB / a user-chosen `.rw` file in both cases.
 
 | Location | Contents |
 |---|---|
-| IndexedDB `rotawise` | Working copy of the `.rw` JSON (doctors, units, schedule, warnings) |
+| IndexedDB `rotawise` | Working copy of the `.rw` JSON (doctors, units, schedule) |
 | File System Access handle (Chromium) | Optional path to a `.rw` file the user chose; subsequent edits auto-save |
 | `localStorage` | UI chrome only: language (`rotawise` language key) and theme (`rotawise-theme` / legacy `theme`) |
-| `sessionStorage` | Dismissal of the “no disk auto-save” banner |
+| `sessionStorage` | Dismissal of the “no disk auto-save” banner; a one-shot flag used to reload once after an app update |
 | Downloads | `.rw` JSON and `.docx` Word calendars the user explicitly exports |
 
 Clearing site data in the browser removes the working copy. **New schedule**
@@ -52,9 +52,19 @@ date-fns, Radix, `docx`, Workbox, …), not runtime calls to those vendors.
 
 ## Service worker
 
-`src/sw.ts` precaches the app shell so the UI works offline. It does not upload
-IndexedDB contents. Empty `push` / `sync` / `periodicsync` listeners exist for
-PWA completeness; the app does not register a push subscription.
+`src/sw.ts` precaches the app shell so the UI works offline, and does nothing
+else: no push, no background sync, no uploads.
+
+---
+
+## Enforced by the browser, not only by intent
+
+The hosted app is served with a Content-Security-Policy
+(`default-src 'self'; script-src 'self'; connect-src 'self'; …`, see
+`vercel.json`). The browser therefore refuses to load scripts from, or send
+requests to, any other origin, even if a dependency tried to. The page cannot
+be framed by other sites (`frame-ancestors 'none'`), and the `Referrer-Policy`
+keeps the address out of outgoing links.
 
 ---
 

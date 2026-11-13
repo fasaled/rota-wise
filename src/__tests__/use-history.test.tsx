@@ -1,225 +1,125 @@
 import { describe, it, expect } from 'bun:test';
 import { renderHook, act } from '@testing-library/react';
 import { useHistory } from '../hooks/use-history';
-import type { HistoryState } from '../hooks/use-history';
 
-const makeState = (overrides: Partial<Omit<HistoryState, 'timestamp'>> = {}): Omit<HistoryState, 'timestamp'> => ({
-  schedule: null,
-  doctorsProfiles: [],
-  scheduleWarnings: [],
-  currentMinInterval: 1,
-  ...overrides,
-});
+/** Snapshots are opaque to the hook; numbers keep the tests readable. */
+const setup = (max?: number) => renderHook(() => useHistory<number>(max));
 
 describe('useHistory', () => {
-  describe('initial state', () => {
-    it('starts with an empty stack', () => {
-      const { result } = renderHook(() => useHistory());
-      expect(result.current.stack).toHaveLength(0);
-    });
-
-    it('canUndo is false when stack is empty', () => {
-      const { result } = renderHook(() => useHistory());
-      expect(result.current.canUndo).toBe(false);
-    });
+  it('starts with nothing to undo or redo', () => {
+    const { result } = setup();
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.canRedo).toBe(false);
+    expect(result.current.undo(() => 0)).toBeNull();
+    expect(result.current.redo(() => 0)).toBeNull();
   });
 
-  describe('push', () => {
-    it('adds an entry to the stack', () => {
-      const { result } = renderHook(() => useHistory());
-
-      act(() => {
-        result.current.push(makeState());
-      });
-
-      expect(result.current.stack).toHaveLength(1);
+  it('undo returns snapshots in LIFO order', () => {
+    const { result } = setup();
+    act(() => {
+      result.current.push(1);
+      result.current.push(2);
     });
+    expect(result.current.canUndo).toBe(true);
 
-    it('sets canUndo to true after push', () => {
-      const { result } = renderHook(() => useHistory());
-
-      act(() => {
-        result.current.push(makeState());
-      });
-
-      expect(result.current.canUndo).toBe(true);
+    const restored: (number | null)[] = [];
+    act(() => {
+      restored.push(result.current.undo(() => 3));
     });
-
-    it('adds a timestamp to each entry', () => {
-      const { result } = renderHook(() => useHistory());
-      const before = new Date();
-
-      act(() => {
-        result.current.push(makeState());
-      });
-
-      const after = new Date();
-      const entry = result.current.stack[0];
-      expect(entry.timestamp).toBeInstanceOf(Date);
-      expect(entry.timestamp.getTime()).toBeGreaterThanOrEqual(before.getTime());
-      expect(entry.timestamp.getTime()).toBeLessThanOrEqual(after.getTime());
+    act(() => {
+      restored.push(result.current.undo(() => 2));
     });
-
-    it('stores state fields correctly', () => {
-      const { result } = renderHook(() => useHistory());
-      const state = makeState({ currentMinInterval: 5, scheduleWarnings: ['warn'] });
-
-      act(() => {
-        result.current.push(state);
-      });
-
-      expect(result.current.stack[0].currentMinInterval).toBe(5);
-      expect(result.current.stack[0].scheduleWarnings).toEqual(['warn']);
-    });
-
-    it('accumulates multiple entries', () => {
-      const { result } = renderHook(() => useHistory());
-
-      act(() => {
-        result.current.push(makeState({ currentMinInterval: 1 }));
-        result.current.push(makeState({ currentMinInterval: 2 }));
-        result.current.push(makeState({ currentMinInterval: 3 }));
-      });
-
-      expect(result.current.stack).toHaveLength(3);
-    });
-
-    it('enforces a maximum of 20 entries', () => {
-      const { result } = renderHook(() => useHistory());
-
-      act(() => {
-        for (let i = 0; i < 25; i++) {
-          result.current.push(makeState({ currentMinInterval: i }));
-        }
-      });
-
-      expect(result.current.stack).toHaveLength(20);
-    });
-
-    it('keeps the most recent entries when limit is exceeded', () => {
-      const { result } = renderHook(() => useHistory());
-
-      act(() => {
-        for (let i = 0; i < 25; i++) {
-          result.current.push(makeState({ currentMinInterval: i }));
-        }
-      });
-
-      // The last 20 entries (indices 5-24) should be kept
-      const intervals = result.current.stack.map((s) => s.currentMinInterval);
-      expect(intervals[0]).toBe(5);
-      expect(intervals[19]).toBe(24);
-    });
+    expect(restored).toEqual([2, 1]);
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.canRedo).toBe(true);
   });
 
-  describe('undo', () => {
-    it('returns null when stack is empty', () => {
-      const { result } = renderHook(() => useHistory());
-
-      let undone: ReturnType<typeof result.current.undo>;
-      act(() => {
-        undone = result.current.undo();
-      });
-
-      expect(undone!).toBeNull();
+  it('redo replays what undo reverted', () => {
+    const { result } = setup();
+    // Document goes 1 → 2 → 3; history holds the states *before* each change.
+    act(() => {
+      result.current.push(1);
+      result.current.push(2);
     });
-
-    it('returns the most recent state', () => {
-      const { result } = renderHook(() => useHistory());
-
+    let current = 3;
+    const step = (fn: typeof result.current.undo) =>
       act(() => {
-        result.current.push(makeState({ currentMinInterval: 1 }));
-        result.current.push(makeState({ currentMinInterval: 2 }));
+        const restored = fn(() => current);
+        if (restored !== null) current = restored;
       });
 
-      let undone: ReturnType<typeof result.current.undo>;
-      act(() => {
-        undone = result.current.undo();
-      });
-
-      expect(undone!.currentMinInterval).toBe(2);
-    });
-
-    it('removes the entry from the stack after undo', () => {
-      const { result } = renderHook(() => useHistory());
-
-      act(() => {
-        result.current.push(makeState());
-        result.current.push(makeState());
-      });
-
-      act(() => {
-        result.current.undo();
-      });
-
-      expect(result.current.stack).toHaveLength(1);
-    });
-
-    it('sets canUndo to false after undoing the last entry', () => {
-      const { result } = renderHook(() => useHistory());
-
-      act(() => {
-        result.current.push(makeState());
-      });
-
-      act(() => {
-        result.current.undo();
-      });
-
-      expect(result.current.canUndo).toBe(false);
-    });
-
-    it('returns states in LIFO order', () => {
-      const { result } = renderHook(() => useHistory());
-
-      act(() => {
-        result.current.push(makeState({ currentMinInterval: 1 }));
-        result.current.push(makeState({ currentMinInterval: 2 }));
-        result.current.push(makeState({ currentMinInterval: 3 }));
-      });
-
-      const results: number[] = [];
-      act(() => {
-        results.push(result.current.undo()!.currentMinInterval);
-        results.push(result.current.undo()!.currentMinInterval);
-        results.push(result.current.undo()!.currentMinInterval);
-      });
-
-      expect(results).toEqual([3, 2, 1]);
-    });
-
-    it('subsequent undo returns null after stack is exhausted', () => {
-      const { result } = renderHook(() => useHistory());
-
-      act(() => {
-        result.current.push(makeState());
-      });
-
-      act(() => {
-        result.current.undo();
-      });
-
-      let undone: ReturnType<typeof result.current.undo>;
-      act(() => {
-        undone = result.current.undo();
-      });
-
-      expect(undone!).toBeNull();
-    });
+    step(result.current.undo);
+    expect(current).toBe(2);
+    step(result.current.undo);
+    expect(current).toBe(1);
+    step(result.current.redo);
+    expect(current).toBe(2);
+    step(result.current.redo);
+    expect(current).toBe(3);
+    expect(result.current.canRedo).toBe(false);
+    expect(result.current.canUndo).toBe(true);
   });
 
-  describe('clear', () => {
-    it('empties the stack and disables undo', () => {
-      const { result } = renderHook(() => useHistory());
-
-      act(() => {
-        result.current.push(makeState());
-        result.current.push(makeState());
-        result.current.clear();
+  it('passes the snapshot being restored to the capture function', () => {
+    const { result } = setup();
+    act(() => result.current.push(7));
+    const seen: number[] = [];
+    act(() => {
+      result.current.undo((target) => {
+        seen.push(target);
+        return 8;
       });
-
-      expect(result.current.stack).toHaveLength(0);
-      expect(result.current.canUndo).toBe(false);
     });
+    expect(seen).toEqual([7]);
+  });
+
+  it('a new change discards the redo stack', () => {
+    const { result } = setup();
+    act(() => result.current.push(1));
+    act(() => {
+      result.current.undo(() => 2);
+    });
+    expect(result.current.canRedo).toBe(true);
+    act(() => result.current.push(5));
+    expect(result.current.canRedo).toBe(false);
+    expect(result.current.redo(() => 0)).toBeNull();
+  });
+
+  it('keeps only the most recent entries', () => {
+    const { result } = setup(3);
+    act(() => {
+      for (let i = 1; i <= 5; i++) result.current.push(i);
+    });
+    const restored: (number | null)[] = [];
+    act(() => {
+      for (let i = 0; i < 4; i++) restored.push(result.current.undo(() => 0));
+    });
+    expect(restored).toEqual([5, 4, 3, null]);
+  });
+
+  it('defaults to 50 entries', () => {
+    const { result } = setup();
+    act(() => {
+      for (let i = 1; i <= 60; i++) result.current.push(i);
+    });
+    let count = 0;
+    act(() => {
+      while (result.current.undo(() => 0) !== null) count++;
+    });
+    expect(count).toBe(50);
+  });
+
+  it('clear empties both stacks', () => {
+    const { result } = setup();
+    act(() => {
+      result.current.push(1);
+      result.current.push(2);
+    });
+    act(() => {
+      result.current.undo(() => 3);
+    });
+    act(() => result.current.clear());
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.canRedo).toBe(false);
   });
 });

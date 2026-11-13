@@ -27,24 +27,27 @@ Run `lint → typecheck → test` in that order to verify.
 
 Vite 6 + React 19 SPA. **No SSR, no API routes, no backend.** Fully client-side.
 
-- Entry: `src/main.tsx` → `src/rotawise-page.tsx` (form, schedule, persistence, undo).
+- Entry: `src/main.tsx` → `src/rotawise-page.tsx` (wires the hooks below to the UI).
+- **One source of truth:** `useScheduleDocument` holds `{ schedule, formValues, currentMinInterval }` plus undo/redo. Doctors, units, holidays, warnings and the saved file are derived with `useMemo` — never store a copy of them. Saving is `useDocumentPersistence` (suspend/resume around open/new).
 - Path alias: `@/*` → `src/*`.
 - **Scheduling runs in a Web Worker** (`src/workers/schedule.worker.ts`) via `useScheduleWorker`. Never call `generateSchedule` from the main thread.
 - Heavy components (calendar, summaries) and export (`docx`) are **lazy-loaded**. Wrap new heavy imports in `React.lazy` + `Suspense`.
-- Pure helpers: `src/lib/` (`schedule-generator`, `schedule-coverage`, `schedule-analyze`, `schedule-storage`, `schedule-warnings`, `schedule-edits`, `schedule-interval`). Types: `src/lib/types.ts`.
-- App UI: `src/components/rotawise/` (roster form, calendar, summaries, shell). Do not edit `src/components/ui/` by hand (shadcn/ui).
+- Pure helpers: `src/lib/` (`schedule-generator`, `schedule-eligibility`, `schedule-coverage`, `schedule-analyze`, `schedule-storage`, `schedule-warnings`, `schedule-edits`, `schedule-interval`, `dates`, `random`, `i18n`). Types: `src/lib/types.ts`.
+- App UI: `src/components/rotawise/` (shell, summaries; `calendar/` and `form/` hold the pieces of the calendar and the roster form). Do not edit `src/components/ui/` by hand (shadcn/ui).
+- **Dates are calendar days.** Use `toDateKey` / `parseDateValue` (`src/lib/dates.ts`) for keys and persistence; never `toISOString()`.
+- **No inline scripts, no third-party origins:** `vercel.json` sends a strict CSP (`script-src 'self'`). Pre-paint code goes in `public/theme-init.js`.
 
 Full spec: `docs/algorithm.md`. Short version:
 
-- **Hard (eligibility):** free days, excluded dates, auto-assignment exclusion, min interval, post-call (next calendar day; Saturday → Monday), unit coverage look-ahead.
-- **Soft (score only):** day-of-week balance, preferred days (Thu–Sun), weekend fairness, monthly load, idle time.
-- **Selection:** weighted random sampling over the score (higher score = higher weight).
+- **Hard (eligibility):** free days, excluded dates, auto-assignment exclusion, min interval, post-call (next calendar day; Saturday → Monday), unit coverage look-ahead, monthly limit when "strict" is on. The per-doctor rules live in `getAssignmentBlockReason` and are shared with the calendar's doctor picker.
+- **Soft (score only):** total workload, day-of-week balance, preferred days (Thu–Sun), weekend fairness, monthly load, idle time, monthly limit when not strict.
+- **Selection:** seeded softmax sampling over the score, then a repair pass for uncovered days. The worker builds 24 attempts and keeps the cheapest; same inputs + same seed = same roster.
 - **Units (optional):** weekday `minPostCallCoverage`, allied pools, temporary cover assignments.
 
 ## Conventions
 
-- **i18n:** EN/ES via `src/context/language-context.tsx`. Every new user-facing string goes in both `src/locales/en.json` and `src/locales/es.json`.
-- **Tests:** `src/__tests__/` (algorithm, storage, warnings, hooks, language). UI is not unit-tested; Playwright journeys live in `e2e/`.
+- **i18n:** EN/ES via `src/context/language-context.tsx` (+ `src/lib/i18n.ts`). Every new user-facing string goes in both `src/locales/en.json` and `src/locales/es.json`. Keys are flat and typed (`TranslationKey`); a test enforces parity. Zod messages are i18n keys.
+- **Tests:** `src/__tests__/` (algorithm, storage, warnings, hooks, language). UI is not unit-tested; Playwright journeys live in `e2e/` — add a case to `e2e/regressions.playwright.ts` when fixing a UI bug.
 - **Persistence:** IndexedDB working copy always; optional `.rw` via File System Access API (auto-save). Other browsers: `<input type="file">` and download. Word export is lazy `docx`.
 - **PWA:** `vite-plugin-pwa` generates `public/sw.js` and `public/workbox-*.js` at build time. Gitignored — do not commit or edit them. The app runs as an installable PWA — same `dist/`, no separate desktop target.
 

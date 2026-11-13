@@ -2,69 +2,148 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <script>
-      (function () {
-        try {
-          var stored = localStorage.getItem('rotawise-theme') || localStorage.getItem('theme');
-          var theme = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
-          var dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          document.documentElement.classList.toggle('dark', dark);
-          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-        } catch (e) {}
-      })();
-    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <script src="/theme-init.js"></script>
+
+    <title>Rotawise – Fair on-call rota generator for doctors</title>
+    <meta
+      name="description"
+      content="Build fair, balanced on-call rotas for medical teams: rest rules, unit coverage, holidays and manual edits. Free, open source, works offline and keeps your data on your device."
+    />
+    <meta name="application-name" content="Rotawise" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="canonical" href="https://rotawise.fasl.dev/" />
+    <link rel="alternate" hreflang="en" href="https://rotawise.fasl.dev/?lang=en" />
+    <link rel="alternate" hreflang="es" href="https://rotawise.fasl.dev/?lang=es" />
+    <link rel="alternate" hreflang="x-default" href="https://rotawise.fasl.dev/" />
 
     <!-- Theme color -->
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#6699CC" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#212629" />
-    <meta name="theme-color" content="#6699CC" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#0f172a" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220" />
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- Favicon & Icons -->
+    <!-- Favicon & icons -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/icons/icon-192x192.png" type="image/png" sizes="192x192" />
     <link rel="apple-touch-icon" href="/icons/icon-180x180.png" />
     <link rel="apple-touch-icon" href="/icons/icon-152x152.png" sizes="152x152" />
     <link rel="apple-touch-icon" href="/icons/icon-167x167.png" sizes="167x167" />
 
-    <!-- Apple Web App -->
+    <!-- Apple web app -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Rotawise" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
-    <!-- MS Tile -->
+    <!-- MS tile -->
     <meta name="msapplication-config" content="/browserconfig.xml" />
-    <meta name="msapplication-TileColor" content="#6699CC" />
-
-    <!-- SEO -->
-    <title>Rotawise - Doctor Scheduling</title>
-    <meta name="description" content="Fair and Balanced Doctor Scheduling Application. Create, manage, and optimize doctor rotas efficiently with Rotawise. PWA-enabled for offline use." />
-    <meta name="application-name" content="Rotawise" />
-    <meta name="format-detection" content="telephone=no" />
-    <link rel="canonical" href="https://rotawise.fasl.dev/" />
+    <meta name="msapplication-TileColor" content="#0f172a" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://rotawise.fasl.dev/" />
     <meta property="og:site_name" content="Rotawise" />
-    <meta property="og:title" content="Rotawise - Efficient &amp; Fair Doctor Scheduling" />
-    <meta property="og:description" content="Optimize doctor rotas seamlessly with Rotawise. Ensure fair, balanced schedules with an easy-to-use, PWA-enabled application." />
+    <meta property="og:title" content="Rotawise – Fair on-call rota generator for doctors" />
+    <meta
+      property="og:description"
+      content="Build fair, balanced on-call rotas for medical teams: rest rules, unit coverage, holidays and manual edits. Free, open source, works offline and keeps your data on your device."
+    />
     <meta property="og:image" content="https://rotawise.fasl.dev/screenshots/desktop.png" />
     <meta property="og:image:width" content="1280" />
     <meta property="og:image:height" content="720" />
+    <meta property="og:image:alt" content="Rotawise calendar with a generated on-call rota" />
     <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="es_ES" />
 
-    <!-- Twitter Card -->
+    <!-- Twitter card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Rotawise - Smart Doctor Scheduling Solution" />
-    <meta name="twitter:description" content="Streamline your doctor scheduling process with Rotawise. Fair, balanced, and easy to manage rotas." />
+    <meta name="twitter:title" content="Rotawise – Fair on-call rota generator for doctors" />
+    <meta
+      name="twitter:description"
+      content="Build fair, balanced on-call rotas for medical teams. Free, open source, works offline and keeps your data on your device."
+    />
     <meta name="twitter:image" content="https://rotawise.fasl.dev/screenshots/desktop.png" />
+    <meta name="twitter:image:alt" content="Rotawise calendar with a generated on-call rota" />
+
+    <!-- Structured data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Rotawise",
+        "url": "https://rotawise.fasl.dev/",
+        "description": "Build fair, balanced on-call rotas for medical teams: rest rules, unit coverage, holidays and manual edits. Works offline and keeps your data on your device.",
+        "applicationCategory": "BusinessApplication",
+        "applicationSubCategory": "Staff scheduling",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript. Auto-save to a file needs a Chromium-based browser.",
+        "inLanguage": ["en", "es"],
+        "isAccessibleForFree": true,
+        "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+        "codeRepository": "https://github.com/fasaled/rota-wise",
+        "screenshot": "https://rotawise.fasl.dev/screenshots/desktop.png",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+        "featureList": [
+          "Automatic, fair on-call rota generation",
+          "Minimum rest and post-call rules",
+          "Unit coverage with allied units",
+          "Holidays, free days and pre-assigned shifts",
+          "Manual edits with undo and redo",
+          "Word export",
+          "Works offline; data stays on the device"
+        ]
+      }
+    </script>
+
+    <style>
+      /* First paint, before the app bundle loads. Replaced when React mounts. */
+      .boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 24px;
+        text-align: center;
+        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      .dark .boot {
+        background: #0b1220;
+        color: #e2e8f0;
+      }
+      .boot h1 {
+        margin: 0;
+        font-size: 1.5rem;
+        letter-spacing: -0.02em;
+      }
+      .boot p {
+        margin: 0;
+        max-width: 34rem;
+        line-height: 1.5;
+        opacity: 0.75;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot">
+        <img src="/favicon.svg" alt="" width="56" height="56" />
+        <h1>Rotawise</h1>
+        <p>Fair, balanced on-call rotas for medical teams. Works offline; your data stays on your device.</p>
+        <noscript>
+          <p>
+            Rotawise needs JavaScript to run. Enable it in your browser and reload this page.<br />
+            Rotawise necesita JavaScript para funcionar. Actívalo en tu navegador y recarga la página.
+          </p>
+        </noscript>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
